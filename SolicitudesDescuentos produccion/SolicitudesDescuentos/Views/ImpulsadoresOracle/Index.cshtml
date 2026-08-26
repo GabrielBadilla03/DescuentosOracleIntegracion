@@ -1,0 +1,1119 @@
+@model SolicitudesDescuentos.ModelsOracle.ViewModels.Impulsadores.ImpulsadoresOracleIndexVm
+@using System.Globalization
+@using System.Linq
+
+@{
+    ViewData["Title"] = "Administrar impulsadores";
+
+    var cultura = CultureInfo.GetCultureInfo("es-CR");
+    var culturaInvariante = CultureInfo.InvariantCulture;
+
+    string clienteDesde = ViewBag.ClienteDesde as string ?? "";
+    string clienteDesdeNombre = ViewBag.ClienteDesdeNombre as string ?? "";
+    string clienteHasta = ViewBag.ClienteHasta as string ?? "";
+    string clienteHastaNombre = ViewBag.ClienteHastaNombre as string ?? "";
+    string empleadoDesde = ViewBag.EmpleadoDesde as string ?? "";
+    string empleadoDesdeNombre = ViewBag.EmpleadoDesdeNombre as string ?? "";
+    string empleadoHasta = ViewBag.EmpleadoHasta as string ?? "";
+    string empleadoHastaNombre = ViewBag.EmpleadoHastaNombre as string ?? "";
+    string agenteVenta = ViewBag.AgenteVenta as string ?? "";
+    string agenteVentaNombre = ViewBag.AgenteVentaNombre as string ?? "";
+    var agentesPorCliente =
+        ViewBag.AgentesPorCliente as Dictionary<string, string>
+        ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    string porcentajeTexto = ViewBag.PorcentajeTexto as string ?? "";
+}
+
+<div class="container-fluid py-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div>
+            <h2 class="mb-1">Administrar impulsadores</h2>
+            <div class="text-muted">
+                Unidad de negocio fija: <strong>LANCO_CR</strong>
+            </div>
+        </div>
+
+        <a asp-controller="ReportesCobros"
+           asp-action="ResumenCobrosAgente"
+           class="btn btn-outline-secondary">
+            Volver a reportes
+        </a>
+    </div>
+
+    <div id="mensajeAjax"></div>
+
+    @if (TempData["Exito"] is string exito)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @exito
+            <button type="button"
+                    class="btn-close"
+                    data-bs-dismiss="alert"
+                    aria-label="Cerrar"></button>
+        </div>
+    }
+
+    @if (TempData["Error"] is string error)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @error
+            <button type="button"
+                    class="btn-close"
+                    data-bs-dismiss="alert"
+                    aria-label="Cerrar"></button>
+        </div>
+    }
+
+    <form id="formToken" class="d-none">
+        @Html.AntiForgeryToken()
+    </form>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header">
+            <strong>Agregar impulsador</strong>
+        </div>
+
+        <div class="card-body">
+            <form asp-action="Guardar"
+                  asp-controller="ImpulsadoresOracle"
+                  method="post"
+                  id="formImpulsador">
+
+                <div asp-validation-summary="ModelOnly"
+                     class="alert alert-danger"></div>
+
+                <div class="row g-3 align-items-end">
+                    <div class="col-12 col-lg-5">
+                        <label class="form-label">Cliente SHIP_TO</label>
+
+                        <div class="input-group">
+                            <input asp-for="Edicion.Cliente"
+                                   id="Cliente"
+                                   class="form-control"
+                                   readonly
+                                   placeholder="Seleccione el cliente" />
+
+                            <button type="button"
+                                    id="btnBuscarCliente"
+                                    class="btn btn-outline-secondary btn-buscar-cliente"
+                                    data-codigo-target="Cliente"
+                                    data-nombre-target="NombreCliente"
+                                    data-titulo="Seleccionar cliente para agregar">
+                                Buscar
+                            </button>
+                        </div>
+
+                        <input asp-for="Edicion.NombreCliente"
+                               id="NombreCliente"
+                               class="form-control form-control-sm mt-1"
+                               readonly
+                               placeholder="Nombre del cliente" />
+                    </div>
+
+                    <div class="col-12 col-lg-5">
+                        <label class="form-label">Empleado</label>
+
+                        <div class="input-group">
+                            <input asp-for="Edicion.Empleado"
+                                   id="Empleado"
+                                   class="form-control"
+                                   readonly
+                                   placeholder="Seleccione el empleado" />
+
+                            <button type="button"
+                                    id="btnBuscarEmpleado"
+                                    class="btn btn-outline-secondary btn-buscar-empleado"
+                                    data-codigo-target="Empleado"
+                                    data-nombre-target="NombreEmpleado"
+                                    data-titulo="Seleccionar empleado para agregar">
+                                Buscar
+                            </button>
+                        </div>
+
+                        <input asp-for="Edicion.NombreEmpleado"
+                               id="NombreEmpleado"
+                               class="form-control form-control-sm mt-1"
+                               readonly
+                               placeholder="Nombre del empleado" />
+                    </div>
+
+                    <div class="col-12 col-sm-6 col-lg-2">
+                        <label for="Porcentaje" class="form-label">
+                            Porcentaje
+                        </label>
+
+                        <div class="input-group">
+                            <input id="Porcentaje"
+                                   name="porcentajeTexto"
+                                   type="number"
+                                   min="0"
+                                   max="100"
+                                   step="0.01"
+                                   inputmode="decimal"
+                                   value="@porcentajeTexto"
+                                   class="form-control"
+                                   required />
+
+                            <span class="input-group-text">%</span>
+                        </div>
+                    </div>
+
+                    <div class="col-12 d-flex justify-content-end">
+                        <button type="submit" class="btn btn-primary">
+                            Agregar
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <form asp-action="Index"
+                  asp-controller="ImpulsadoresOracle"
+                  method="get"
+                  class="row g-3 align-items-end">
+
+
+
+                <div class="col-12 col-md-6 col-xl-3">
+                    <label for="clienteDesde" class="form-label">
+                        Cliente desde
+                    </label>
+
+                    <div class="input-group">
+                        <input type="text"
+                               id="clienteDesde"
+                               name="clienteDesde"
+                               value="@clienteDesde"
+                               class="form-control"
+                               readonly
+                               placeholder="Seleccione el cliente inicial" />
+
+                        <button type="button"
+                                class="btn btn-outline-secondary btn-buscar-cliente"
+                                data-codigo-target="clienteDesde"
+                                data-nombre-target="clienteDesdeNombre"
+                                data-titulo="Seleccionar cliente desde">
+                            Buscar
+                        </button>
+
+                        <button type="button"
+                                class="btn btn-outline-secondary btn-limpiar-seleccion"
+                                data-codigo-target="clienteDesde"
+                                data-nombre-target="clienteDesdeNombre"
+                                title="Limpiar cliente desde"
+                                aria-label="Limpiar cliente desde">
+                            ×
+                        </button>
+                    </div>
+
+                    <input type="text"
+                           id="clienteDesdeNombre"
+                           value="@clienteDesdeNombre"
+                           class="form-control form-control-sm mt-1"
+                           readonly
+                           tabindex="-1"
+                           placeholder="Nombre del cliente seleccionado" />
+                </div>
+
+                <div class="col-12 col-md-6 col-xl-3">
+                    <label for="clienteHasta" class="form-label">
+                        Cliente hasta
+                    </label>
+
+                    <div class="input-group">
+                        <input type="text"
+                               id="clienteHasta"
+                               name="clienteHasta"
+                               value="@clienteHasta"
+                               class="form-control"
+                               readonly
+                               placeholder="Seleccione el cliente final" />
+
+                        <button type="button"
+                                class="btn btn-outline-secondary btn-buscar-cliente"
+                                data-codigo-target="clienteHasta"
+                                data-nombre-target="clienteHastaNombre"
+                                data-titulo="Seleccionar cliente hasta">
+                            Buscar
+                        </button>
+
+                        <button type="button"
+                                class="btn btn-outline-secondary btn-limpiar-seleccion"
+                                data-codigo-target="clienteHasta"
+                                data-nombre-target="clienteHastaNombre"
+                                title="Limpiar cliente hasta"
+                                aria-label="Limpiar cliente hasta">
+                            ×
+                        </button>
+                    </div>
+
+                    <input type="text"
+                           id="clienteHastaNombre"
+                           value="@clienteHastaNombre"
+                           class="form-control form-control-sm mt-1"
+                           readonly
+                           tabindex="-1"
+                           placeholder="Nombre del cliente seleccionado" />
+                </div>
+
+                <div class="col-12 col-md-6 col-xl-3">
+                    <label for="empleadoDesde" class="form-label">
+                        Empleado desde
+                    </label>
+
+                    <div class="input-group">
+                        <input type="text"
+                               id="empleadoDesde"
+                               name="empleadoDesde"
+                               value="@empleadoDesde"
+                               class="form-control"
+                               readonly
+                               placeholder="Seleccione el empleado inicial" />
+
+                        <button type="button"
+                                class="btn btn-outline-secondary btn-buscar-empleado"
+                                data-codigo-target="empleadoDesde"
+                                data-nombre-target="empleadoDesdeNombre"
+                                data-titulo="Seleccionar empleado desde">
+                            Buscar
+                        </button>
+
+                        <button type="button"
+                                class="btn btn-outline-secondary btn-limpiar-seleccion"
+                                data-codigo-target="empleadoDesde"
+                                data-nombre-target="empleadoDesdeNombre"
+                                title="Limpiar empleado desde"
+                                aria-label="Limpiar empleado desde">
+                            ×
+                        </button>
+                    </div>
+
+                    <input type="text"
+                           id="empleadoDesdeNombre"
+                           value="@empleadoDesdeNombre"
+                           class="form-control form-control-sm mt-1"
+                           readonly
+                           tabindex="-1"
+                           placeholder="Nombre del empleado seleccionado" />
+                </div>
+
+                <div class="col-12 col-md-6 col-xl-3">
+                    <label for="empleadoHasta" class="form-label">
+                        Empleado hasta
+                    </label>
+
+                    <div class="input-group">
+                        <input type="text"
+                               id="empleadoHasta"
+                               name="empleadoHasta"
+                               value="@empleadoHasta"
+                               class="form-control"
+                               readonly
+                               placeholder="Seleccione el empleado final" />
+
+                        <button type="button"
+                                class="btn btn-outline-secondary btn-buscar-empleado"
+                                data-codigo-target="empleadoHasta"
+                                data-nombre-target="empleadoHastaNombre"
+                                data-titulo="Seleccionar empleado hasta">
+                            Buscar
+                        </button>
+
+                        <button type="button"
+                                class="btn btn-outline-secondary btn-limpiar-seleccion"
+                                data-codigo-target="empleadoHasta"
+                                data-nombre-target="empleadoHastaNombre"
+                                title="Limpiar empleado hasta"
+                                aria-label="Limpiar empleado hasta">
+                            ×
+                        </button>
+                    </div>
+
+                    <input type="text"
+                           id="empleadoHastaNombre"
+                           value="@empleadoHastaNombre"
+                           class="form-control form-control-sm mt-1"
+                           readonly
+                           tabindex="-1"
+                           placeholder="Nombre del empleado seleccionado" />
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <label for="agenteVenta" class="form-label">
+                        Agente de venta
+                    </label>
+
+                    <div class="input-group">
+                        <input type="text"
+                               id="agenteVenta"
+                               name="agenteVenta"
+                               value="@agenteVenta"
+                               class="form-control"
+                               readonly
+                               placeholder="Seleccione un agente" />
+
+                        <button type="button"
+                                class="btn btn-outline-secondary btn-buscar-agente"
+                                data-codigo-target="agenteVenta"
+                                data-nombre-target="agenteVentaNombre">
+                            F9
+                        </button>
+
+                        <button type="button"
+                                class="btn btn-outline-secondary btn-limpiar-seleccion"
+                                data-codigo-target="agenteVenta"
+                                data-nombre-target="agenteVentaNombre"
+                                title="Limpiar agente"
+                                aria-label="Limpiar agente">
+                            ×
+                        </button>
+                    </div>
+
+                    <input type="text"
+                           id="agenteVentaNombre"
+                           value="@agenteVentaNombre"
+                           class="form-control form-control-sm mt-1"
+                           readonly
+                           tabindex="-1"
+                           placeholder="Nombre del agente seleccionado" />
+                </div>
+
+                <div class="col-12 d-flex flex-wrap justify-content-end gap-2">
+                    <a asp-action="Index"
+                       asp-controller="ImpulsadoresOracle"
+                       class="btn btn-outline-secondary">
+                        Limpiar filtros
+                    </a>
+
+                    <button type="submit" class="btn btn-outline-primary">
+                        Filtrar
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-sm align-middle mb-0"
+                       id="tablaImpulsadores">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Cliente</th>
+                            <th>Nombre del cliente</th>
+                            <th>Agente</th>
+                            <th>Empleado</th>
+                            <th>Nombre del empleado</th>
+                            <th style="min-width: 180px;">Porcentaje</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!Model.Registros.Any())
+                        {
+                            <tr id="filaSinRegistros">
+                                <td colspan="7"
+                                    class="text-center text-muted py-4">
+                                    No hay registros para mostrar.
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var fila in Model.Registros)
+                            {
+                                var valorPorcentaje = fila.Porcentaje.ToString(
+                                    "0.00",
+                                    culturaInvariante);
+
+                                agentesPorCliente.TryGetValue(
+                                    (fila.Cliente ?? "").Trim().ToUpperInvariant(),
+                                    out var agenteFila);
+
+                                <tr data-cliente="@fila.Cliente"
+                                    data-empleado="@fila.Empleado">
+                                    <td>
+                                        <strong>@fila.Cliente</strong>
+                                    </td>
+                                    <td>@fila.NombreCliente</td>
+                                    <td><strong>@(agenteFila ?? "")</strong></td>
+                                    <td>
+                                        <strong>@fila.Empleado</strong>
+                                    </td>
+                                    <td>@fila.NombreEmpleado</td>
+                                    <td>
+                                        <div class="input-group input-group-sm">
+                                            <input type="number"
+                                                   min="0"
+                                                   max="100"
+                                                   step="0.01"
+                                                   inputmode="decimal"
+                                                   value="@valorPorcentaje"
+                                                   data-valor-original="@valorPorcentaje"
+                                                   class="form-control porcentaje-fila"
+                                                   aria-label="Porcentaje de @fila.Empleado" />
+                                            <span class="input-group-text">%</span>
+                                        </div>
+                                        <small class="estado-guardado text-muted"></small>
+                                    </td>
+                                    <td class="text-end">
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-danger btn-eliminar"
+                                                data-cliente="@fila.Cliente"
+                                                data-empleado="@fila.Empleado"
+                                                data-nombre-empleado="@fila.NombreEmpleado">
+                                            Eliminar
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card-footer text-muted">
+            Registros mostrados:
+            <span id="cantidadRegistros">@Model.Registros.Count</span>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade"
+     id="modalClientes"
+     tabindex="-1"
+     aria-labelledby="modalClientesLabel"
+     aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalClientesLabel">
+                    Seleccionar cliente
+                </h5>
+                <button type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <input type="text"
+                       id="filtroCliente"
+                       class="form-control"
+                       autocomplete="off"
+                       placeholder="IDCLIENTE o nombre del cliente" />
+                <div id="resultadoClientes" class="mt-3"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade"
+     id="modalAgentes"
+     tabindex="-1"
+     aria-labelledby="modalAgentesLabel"
+     aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalAgentesLabel">
+                    Seleccionar agente de venta
+                </h5>
+                <button type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <input type="text"
+                       id="filtroAgente"
+                       class="form-control"
+                       autocomplete="off"
+                       placeholder="Código o nombre del vendedor" />
+                <div id="resultadoAgentes" class="mt-3"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade"
+     id="modalEmpleados"
+     tabindex="-1"
+     aria-labelledby="modalEmpleadosLabel"
+     aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalEmpleadosLabel">
+                    Seleccionar empleado
+                </h5>
+                <button type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <input type="text"
+                       id="filtroEmpleado"
+                       class="form-control"
+                       autocomplete="off"
+                       placeholder="Código o nombre del empleado" />
+                <div id="resultadoEmpleados" class="mt-3"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+
+    <script>
+        (() => {
+            const urlClientes =
+                '@Url.Action("BuscarClientes", "ImpulsadoresOracle")';
+
+            const urlEmpleados =
+                '@Url.Action("BuscarEmpleados", "ImpulsadoresOracle")';
+
+            const urlAgentes =
+                '@Url.Action("BuscarAgentes", "ImpulsadoresOracle")';
+
+            const urlActualizar =
+                '@Url.Action("ActualizarPorcentaje", "ImpulsadoresOracle")';
+
+            const urlEliminar =
+                '@Url.Action("EliminarAjax", "ImpulsadoresOracle")';
+
+            const token = document.querySelector(
+                '#formToken input[name="__RequestVerificationToken"]')?.value || '';
+
+            const modalClientes = new bootstrap.Modal(
+                document.getElementById('modalClientes'));
+
+            const modalEmpleados = new bootstrap.Modal(
+                document.getElementById('modalEmpleados'));
+
+            const modalAgentes = new bootstrap.Modal(
+                document.getElementById('modalAgentes'));
+
+            const modalClientesLabel =
+                document.getElementById('modalClientesLabel');
+
+            const modalEmpleadosLabel =
+                document.getElementById('modalEmpleadosLabel');
+
+            let clienteCodigoDestino = null;
+            let clienteNombreDestino = null;
+            let empleadoCodigoDestino = null;
+            let empleadoNombreDestino = null;
+
+            let agenteCodigoDestino = null;
+            let agenteNombreDestino = null;
+
+            const clienteInput = document.getElementById('Cliente');
+            const nombreClienteInput =
+                document.getElementById('NombreCliente');
+
+            const empleadoInput = document.getElementById('Empleado');
+            const nombreEmpleadoInput =
+                document.getElementById('NombreEmpleado');
+
+            const filtroCliente = document.getElementById('filtroCliente');
+            const filtroEmpleado = document.getElementById('filtroEmpleado');
+            const filtroAgente = document.getElementById('filtroAgente');
+            const resultadoClientes = document.getElementById('resultadoClientes');
+            const resultadoEmpleados = document.getElementById('resultadoEmpleados');
+            const resultadoAgentes = document.getElementById('resultadoAgentes');
+            const mensajeAjax = document.getElementById('mensajeAjax');
+            const cantidadRegistros = document.getElementById('cantidadRegistros');
+            const cuerpoTabla = document.querySelector('#tablaImpulsadores tbody');
+
+            let temporizadorCliente = null;
+            let temporizadorEmpleado = null;
+            let temporizadorAgente = null;
+
+            function escapeHtml(valor) {
+                return String(valor ?? '')
+                    .replaceAll('&', '&amp;')
+                    .replaceAll('<', '&lt;')
+                    .replaceAll('>', '&gt;')
+                    .replaceAll('"', '&quot;')
+                    .replaceAll("'", '&#039;');
+            }
+
+            function mostrarMensaje(texto, tipo = 'success') {
+                mensajeAjax.innerHTML = `
+                    <div class="alert alert-${tipo} alert-dismissible fade show" role="alert">
+                        ${escapeHtml(texto)}
+                        <button type="button"
+                                class="btn-close"
+                                data-bs-dismiss="alert"
+                                aria-label="Cerrar"></button>
+                    </div>`;
+            }
+
+            async function leerRespuesta(respuesta) {
+                let datos = null;
+
+                try {
+                    datos = await respuesta.json();
+                } catch {
+                    datos = null;
+                }
+
+                if (!respuesta.ok) {
+                    throw new Error(
+                        datos?.mensaje ||
+                        `La operación falló con HTTP ${respuesta.status}.`);
+                }
+
+                return datos;
+            }
+
+            async function cargarClientes() {
+                const texto = filtroCliente.value || '';
+
+                resultadoClientes.innerHTML =
+                    '<div class="alert alert-info mb-0">Buscando clientes...</div>';
+
+                try {
+                    const respuesta = await fetch(
+                        `${urlClientes}?filtro=${encodeURIComponent(texto)}`);
+
+                    const datos = await leerRespuesta(respuesta);
+
+                    if (!Array.isArray(datos) || datos.length === 0) {
+                        resultadoClientes.innerHTML =
+                            '<div class="alert alert-warning mb-0">No se encontraron clientes SHIP_TO.</div>';
+                        return;
+                    }
+
+                    let html = `
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>IDCLIENTE</th>
+                                        <th>Nombre</th>
+                                        <th class="text-end">Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody>`;
+
+                    datos.forEach(x => {
+                        html += `
+                            <tr>
+                                <td><strong>${escapeHtml(x.codigo)}</strong></td>
+                                <td class="text-end">
+                                    <button type="button"
+                                            class="btn btn-sm btn-primary seleccionar-cliente"
+                                            data-codigo="${escapeHtml(x.codigo)}"
+                                            data-nombre="${escapeHtml(x.nombre)}">
+                                        Seleccionar
+                                    </button>
+                                </td>
+                            </tr>`;
+                    });
+
+                    html += '</tbody></table></div>';
+                    resultadoClientes.innerHTML = html;
+                } catch (error) {
+                    console.error(error);
+                    resultadoClientes.innerHTML =
+                        `<div class="alert alert-danger mb-0">${escapeHtml(error.message)}</div>`;
+                }
+            }
+
+            async function cargarEmpleados() {
+                const texto = filtroEmpleado.value || '';
+
+                resultadoEmpleados.innerHTML =
+                    '<div class="alert alert-info mb-0">Buscando empleados...</div>';
+
+                try {
+                    const respuesta = await fetch(
+                        `${urlEmpleados}?filtro=${encodeURIComponent(texto)}`);
+
+                    const datos = await leerRespuesta(respuesta);
+
+                    if (!Array.isArray(datos) || datos.length === 0) {
+                        resultadoEmpleados.innerHTML =
+                            '<div class="alert alert-warning mb-0">No se encontraron empleados.</div>';
+                        return;
+                    }
+
+                    let html = `
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Empleado</th>
+                                        <th>Nombre</th>
+                                        <th class="text-end">Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody>`;
+
+                    datos.forEach(x => {
+                        html += `
+                            <tr>
+                                <td><strong>${escapeHtml(x.codigo)}</strong></td>
+                                <td class="text-end">
+                                    <button type="button"
+                                            class="btn btn-sm btn-primary seleccionar-empleado"
+                                            data-codigo="${escapeHtml(x.codigo)}"
+                                            data-nombre="${escapeHtml(x.nombre)}">
+                                        Seleccionar
+                                    </button>
+                                </td>
+                            </tr>`;
+                    });
+
+                    html += '</tbody></table></div>';
+                    resultadoEmpleados.innerHTML = html;
+                } catch (error) {
+                    console.error(error);
+                    resultadoEmpleados.innerHTML =
+                        `<div class="alert alert-danger mb-0">${escapeHtml(error.message)}</div>`;
+                }
+            }
+
+            async function cargarAgentes() {
+                const texto = filtroAgente.value || '';
+
+                resultadoAgentes.innerHTML =
+                    '<div class="alert alert-info mb-0">Buscando agentes...</div>';
+
+                try {
+                    const respuesta = await fetch(
+                        `${urlAgentes}?filtro=${encodeURIComponent(texto)}`);
+
+                    const datos = await leerRespuesta(respuesta);
+
+                    if (!Array.isArray(datos) || datos.length === 0) {
+                        resultadoAgentes.innerHTML =
+                            '<div class="alert alert-warning mb-0">No se encontraron agentes.</div>';
+                        return;
+                    }
+
+                    let html = `
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>ID del agente</th>
+                                        <th>Nombre</th>
+                                        <th>Categoría</th>
+                                        <th class="text-end">Acción</th>
+                                    </tr>
+                                </thead>
+                                <tbody>`;
+
+                    datos.forEach(x => {
+                        html += `
+                            <tr>
+                                <td><strong>${escapeHtml(x.codigo)}</strong></td>
+                                <td>${escapeHtml(x.nombre)}</td>
+                                <td>${escapeHtml(x.categoria)}</td>
+                                <td class="text-end">
+                                    <button type="button"
+                                            class="btn btn-sm btn-primary seleccionar-agente"
+                                            data-codigo="${escapeHtml(x.codigo)}"
+                                            data-nombre="${escapeHtml(x.nombre)}">
+                                        Seleccionar
+                                    </button>
+                                </td>
+                            </tr>`;
+                    });
+
+                    html += '</tbody></table></div>';
+                    resultadoAgentes.innerHTML = html;
+                } catch (error) {
+                    console.error(error);
+                    resultadoAgentes.innerHTML =
+                        `<div class="alert alert-danger mb-0">${escapeHtml(error.message)}</div>`;
+                }
+            }
+
+            async function guardarPorcentaje(input) {
+                const fila = input.closest('tr');
+                const estado = fila.querySelector('.estado-guardado');
+                const cliente = fila.dataset.cliente || '';
+                const empleado = fila.dataset.empleado || '';
+                const valorAnterior = input.dataset.valorOriginal || '0.00';
+                const porcentaje = Number(input.value);
+
+                if (!Number.isFinite(porcentaje) ||
+                    porcentaje < 0 ||
+                    porcentaje > 100) {
+                    input.value = valorAnterior;
+                    estado.textContent = 'Valor inválido';
+                    estado.className = 'estado-guardado text-danger';
+                    mostrarMensaje(
+                        'El porcentaje debe estar entre 0 y 100.',
+                        'danger');
+                    return;
+                }
+
+                input.disabled = true;
+                estado.textContent = 'Guardando...';
+                estado.className = 'estado-guardado text-muted';
+
+                try {
+                    const respuesta = await fetch(urlActualizar, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'RequestVerificationToken': token
+                        },
+                        body: JSON.stringify({
+                            cliente,
+                            empleado,
+                            porcentaje
+                        })
+                    });
+
+                    const datos = await leerRespuesta(respuesta);
+                    const valorGuardado =
+                        String(datos.porcentaje ?? porcentaje.toFixed(2));
+
+                    input.value = valorGuardado;
+                    input.dataset.valorOriginal = valorGuardado;
+                    estado.textContent = 'Guardado';
+                    estado.className = 'estado-guardado text-success';
+
+                    setTimeout(() => {
+                        if (estado.textContent === 'Guardado') {
+                            estado.textContent = '';
+                        }
+                    }, 1800);
+                } catch (error) {
+                    console.error(error);
+                    input.value = valorAnterior;
+                    estado.textContent = 'No guardado';
+                    estado.className = 'estado-guardado text-danger';
+                    mostrarMensaje(error.message, 'danger');
+                } finally {
+                    input.disabled = false;
+                }
+            }
+
+            async function eliminarFila(boton) {
+                const fila = boton.closest('tr');
+                const cliente = boton.dataset.cliente || '';
+                const empleado = boton.dataset.empleado || '';
+                const nombreEmpleado = boton.dataset.nombreEmpleado || empleado;
+
+                const confirmado = confirm(
+                    `Se eliminará el impulsador ${nombreEmpleado} (${empleado}) ` +
+                    `del cliente ${cliente}. ¿Desea continuar?`);
+
+                if (!confirmado) return;
+
+                boton.disabled = true;
+
+                try {
+                    const respuesta = await fetch(urlEliminar, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'RequestVerificationToken': token
+                        },
+                        body: JSON.stringify({ cliente, empleado })
+                    });
+
+                    const datos = await leerRespuesta(respuesta);
+                    fila.remove();
+
+                    const cantidadActual = Math.max(
+                        0,
+                        Number(cantidadRegistros.textContent || '0') - 1);
+
+                    cantidadRegistros.textContent = String(cantidadActual);
+                    mostrarMensaje(datos.mensaje || 'Registro eliminado.');
+
+                    if (cantidadActual === 0) {
+                        cuerpoTabla.innerHTML = `
+                            <tr id="filaSinRegistros">
+                                <td colspan="7"
+                                    class="text-center text-muted py-4">
+                                    No hay registros para mostrar.
+                                </td>
+                            </tr>`;
+                    }
+                } catch (error) {
+                    console.error(error);
+                    boton.disabled = false;
+                    mostrarMensaje(error.message, 'danger');
+                }
+            }
+
+            function abrirBuscadorCliente(boton) {
+                clienteCodigoDestino = document.getElementById(
+                    boton.dataset.codigoTarget || '');
+
+                clienteNombreDestino = document.getElementById(
+                    boton.dataset.nombreTarget || '');
+
+                if (!clienteCodigoDestino) {
+                    mostrarMensaje(
+                        'No se encontró el campo donde se seleccionará el cliente.',
+                        'danger');
+                    return;
+                }
+
+                modalClientesLabel.textContent =
+                    boton.dataset.titulo || 'Seleccionar cliente';
+
+                filtroCliente.value = '';
+                resultadoClientes.innerHTML = '';
+                modalClientes.show();
+                cargarClientes();
+
+                setTimeout(() => filtroCliente.focus(), 250);
+            }
+
+            function abrirBuscadorEmpleado(boton) {
+                empleadoCodigoDestino = document.getElementById(
+                    boton.dataset.codigoTarget || '');
+
+                empleadoNombreDestino = document.getElementById(
+                    boton.dataset.nombreTarget || '');
+
+                if (!empleadoCodigoDestino) {
+                    mostrarMensaje(
+                        'No se encontró el campo donde se seleccionará el empleado.',
+                        'danger');
+                    return;
+                }
+
+                modalEmpleadosLabel.textContent =
+                    boton.dataset.titulo || 'Seleccionar empleado';
+
+                filtroEmpleado.value = '';
+                resultadoEmpleados.innerHTML = '';
+                modalEmpleados.show();
+                cargarEmpleados();
+
+                setTimeout(() => filtroEmpleado.focus(), 250);
+            }
+
+            function abrirBuscadorAgente(boton) {
+                agenteCodigoDestino = document.getElementById(
+                    boton.dataset.codigoTarget || '');
+
+                agenteNombreDestino = document.getElementById(
+                    boton.dataset.nombreTarget || '');
+
+                if (!agenteCodigoDestino) {
+                    mostrarMensaje(
+                        'No se encontró el campo donde se seleccionará el agente.',
+                        'danger');
+                    return;
+                }
+
+                filtroAgente.value = '';
+                resultadoAgentes.innerHTML = '';
+                modalAgentes.show();
+                cargarAgentes();
+
+                setTimeout(() => filtroAgente.focus(), 250);
+            }
+
+            document.querySelectorAll('.btn-buscar-cliente').forEach(boton => {
+                boton.addEventListener('click', () => abrirBuscadorCliente(boton));
+            });
+
+            document.querySelectorAll('.btn-buscar-empleado').forEach(boton => {
+                boton.addEventListener('click', () => abrirBuscadorEmpleado(boton));
+            });
+
+            document.querySelectorAll('.btn-buscar-agente').forEach(boton => {
+                boton.addEventListener('click', () => abrirBuscadorAgente(boton));
+            });
+
+            document.querySelectorAll('.btn-limpiar-seleccion').forEach(boton => {
+                boton.addEventListener('click', () => {
+                    const codigoInput = document.getElementById(
+                        boton.dataset.codigoTarget || '');
+
+                    const nombreInput = document.getElementById(
+                        boton.dataset.nombreTarget || '');
+
+                    if (codigoInput) codigoInput.value = '';
+                    if (nombreInput) nombreInput.value = '';
+                });
+            });
+
+            filtroCliente.addEventListener('input', () => {
+                clearTimeout(temporizadorCliente);
+                temporizadorCliente = setTimeout(cargarClientes, 350);
+            });
+
+            filtroEmpleado.addEventListener('input', () => {
+                clearTimeout(temporizadorEmpleado);
+                temporizadorEmpleado = setTimeout(cargarEmpleados, 350);
+            });
+
+            filtroAgente.addEventListener('input', () => {
+                clearTimeout(temporizadorAgente);
+                temporizadorAgente = setTimeout(cargarAgentes, 350);
+            });
+
+            resultadoAgentes.addEventListener('click', evento => {
+                const boton = evento.target.closest('.seleccionar-agente');
+                if (!boton || !agenteCodigoDestino) return;
+
+                agenteCodigoDestino.value = boton.dataset.codigo || '';
+
+                if (agenteNombreDestino) {
+                    agenteNombreDestino.value = boton.dataset.nombre || '';
+                }
+
+                modalAgentes.hide();
+            });
+
+            resultadoClientes.addEventListener('click', evento => {
+                const boton = evento.target.closest('.seleccionar-cliente');
+                if (!boton || !clienteCodigoDestino) return;
+
+                clienteCodigoDestino.value = boton.dataset.codigo || '';
+
+                if (clienteNombreDestino) {
+                    clienteNombreDestino.value = boton.dataset.nombre || '';
+                }
+
+                modalClientes.hide();
+            });
+
+            resultadoEmpleados.addEventListener('click', evento => {
+                const boton = evento.target.closest('.seleccionar-empleado');
+                if (!boton || !empleadoCodigoDestino) return;
+
+                empleadoCodigoDestino.value = boton.dataset.codigo || '';
+
+                if (empleadoNombreDestino) {
+                    empleadoNombreDestino.value = boton.dataset.nombre || '';
+                }
+
+                modalEmpleados.hide();
+            });
+
+            document.querySelectorAll('.porcentaje-fila').forEach(input => {
+                input.addEventListener('change', () => guardarPorcentaje(input));
+
+                input.addEventListener('keydown', evento => {
+                    if (evento.key === 'Enter') {
+                        evento.preventDefault();
+                        input.blur();
+                    }
+                });
+            });
+
+            document.querySelectorAll('.btn-eliminar').forEach(boton => {
+                boton.addEventListener('click', () => eliminarFila(boton));
+            });
+        })();
+    </script>
+}

@@ -1,0 +1,857 @@
+﻿@model SolicitudesDescuentos.ModelsOracle.ViewModels.Reportes.ResumenCobrosAgentePageVm
+@using System.Globalization
+
+@{
+    ViewData["Title"] = "Cálculo de Comisiones";
+
+    var fechaBase = Model.Filtro.FechaDesde ?? DateTime.Today;
+
+    var anoFiscalValue =
+        int.TryParse(Context.Request.Query["AnoFiscal"], out var anoFiscalQuery)
+            ? anoFiscalQuery
+            : fechaBase.Year;
+
+    var periodoValue =
+        int.TryParse(Context.Request.Query["Periodo"], out var periodoQuery)
+            ? periodoQuery
+            : fechaBase.Month;
+
+    var tipoCambioValue =
+        Model.Filtro.TipoCambio.ToString(
+            "0.##",
+            CultureInfo.InvariantCulture);
+
+    var monedaValue =
+        string.IsNullOrWhiteSpace(Model.Filtro.Moneda)
+            ? "CRC"
+            : Model.Filtro.Moneda.Trim().ToUpperInvariant();
+
+    var monedaBaseValue =
+        string.IsNullOrWhiteSpace(Context.Request.Query["MonedaBase"].ToString())
+            ? "CRC"
+            : Context.Request.Query["MonedaBase"].ToString().Trim().ToUpperInvariant();
+
+    var tipoChkDev1Value =
+        string.IsNullOrWhiteSpace(Context.Request.Query["TipoChkDev1"].ToString())
+            ? "CHD"
+            : Context.Request.Query["TipoChkDev1"].ToString().Trim().ToUpperInvariant();
+
+    var tipoChkDev2Value =
+        string.IsNullOrWhiteSpace(Context.Request.Query["TipoChkDev2"].ToString())
+            ? "CH2"
+            : Context.Request.Query["TipoChkDev2"].ToString().Trim().ToUpperInvariant();
+
+    var tipoDescuentoValue =
+        string.IsNullOrWhiteSpace(Context.Request.Query["TipoDescuento"].ToString())
+            ? "NCD"
+            : Context.Request.Query["TipoDescuento"].ToString().Trim().ToUpperInvariant();
+
+    var porcentajeImpuestoValue =
+        string.IsNullOrWhiteSpace(Context.Request.Query["PorcentajeImpuesto"].ToString())
+            ? "13"
+            : Context.Request.Query["PorcentajeImpuesto"].ToString().Trim();
+
+    var aplicarImpuestoValue =
+        string.Equals(
+            Context.Request.Query["AplicarImpuesto"].ToString(),
+            "N",
+            StringComparison.OrdinalIgnoreCase)
+                ? "N"
+                : "S";
+
+    var idPeriodoPlanillaValue =
+        Context.Request.Query["IdPeriodoPlanilla"].ToString();
+}
+
+<h2 class="text-center mb-4">Cálculo de Comisiones</h2>
+
+@if (TempData["NaviusOk"] is string mensajeNaviusOk)
+{
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        @mensajeNaviusOk
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+    </div>
+}
+
+@if (TempData["NaviusError"] is string mensajeNaviusError)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @mensajeNaviusError
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+    </div>
+}
+
+<form asp-controller="ReportesCobros"
+      method="get"
+      class="mb-4"
+      id="formReporteCobros">
+
+    @Html.AntiForgeryToken()
+
+    <input type="hidden"
+           id="BuNombre"
+           name="BuNombre"
+           value="LANCO_CR" />
+
+    <div class="card shadow-sm mx-auto" style="max-width: 1180px;">
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+
+                <div class="col-12 col-lg-4">
+                    <label class="form-label">Tipo de reporte</label>
+                    <select id="TipoReporte" class="form-select">
+                        <option value="R">Resumen Cobros Por Agente</option>
+                        <option value="A">Cobros Diarios por Agente</option>
+                        <option value="D">Detalle Cobros Por Agente y Comisión</option>
+                        <option value="C">Comisiones X Agente X Cliente</option>
+                        <option value="I">Comisiones por Impulsador y Agente</option>
+                    </select>
+                </div>
+
+                <div class="col-6 col-md-3 col-lg-2">
+                    <label class="form-label">Moneda reporte</label>
+                    <select id="Moneda"
+                            name="Moneda"
+                            class="form-select">
+                        @if (monedaValue == "USD")
+                        {
+                            <option value="CRC">CRC</option>
+                            <option value="USD" selected>USD</option>
+                        }
+                        else
+                        {
+                            <option value="CRC" selected>CRC</option>
+                            <option value="USD">USD</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="col-6 col-md-3 col-lg-2">
+                    <label class="form-label">Moneda base</label>
+                    <select id="MonedaBase"
+                            name="MonedaBase"
+                            class="form-select">
+                        @if (monedaBaseValue == "USD")
+                        {
+                            <option value="CRC">CRC</option>
+                            <option value="USD" selected>USD</option>
+                        }
+                        else
+                        {
+                            <option value="CRC" selected>CRC</option>
+                            <option value="USD">USD</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="col-6 col-md-3 col-lg-2">
+                    <label class="form-label">Año fiscal</label>
+                    <input type="number"
+                           id="AnoFiscal"
+                           name="AnoFiscal"
+                           min="2000"
+                           max="2100"
+                           class="form-control"
+                           value="@anoFiscalValue" />
+                </div>
+
+                <div class="col-6 col-md-3 col-lg-2">
+                    <label class="form-label">Periodo</label>
+                    <select id="Periodo"
+                            name="Periodo"
+                            class="form-select">
+                        @for (var mes = 1; mes <= 12; mes++)
+                        {
+                            if (mes == periodoValue)
+                            {
+                                <option value="@mes" selected>@mes</option>
+                            }
+                            else
+                            {
+                                <option value="@mes">@mes</option>
+                            }
+                        }
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-3 col-lg-2">
+                    <label class="form-label">ID período planilla</label>
+                    <input type="number"
+                           id="IdPeriodoPlanilla"
+                           name="IdPeriodoPlanilla"
+                           min="1"
+                           max="999999"
+                           step="1"
+                           class="form-control"
+                           value="@idPeriodoPlanillaValue"
+                           placeholder="Ej. 202608" />
+                    <div class="form-text">
+                        Independiente del período del reporte.
+                    </div>
+                </div>
+
+                <div class="col-12 col-md-4">
+                    <label class="form-label">Fecha inicial</label>
+                    <input type="date"
+                           id="FechaDesde"
+                           name="FechaDesde"
+                           class="form-control"
+                           value="@Model.Filtro.FechaDesde?.ToString("yyyy-MM-dd")"
+                           readonly />
+                </div>
+
+                <div class="col-12 col-md-4">
+                    <label class="form-label">Fecha final</label>
+                    <input type="date"
+                           id="FechaHasta"
+                           name="FechaHasta"
+                           class="form-control"
+                           value="@Model.Filtro.FechaHasta?.ToString("yyyy-MM-dd")"
+                           readonly />
+                </div>
+
+                <div class="col-12 col-md-4">
+                    <label class="form-label">Tipo cambio</label>
+                    <input type="number"
+                           step="0.0001"
+                           min="0.0001"
+                           id="TipoCambio"
+                           name="TipoCambio"
+                           class="form-control"
+                           value="@tipoCambioValue" />
+                </div>
+
+                <div class="col-12 col-md-3">
+                    <label class="form-label">Chk. Dev. 1</label>
+                    <input type="text"
+                           id="TipoChkDev1"
+                           name="TipoChkDev1"
+                           maxlength="30"
+                           class="form-control text-uppercase"
+                           value="@tipoChkDev1Value" />
+                </div>
+
+                <div class="col-12 col-md-3">
+                    <label class="form-label">Chk. Dev. 2</label>
+                    <input type="text"
+                           id="TipoChkDev2"
+                           name="TipoChkDev2"
+                           maxlength="30"
+                           class="form-control text-uppercase"
+                           value="@tipoChkDev2Value" />
+                </div>
+
+                <div class="col-12 col-md-3">
+                    <label class="form-label">Descuento</label>
+                    <input type="text"
+                           id="TipoDescuento"
+                           name="TipoDescuento"
+                           maxlength="30"
+                           class="form-control text-uppercase"
+                           value="@tipoDescuentoValue" />
+                </div>
+
+                <div class="col-6 col-md-2">
+                    <label class="form-label">% impuesto</label>
+                    <input type="number"
+                           id="PorcentajeImpuesto"
+                           name="PorcentajeImpuesto"
+                           min="0"
+                           step="0.01"
+                           class="form-control"
+                           value="@porcentajeImpuestoValue" />
+                </div>
+
+                <div class="col-6 col-md-1">
+                    <label class="form-label">Impuesto</label>
+                    <select id="AplicarImpuesto"
+                            name="AplicarImpuesto"
+                            class="form-select">
+                        @if (aplicarImpuestoValue == "N")
+                        {
+                            <option value="S">Sí</option>
+                            <option value="N" selected>No</option>
+                        }
+                        else
+                        {
+                            <option value="S" selected>Sí</option>
+                            <option value="N">No</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-6">
+                    <label class="form-label">Grupo agente</label>
+                    <select name="GrupoAgente" class="form-select">
+                        <option value="">Todos</option>
+
+                        @foreach (var grupo in Model.GruposAgente)
+                        {
+                            if (Model.Filtro.GrupoAgente == grupo)
+                            {
+                                <option value="@grupo" selected>@grupo</option>
+                            }
+                            else
+                            {
+                                <option value="@grupo">@grupo</option>
+                            }
+                        }
+                    </select>
+                </div>
+
+                <div class="col-12">
+                    <div class="alert alert-info py-2 mb-0">
+                        La primera vez que se genera un reporte se preparan los datos
+                        de agentes e impulsadores. Si después solamente cambia el tipo
+                        de reporte o el formato PDF/Excel, se reutiliza el cálculo
+                        anterior. El proceso se ejecuta nuevamente cuando cambia algún
+                        otro parámetro del formulario.
+                    </div>
+                </div>
+
+                <div class="col-12 col-md-3">
+                    <label class="form-label">Cliente desde (ID cliente)</label>
+                    <div class="input-group">
+                        <input type="text"
+                               id="ClienteDesde"
+                               name="ClienteDesde"
+                               class="form-control lookup-cliente"
+                               value="@Model.Filtro.ClienteDesde"
+                               autocomplete="off"
+                               placeholder="F9 para buscar ID cliente" />
+                        <button type="button"
+                                class="btn btn-outline-secondary btn-buscar-cliente"
+                                data-target="ClienteDesde">
+                            F9
+                        </button>
+                    </div>
+                    <input type="text" id="ClienteDesdeNombre" class="form-control form-control-sm mt-1" readonly />
+                </div>
+
+                <div class="col-12 col-md-3">
+                    <label class="form-label">Cliente hasta (ID cliente)</label>
+                    <div class="input-group">
+                        <input type="text"
+                               id="ClienteHasta"
+                               name="ClienteHasta"
+                               class="form-control lookup-cliente"
+                               value="@Model.Filtro.ClienteHasta"
+                               autocomplete="off"
+                               placeholder="F9 para buscar ID cliente" />
+                        <button type="button"
+                                class="btn btn-outline-secondary btn-buscar-cliente"
+                                data-target="ClienteHasta">
+                            F9
+                        </button>
+                    </div>
+                    <input type="text" id="ClienteHastaNombre" class="form-control form-control-sm mt-1" readonly />
+                </div>
+
+                <div class="col-12 col-md-3">
+                    <label class="form-label">Vendedor desde</label>
+                    <div class="input-group">
+                        <input type="text"
+                               id="VendedorDesde"
+                               name="VendedorDesde"
+                               class="form-control lookup-vendedor"
+                               value="@Model.Filtro.VendedorDesde"
+                               autocomplete="off"
+                               placeholder="F9 para buscar" />
+                        <button type="button"
+                                class="btn btn-outline-secondary btn-buscar-vendedor"
+                                data-target="VendedorDesde">
+                            F9
+                        </button>
+                    </div>
+                    <input type="text" id="VendedorDesdeNombre" class="form-control form-control-sm mt-1" readonly />
+                </div>
+
+                <div class="col-12 col-md-3">
+                    <label class="form-label">Vendedor hasta</label>
+                    <div class="input-group">
+                        <input type="text"
+                               id="VendedorHasta"
+                               name="VendedorHasta"
+                               class="form-control lookup-vendedor"
+                               value="@Model.Filtro.VendedorHasta"
+                               autocomplete="off"
+                               placeholder="F9 para buscar" />
+                        <button type="button"
+                                class="btn btn-outline-secondary btn-buscar-vendedor"
+                                data-target="VendedorHasta">
+                            F9
+                        </button>
+                    </div>
+                    <input type="text" id="VendedorHastaNombre" class="form-control form-control-sm mt-1" readonly />
+                </div>
+
+                <div class="col-12 d-flex flex-wrap gap-2 justify-content-center mt-4">
+                    <button type="submit"
+                            id="btnDescargarPdf"
+                            formtarget="_blank"
+                            class="btn btn-primary">
+                        Descargar PDF
+                    </button>
+
+                    <button type="submit"
+                            id="btnDescargarExcel"
+                            formtarget="_blank"
+                            class="btn btn-success">
+                        Descargar Excel
+                    </button>
+
+                    <button type="submit"
+                            id="btnActualizarNavius"
+                            formaction="@Url.Action("ActualizarNavius", "ReportesCobros")"
+                            formmethod="post"
+                            formtarget="_self"
+                            class="btn btn-danger">
+                        Actualizar Navius y planilla
+                    </button>
+
+                    <a asp-controller="ImpulsadoresOracle"
+                       asp-action="Index"
+                       class="btn btn-warning">
+                        Administrar impulsadores
+                    </a>
+
+                    <a asp-controller="Predescuentos"
+                       asp-action="Index"
+                       class="btn btn-outline-secondary">
+                        Volver
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+@* Modal vendedores *@
+<div class="modal fade" id="modalVendedores" tabindex="-1" aria-labelledby="modalVendedoresLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content shadow">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalVendedoresLabel">Buscar vendedor</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+
+            <div class="modal-body">
+                <label class="form-label">Filtrar por código o nombre</label>
+                <input type="text"
+                       id="txtFiltroVendedor"
+                       class="form-control"
+                       autocomplete="off"
+                       placeholder="Código o nombre del vendedor" />
+
+                <div id="resultadoVendedores" class="mt-3">
+                    <div class="alert alert-info mb-0">Presioná F9 o escribí para buscar vendedores.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* Modal clientes *@
+<div class="modal fade" id="modalClientes" tabindex="-1" aria-labelledby="modalClientesLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content shadow">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalClientesLabel">Buscar cliente</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+
+            <div class="modal-body">
+                <label class="form-label">Filtrar por ID cliente o nombre</label>
+                <input type="text"
+                       id="txtFiltroCliente"
+                       class="form-control"
+                       autocomplete="off"
+                       placeholder="ID cliente o nombre del cliente" />
+
+                <div id="resultadoClientes" class="mt-3">
+                    <div class="alert alert-info mb-0">Presioná F9 o escribí para buscar clientes.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (() => {
+            const urlVendedores = '@Url.Action("BuscarVendedores", "ReportesCobros")';
+            const urlClientes = '@Url.Action("BuscarClientes", "ReportesCobros")';
+
+            const urlResumenPdf = '@Url.Action("ResumenCobrosAgentePdf", "ReportesCobros")';
+            const urlResumenExcel = '@Url.Action("ResumenCobrosAgenteExcel", "ReportesCobros")';
+            const urlCobrosDiariosPdf = '@Url.Action("CobrosDiariosAgentePdf", "ReportesCobros")';
+            const urlCobrosDiariosExcel = '@Url.Action("CobrosDiariosAgenteExcel", "ReportesCobros")';
+            const urlDetallePdf = '@Url.Action("DetalleCobrosAgentePdf", "ReportesCobros")';
+            const urlDetalleExcel = '@Url.Action("DetalleCobrosAgenteExcel", "ReportesCobros")';
+            const urlComisionesClientePdf = '@Url.Action("ComisionesAgenteClientePdf", "ReportesCobros")';
+            const urlComisionesClienteExcel = '@Url.Action("ComisionesAgenteClienteExcel", "ReportesCobros")';
+            const urlImpulsadorPdf = '@Url.Action("ComisionesImpulsadorPdf", "ReportesCobros")';
+            const urlImpulsadorExcel = '@Url.Action("ComisionesImpulsadorExcel", "ReportesCobros")';
+
+            const tipoReporte = document.getElementById('TipoReporte');
+            const btnPdf = document.getElementById('btnDescargarPdf');
+            const btnExcel = document.getElementById('btnDescargarExcel');
+            const btnActualizarNavius = document.getElementById('btnActualizarNavius');
+            const idPeriodoPlanillaInput = document.getElementById('IdPeriodoPlanilla');
+
+            function actualizarAccionesReporte() {
+                const tipo = tipoReporte.value;
+
+                if (tipo === 'A') {
+                    btnPdf.setAttribute('formaction', urlCobrosDiariosPdf);
+                    btnExcel.setAttribute('formaction', urlCobrosDiariosExcel);
+                } else if (tipo === 'D') {
+                    btnPdf.setAttribute('formaction', urlDetallePdf);
+                    btnExcel.setAttribute('formaction', urlDetalleExcel);
+                } else if (tipo === 'C') {
+                    btnPdf.setAttribute('formaction', urlComisionesClientePdf);
+                    btnExcel.setAttribute('formaction', urlComisionesClienteExcel);
+                } else if (tipo === 'I') {
+                    btnPdf.setAttribute('formaction', urlImpulsadorPdf);
+                    btnExcel.setAttribute('formaction', urlImpulsadorExcel);
+                } else {
+                    btnPdf.setAttribute('formaction', urlResumenPdf);
+                    btnExcel.setAttribute('formaction', urlResumenExcel);
+                }
+            }
+
+            tipoReporte.addEventListener('change', actualizarAccionesReporte);
+            actualizarAccionesReporte();
+
+            const anoFiscalInput = document.getElementById('AnoFiscal');
+            const periodoInput = document.getElementById('Periodo');
+            const fechaDesdeInput = document.getElementById('FechaDesde');
+            const fechaHastaInput = document.getElementById('FechaHasta');
+            const formReporte = document.getElementById('formReporteCobros');
+
+            function formatearFechaIso(fecha) {
+                const year = fecha.getFullYear();
+                const month = String(fecha.getMonth() + 1).padStart(2, '0');
+                const day = String(fecha.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+
+            function actualizarFechasPeriodo() {
+                const ano = Number(anoFiscalInput.value);
+                const periodo = Number(periodoInput.value);
+
+                if (!Number.isInteger(ano) ||
+                    ano < 2000 ||
+                    !Number.isInteger(periodo) ||
+                    periodo < 1 ||
+                    periodo > 12) {
+                    return;
+                }
+
+                const inicial = new Date(ano, periodo - 1, 1);
+                const final = new Date(ano, periodo, 0);
+
+                fechaDesdeInput.value = formatearFechaIso(inicial);
+                fechaHastaInput.value = formatearFechaIso(final);
+            }
+
+            anoFiscalInput.addEventListener('change', actualizarFechasPeriodo);
+            periodoInput.addEventListener('change', actualizarFechasPeriodo);
+            actualizarFechasPeriodo();
+
+            formReporte.addEventListener('submit', ev => {
+                const submitter = ev.submitter;
+
+                if (submitter === btnActualizarNavius) {
+                    const idPeriodoPlanilla =
+                        Number(idPeriodoPlanillaInput.value);
+
+                    if (!Number.isInteger(idPeriodoPlanilla) ||
+                        idPeriodoPlanilla <= 0 ||
+                        idPeriodoPlanilla > 999999) {
+                        ev.preventDefault();
+                        idPeriodoPlanillaInput.focus();
+                        alert('Digite un ID de período de planilla válido.');
+                        return;
+                    }
+
+                    const continuar = window.confirm(
+                        `Se reemplazarán las tablas de cobros de Navius con ` +
+                        `el año ${anoFiscalInput.value}, período ` +
+                        `${periodoInput.value}, y se actualizará la planilla ` +
+                        `${idPeriodoPlanilla}. ¿Desea continuar?`);
+
+                    if (!continuar) {
+                        ev.preventDefault();
+                        return;
+                    }
+
+                    btnPdf.disabled = true;
+                    btnExcel.disabled = true;
+                    btnActualizarNavius.disabled = true;
+                    btnActualizarNavius.textContent =
+                        'Actualizando Navius...';
+
+                    return;
+                }
+
+                btnPdf.disabled = true;
+                btnExcel.disabled = true;
+
+                window.setTimeout(() => {
+                    btnPdf.disabled = false;
+                    btnExcel.disabled = false;
+                }, 2500);
+            });
+
+            const buInput = document.getElementById('BuNombre');
+
+            let targetVendedor = null;
+            let targetCliente = null;
+
+            const modalVendedoresEl = document.getElementById('modalVendedores');
+            const modalClientesEl = document.getElementById('modalClientes');
+
+            const modalVendedores = new bootstrap.Modal(modalVendedoresEl);
+            const modalClientes = new bootstrap.Modal(modalClientesEl);
+
+            const txtFiltroVendedor = document.getElementById('txtFiltroVendedor');
+            const txtFiltroCliente = document.getElementById('txtFiltroCliente');
+
+            const resultadoVendedores = document.getElementById('resultadoVendedores');
+            const resultadoClientes = document.getElementById('resultadoClientes');
+
+            let timerVendedor = null;
+            let timerCliente = null;
+
+            function escapeHtml(value) {
+                return String(value ?? '')
+                    .replaceAll('&', '&amp;')
+                    .replaceAll('<', '&lt;')
+                    .replaceAll('>', '&gt;')
+                    .replaceAll('"', '&quot;')
+                    .replaceAll("'", '&#039;');
+            }
+
+            function getBu() {
+                return (buInput?.value || 'LANCO_CR').trim();
+            }
+
+            function abrirModalVendedor(targetId) {
+                targetVendedor = targetId;
+                txtFiltroVendedor.value = '';
+                resultadoVendedores.innerHTML = '<div class="alert alert-info mb-0">Buscando vendedores...</div>';
+                modalVendedores.show();
+                buscarVendedores();
+
+                setTimeout(() => txtFiltroVendedor.focus(), 250);
+            }
+
+            function abrirModalCliente(targetId) {
+                targetCliente = targetId;
+                txtFiltroCliente.value = '';
+                resultadoClientes.innerHTML = '<div class="alert alert-info mb-0">Buscando clientes...</div>';
+                modalClientes.show();
+                buscarClientes();
+
+                setTimeout(() => txtFiltroCliente.focus(), 250);
+            }
+
+            async function buscarVendedores() {
+                const filtro = txtFiltroVendedor.value || '';
+                const url = `${urlVendedores}?buNombre=${encodeURIComponent(getBu())}&filtro=${encodeURIComponent(filtro)}`;
+
+                try {
+                    resultadoVendedores.innerHTML = '<div class="alert alert-info mb-0">Buscando vendedores...</div>';
+
+                    const res = await fetch(url, {
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    });
+
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+
+                    const data = await res.json();
+                    renderVendedores(data);
+                } catch (e) {
+                    console.error(e);
+                    resultadoVendedores.innerHTML = '<div class="alert alert-danger mb-0">Error al buscar vendedores.</div>';
+                }
+            }
+
+            async function buscarClientes() {
+                const filtro = txtFiltroCliente.value || '';
+                const url = `${urlClientes}?buNombre=${encodeURIComponent(getBu())}&filtro=${encodeURIComponent(filtro)}`;
+
+                try {
+                    resultadoClientes.innerHTML = '<div class="alert alert-info mb-0">Buscando clientes...</div>';
+
+                    const res = await fetch(url, {
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    });
+
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+
+                    const data = await res.json();
+                    renderClientes(data);
+                } catch (e) {
+                    console.error(e);
+                    resultadoClientes.innerHTML = '<div class="alert alert-danger mb-0">Error al buscar clientes.</div>';
+                }
+            }
+
+            function renderVendedores(data) {
+                if (!Array.isArray(data) || data.length === 0) {
+                    resultadoVendedores.innerHTML = '<div class="alert alert-warning mb-0">No se encontraron vendedores.</div>';
+                    return;
+                }
+
+                let html = `
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Código</th>
+                                    <th>Nombre</th>
+                                    <th>Categoría</th>
+                                    <th class="text-end">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody>`;
+
+                data.forEach(x => {
+                    html += `
+                        <tr>
+                            <td><strong>${escapeHtml(x.codigo)}</strong></td>
+                            <td>${escapeHtml(x.nombre)}</td>
+                            <td>${escapeHtml(x.categoria)}</td>
+                            <td class="text-end">
+                                <button type="button"
+                                        class="btn btn-sm btn-danger seleccionar-vendedor"
+                                        data-codigo="${escapeHtml(x.codigo)}"
+                                        data-nombre="${escapeHtml(x.nombre)}">
+                                    Seleccionar
+                                </button>
+                            </td>
+                        </tr>`;
+                });
+
+                html += `
+                            </tbody>
+                        </table>
+                    </div>`;
+
+                resultadoVendedores.innerHTML = html;
+            }
+
+            function renderClientes(data) {
+                if (!Array.isArray(data) || data.length === 0) {
+                    resultadoClientes.innerHTML = '<div class="alert alert-warning mb-0">No se encontraron clientes.</div>';
+                    return;
+                }
+
+                let html = `
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>ID cliente</th>
+                                    <th>Nombre</th>
+                                    <th class="text-end">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody>`;
+
+                data.forEach(x => {
+                    html += `
+                        <tr>
+                            <td><strong>${escapeHtml(x.codigo)}</strong></td>
+                            <td>${escapeHtml(x.nombre)}</td>
+                            <td class="text-end">
+                                <button type="button"
+                                        class="btn btn-sm btn-danger seleccionar-cliente"
+                                        data-codigo="${escapeHtml(x.codigo)}"
+                                        data-nombre="${escapeHtml(x.nombre)}">
+                                    Seleccionar
+                                </button>
+                            </td>
+                        </tr>`;
+                });
+
+                html += `
+                            </tbody>
+                        </table>
+                    </div>`;
+
+                resultadoClientes.innerHTML = html;
+            }
+
+            document.querySelectorAll('.lookup-vendedor').forEach(input => {
+                input.addEventListener('keydown', ev => {
+                    if (ev.key === 'F9') {
+                        ev.preventDefault();
+                        abrirModalVendedor(input.id);
+                    }
+                });
+            });
+
+            document.querySelectorAll('.lookup-cliente').forEach(input => {
+                input.addEventListener('keydown', ev => {
+                    if (ev.key === 'F9') {
+                        ev.preventDefault();
+                        abrirModalCliente(input.id);
+                    }
+                });
+            });
+
+            document.querySelectorAll('.btn-buscar-vendedor').forEach(btn => {
+                btn.addEventListener('click', () => abrirModalVendedor(btn.dataset.target));
+            });
+
+            document.querySelectorAll('.btn-buscar-cliente').forEach(btn => {
+                btn.addEventListener('click', () => abrirModalCliente(btn.dataset.target));
+            });
+
+            txtFiltroVendedor.addEventListener('input', () => {
+                clearTimeout(timerVendedor);
+                timerVendedor = setTimeout(buscarVendedores, 350);
+            });
+
+            txtFiltroCliente.addEventListener('input', () => {
+                clearTimeout(timerCliente);
+                timerCliente = setTimeout(buscarClientes, 350);
+            });
+
+            resultadoVendedores.addEventListener('click', ev => {
+                const btn = ev.target.closest('.seleccionar-vendedor');
+                if (!btn || !targetVendedor) return;
+
+                const codigo = btn.dataset.codigo || '';
+                const nombre = btn.dataset.nombre || '';
+
+                const input = document.getElementById(targetVendedor);
+                const nombreInput = document.getElementById(targetVendedor + 'Nombre');
+
+                if (input) input.value = codigo;
+                if (nombreInput) nombreInput.value = nombre;
+
+                modalVendedores.hide();
+            });
+
+            resultadoClientes.addEventListener('click', ev => {
+                const btn = ev.target.closest('.seleccionar-cliente');
+                if (!btn || !targetCliente) return;
+
+                const codigo = btn.dataset.codigo || '';
+                const nombre = btn.dataset.nombre || '';
+
+                const input = document.getElementById(targetCliente);
+                const nombreInput = document.getElementById(targetCliente + 'Nombre');
+
+                if (input) input.value = codigo;
+                if (nombreInput) nombreInput.value = nombre;
+
+                modalClientes.hide();
+            });
+        })();
+    </script>
+}

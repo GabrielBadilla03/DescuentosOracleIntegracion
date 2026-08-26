@@ -1,0 +1,514 @@
+﻿@model SolicitudesDescuentos.ModelsOracle.PREDESCUENTO
+
+@{
+    ViewData["Title"] = "Edit";
+    var clienteCod = (ViewData["ClienteCod"] as string) ?? (Model.COD_CLIENTE ?? "");
+    var clienteNom = (ViewData["ClienteNom"] as string) ?? "";
+    var clienteTexto = string.IsNullOrWhiteSpace(clienteNom)
+        ? clienteCod
+        : $"{clienteCod} - {clienteNom}";
+}
+
+<h1 class="text-center">Editar Solicitud de Descuentos</h1>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <a asp-action="Index" class="btn btn-secondary btn-sm">Volver Atrás</a>
+
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-danger btn-sm" id="btnCopiarDescuentos">
+            Copiar Descuentos
+        </button>
+
+        <button type="submit" form="formEditar" class="btn btn-danger btn-sm" id="btnGuardar">
+            Guardar Cambios
+        </button>
+    </div>
+</div>
+
+<hr />
+
+<div class="row">
+    <div class="col-md-12">
+        <form asp-action="Edit" method="post" id="formEditar">
+
+            <!-- JSON editable que el controller lee en POST -->
+            <input type="hidden" id="DetallesJson" name="DetallesJson" value="[]" />
+
+            <!-- Claves del encabezado -->
+            <input asp-for="BU_NOMBRE" type="hidden" id="CodCia" />
+            <input asp-for="COD_CLIENTE" type="hidden" id="CodCliente" />
+            <input asp-for="CONSECUTIVO" type="hidden" />
+
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+            <div class="form-group mb-3">
+                <label>Cliente</label>
+                <input type="text"
+                       class="form-control"
+                       value="@clienteTexto"
+                       readonly />
+                <small class="text-muted">El cliente no se modifica en edición.</small>
+            </div>
+
+            <div class="row">
+                <!-- Columna izquierda -->
+                <div class="col-12 col-md-6 pr-md-4 border-md-right mb-3 mb-md-0">
+                    <div class="form-group">
+                        <label for="Fechasolicitud">Fecha de solicitud</label>
+                        <input asp-for="FECHASOLICITUD" class="form-control" type="date" id="Fechasolicitud" />
+                        <span asp-validation-for="FECHASOLICITUD" class="text-danger"></span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="Tipodescuento">Tipo de descuento</label>
+
+                        <!-- Se muestra pero NO se puede cambiar -->
+                        <select asp-for="TIPODESCUENTO" class="form-control" id="Tipodescuento" disabled>
+                            <option value="Descuento Fijo">Descuento Fijo</option>
+                            <option value="Descuento Promocional">Descuento Promocional</option>
+                        </select>
+
+                        <!-- ✅ Este hidden conserva y ENVÍA el valor en el POST -->
+                        <input asp-for="TIPODESCUENTO" type="hidden" />
+
+                        <span asp-validation-for="TIPODESCUENTO" class="text-danger"></span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="Observaciones">Observaciones</label>
+                        <input asp-for="OBSERVACIONES" class="form-control" id="Observaciones" />
+                        <span asp-validation-for="OBSERVACIONES" class="text-danger"></span>
+                    </div>
+                </div>
+
+                <!-- Columna derecha -->
+                <div class="col-12 col-md-6 pl-md-4">
+                    <div class="form-group">
+                        <label for="Fechainicio">Fecha inicio descuento</label>
+                        <input asp-for="FECHAINICIO" class="form-control" type="date" id="Fechainicio" />
+                        <span asp-validation-for="FECHAINICIO" class="text-danger"></span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="Fechafin">Fecha final del descuento</label>
+                        <input asp-for="FECHAFIN" class="form-control" type="date" id="Fechafin" />
+                        <span asp-validation-for="FECHAFIN" class="text-danger"></span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="Estado">Estado</label>
+                        <select asp-for="ESTADO" class="form-control" id="Estado">
+                            <option value="Pendiente">Pendiente</option>
+                            <option value="Pendiente Aprobacion">Pendiente Aprobación</option>
+                        </select>
+                        <span asp-validation-for="ESTADO" class="text-danger"></span>
+                    </div>
+                </div>
+            </div>
+
+            <h5 class="mt-4">Descuentos Detallados</h5>
+
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <button type="button" class="btn btn-sm btn-danger me-1" id="btnAgregarLinea">
+                        Agregar por Línea
+                    </button>
+                    <button type="button" class="btn btn-sm btn-danger me-1" id="btnAgregarArticulo">
+                        Agregar por Artículo
+                    </button>
+                    <button type="button" class="btn btn-sm btn-danger" id="btnAgregarClase">
+                        Agregar por Clase
+                    </button>
+                </div>
+                <div>
+                    <button type="button" class="btn btn-sm btn-danger" id="btnTraerDescuentos">
+                        Traer Descuentos
+                    </button>
+                    <button type="button" class="btn btn-sm btn-danger" id="btnLimpiarLista">
+                        Limpiar Lista
+                    </button>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table" id="tabla-detalles">
+                    <thead>
+                        <tr>
+                            <th>Línea</th>
+                            <th>Artículo</th>
+                            <th>Tipo</th>
+                            <th>Valor</th>
+                            <th>Clase</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- El JS lo pinta desde DetallesJson -->
+                    </tbody>
+                </table>
+            </div>
+
+        </form>
+    </div>
+</div>
+
+<!-- =========================
+     MODAL: AGREGAR DESCUENTO MANUAL (CHECKLIST)
+     ========================= -->
+<div class="modal fade" id="modalAgregarManual" tabindex="-1" aria-labelledby="modalLabelManual" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalLabelManual">Agregar Descuento Manual</h5>
+                <button type="button" class="btn-close" id="btnCerrarAgregarManual" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+
+            <div class="modal-body">
+                <p class="small text-muted mb-2">
+                    Seleccione un <strong>Tipo</strong> y <strong>Valor</strong>, luego marque lo que desea agregar.
+                </p>
+
+                <!-- Tipo y valor comunes -->
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-group mb-2">
+                            <label>Tipo</label>
+                            <select id="manualTipo" class="form-control form-control-sm">
+                                <option value="P">Porcentaje</option>
+                                <option value="M">Monto</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group mb-2">
+                            <label>Valor</label>
+                            <input type="number"
+                                   step="1"
+                                   min="0"
+                                   id="manualValor"
+                                   class="form-control form-control-sm"
+                                   inputmode="numeric"
+                                   oninput="this.value = this.value.replace(/[^\d]/g, '')" />
+                        </div>
+                    </div>
+                </div>
+
+                <hr />
+
+                <!-- SECCIÓN 1: POR LÍNEA -->
+                <div id="seccionLineaChecklist" style="display:none;">
+                    <h6 class="mt-2">Agregar por <strong>Línea</strong></h6>
+                    <div class="table-responsive" style="max-height:550px; overflow-y:auto;">
+                        <table class="table table-sm table-hover">
+                            <thead>
+                                <tr>
+                                    <th style="width:70px;">
+                                        <input type="checkbox" id="chkLineaTodo" />
+                                    </th>
+                                    <th>Línea</th>
+                                    <th>Descripción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyLineasChecklist"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- SECCIÓN 2: POR ARTÍCULO -->
+                <div id="seccionArticuloChecklist" style="display:none;">
+                    <hr />
+                    <h6 class="mt-2">Agregar por <strong>Artículo</strong> (filtrado por línea)</h6>
+
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="form-group mb-2">
+                                <label for="filtroLineaArticulo">Buscar línea</label>
+                                <input type="text" id="filtroLineaArticulo" class="form-control form-control-sm"
+                                       placeholder="Escriba parte del código o descripción de la línea">
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="form-group mb-2">
+                                <label for="CodLineaArticulo">Línea encontrada</label>
+                                <select id="CodLineaArticulo" class="form-control form-control-sm" disabled>
+                                    <option value="">Seleccione una línea...</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ✅ Medida + filtro descripción (igual que Create) -->
+                    <div class="row mt-2">
+                        <div class="col-6">
+                            <div class="form-group mb-2">
+                                <label for="filtroMedidaArticulo">Unidad de medida</label>
+                                <select id="filtroMedidaArticulo" class="form-control form-control-sm"
+                                        asp-items="@(ViewData["Medidas"] as SelectList)">
+                                    <option value="">-- Todas --</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col-6">
+                            <div class="form-group mb-2">
+                                <label for="filtroDescArticulo">Buscar por descripción</label>
+                                <input type="text" id="filtroDescArticulo"
+                                       class="form-control form-control-sm"
+                                       placeholder="Escriba parte de la descripción..."
+                                       autocomplete="off">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive" style="max-height:180px; overflow-y:auto;">
+                        <table class="table table-sm table-hover">
+                            <thead>
+                                <tr>
+                                    <th style="width:40px;">
+                                        <input type="checkbox" id="chkArticuloTodo" />
+                                    </th>
+                                    <th>Código</th>
+                                    <th>Descripción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyArticulosChecklist"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- SECCIÓN 3: POR CLASE -->
+                <div id="seccionClaseChecklist" style="display:none;">
+                    <hr />
+                    <h6 class="mt-2">Agregar por <strong>Clase</strong> (filtrado por línea)</h6>
+
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="form-group mb-2">
+                                <label for="filtroLineaClase">Buscar línea</label>
+                                <input type="text" id="filtroLineaClase" class="form-control form-control-sm"
+                                       placeholder="Escriba parte del código o descripción de la línea">
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="form-group mb-2">
+                                <label for="CodLineaClase">Línea encontrada</label>
+                                <select id="CodLineaClase" class="form-control form-control-sm" disabled>
+                                    <option value="">Seleccione una línea...</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive" style="max-height:180px; overflow-y:auto;">
+                        <table class="table table-sm table-hover">
+                            <thead>
+                                <tr>
+                                    <th style="width:40px;">
+                                        <input type="checkbox" id="chkClaseTodo" />
+                                    </th>
+                                    <th>Código</th>
+                                    <th>Descripción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyClasesChecklist"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-secondary" id="btnCerrarAgregarManualFooter" data-bs-dismiss="modal">
+                    Cerrar
+                </button>
+
+                <button type="button" class="btn btn-sm btn-outline-danger" id="btnAgregarLineasChecklist" style="display:none;">
+                    Agregar líneas seleccionadas
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-danger" id="btnAgregarArticulosChecklist" style="display:none;">
+                    Agregar artículos seleccionados
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-danger" id="btnAgregarClasesChecklist" style="display:none;">
+                    Agregar clases seleccionadas
+                </button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- =========================
+     MODAL: COPIAR DESCUENTOS (ORIGEN -> CLIENTE ACTUAL)
+     ========================= -->
+<div class="modal fade" id="modalCopiarDescuentos" tabindex="-1" aria-labelledby="modalLabelCopiar" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <h5 class="modal-title">Copiar Descuentos a este Cliente</h5>
+                <button type="button" class="btn-close" id="btnCerrarModalCopiar" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+
+            <div class="modal-body">
+                <div class="form-group mb-3">
+                    <label>Cliente Origen (de quien copiar)</label>
+                    <input type="text" id="filtroClienteOrigen" class="form-control" placeholder="Escriba parte del nombre...">
+                    <select id="clienteOrigen" class="form-control mt-1" disabled></select>
+                </div>
+
+                <div class="form-group">
+                    <label>Cliente Destino (este)</label>
+                    <input type="text" class="form-control"
+                           value="@clienteTexto"
+                           readonly />
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="btnCerrarCopiarDescuentos" data-bs-dismiss="modal">
+                    Cerrar
+                </button>
+                <button type="button" class="btn btn-danger" id="btnAceptarCopiar">
+                    Aceptar
+                </button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- =========================
+     MODAL: DETALLE ARTÍCULO
+     ========================= -->
+<div class="modal fade" id="modalDetalleArticulo" tabindex="-1" aria-labelledby="modalDetalleArticuloLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalDetalleArticuloLabel">Detalles</h5>
+                <button type="button" class="btn-close" id="btnCerrarDetalleArticulo" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+
+            <div class="modal-body">
+                <p><strong>Línea:</strong> <span id="detalleCodLinea"></span></p>
+                <p><strong>Clase:</strong> <span id="detalleCodClase"></span></p>
+                <p><strong>Artículo:</strong> <span id="detalleCodArticulo"></span></p>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    Cerrar
+                </button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- =========================
+     MODAL: EDITAR DETALLE
+     ========================= -->
+<div class="modal fade" id="modalEditarDetalle" tabindex="-1" aria-labelledby="modalEditarDetalleLabel" aria-hidden="true">
+    <div class="modal-dialog" style="max-width:600px;">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Detalle</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+
+            <div class="modal-body">
+                <input type="hidden" id="detalleEditarIndex" />
+
+                <div class="form-group">
+                    <label for="filtroLineaEditar">Buscar Línea</label>
+                    <input type="text" id="filtroLineaEditar" class="form-control"
+                           placeholder="Escriba para buscar línea..." autocomplete="off" />
+                </div>
+
+                <div class="form-group">
+                    <label for="CodLineaEditar">Línea</label>
+                    <select id="CodLineaEditar" class="form-control">
+                        <option value="">-- Seleccione una línea --</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="BuscarClaseEditar">Buscar Clase</label>
+                    <input type="text" class="form-control" id="BuscarClaseEditar"
+                           placeholder="Buscar clase por código o descripción...">
+                </div>
+
+                <div class="form-group">
+                    <label for="CodClaseEditar">Clase</label>
+                    <select class="form-control" id="CodClaseEditar" name="CodClaseEditar">
+                        <option value="">Seleccione una clase</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="filtroArticuloEditar">Buscar Artículo</label>
+                    <input type="text" id="filtroArticuloEditar" class="form-control"
+                           placeholder="Escriba para buscar artículo..." autocomplete="off" />
+                </div>
+
+                <div class="form-group">
+                    <label for="CodArticuloEditar">Artículo</label>
+                    <select id="CodArticuloEditar" class="form-control">
+                        <option value="">-- Seleccione un artículo --</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="TipoEditar">Tipo</label>
+                    <select id="TipoEditar" class="form-control">
+                        <option value="P">Porcentaje</option>
+                        <option value="M">Monto</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="ValorEditar">Valor</label>
+                    <input type="number"
+                           step="1"
+                           min="0"
+                           id="ValorEditar"
+                           class="form-control"
+                           inputmode="numeric"
+                           oninput="this.value = this.value.replace(/[^\d]/g, '')" />
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" id="btnGuardarCambiosDetalle" class="btn btn-danger">
+                    Guardar Cambios
+                </button>
+                <button type="button" id="btnEliminarDetalle" class="btn btn-danger">
+                    Eliminar
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    Cancelar
+                </button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @await Html.PartialAsync("_ValidationScriptsPartial")
+
+    <script>
+        // Igual que Create: cache local si estás en FIJO
+        window.__articulosAll = @Html.Raw(ViewBag.ArticulosJson ?? "[]");
+
+        // Detalles iniciales (del controller)
+        window.detallesIniciales = @Html.Raw(ViewData["DetallesJson"] ?? "[]");
+    </script>
+    <script>
+        window.AppBasePath = '@Url.Content("~/")';
+    </script>
+
+    <script src="~/js/EditDeclaraciones.js" asp-append-version="true"></script>
+}

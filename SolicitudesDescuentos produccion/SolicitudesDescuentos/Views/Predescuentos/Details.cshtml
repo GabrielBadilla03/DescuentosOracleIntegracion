@@ -1,0 +1,245 @@
+﻿@using System.Globalization
+@model SolicitudesDescuentos.ModelsOracle.PREDESCUENTO
+
+@{
+    ViewData["Title"] = "Details";
+
+    var desLineas = ViewBag.DesLineas as IDictionary<string, string>;
+    var desArticulos = ViewBag.DesArticulos as IDictionary<string, string>;
+
+    string nombreCliente = ViewBag.NombreCliente as string ?? "";
+}
+
+<h1 class="text-center">Detalles de la Solicitud</h1>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <a asp-action="Index" class="btn btn-danger btn-sm">
+        Volver Atrás
+    </a>
+
+    @{
+        var estado = (Model.ESTADO ?? "").Trim();
+        var esPendienteAprob = estado.Equals("Pendiente Aprobacion", StringComparison.OrdinalIgnoreCase);
+        var esAprobado = estado.Equals("Aprobado", StringComparison.OrdinalIgnoreCase);
+    }
+
+    @if (User.IsInRole("PRICE_EDITOR"))
+    {
+        @if (esPendienteAprob)
+        {
+            <div class="d-flex gap-2">
+                <a class="btn btn-danger btn-sm"
+                   asp-action="Edit"
+                   asp-route-consecutivo="@Model.CONSECUTIVO"
+                   asp-route-buNombre="@Model.BU_NOMBRE"
+                   asp-route-codCliente="@Model.COD_CLIENTE">
+                    Editar
+                </a>
+
+                <button class="btn btn-danger btn-sm"
+                        data-bs-toggle="modal"
+                        data-bs-target="#procesarModal">
+                    Procesar Solicitud
+                </button>
+
+            </div>
+        }
+        else if (esAprobado)
+        {
+            <div class="d-flex gap-2">
+                <a asp-controller="Predescuentos"
+                   asp-action="Create"
+                   asp-route-copiarDeConsecutivo="@Model.CONSECUTIVO"
+                   asp-route-copiarDeBu="@Model.BU_NOMBRE"
+                   class="btn btn-danger btn-sm">
+                    Copiar descuentos
+                </a>
+
+                <form asp-controller="Predescuentos"
+                      asp-action="ReversarSolicitud"
+                      method="post"
+                      onsubmit="return confirm('¿Está seguro de reversar esta solicitud?');">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="CodCia" value="@Model.BU_NOMBRE" />
+                    <input type="hidden" name="Consecutivo" value="@Model.CONSECUTIVO" />
+
+                    <button type="submit" class="btn btn-danger btn-sm">
+                        Reversar Solicitud
+                    </button>
+                </form>
+            </div>
+        }
+    }
+</div>
+<div>
+    <hr />
+    <div class="container">
+        <div class="row">
+            @* Estos hidden se usan en el modal para procesar *@
+            <input type="hidden" name="CodCia" value="@Model.BU_NOMBRE" />
+            <input type="hidden" name="Consecutivo" value="@Model.CONSECUTIVO" />
+
+            <!-- Columna Izquierda: datos no fechas -->
+            <div class="col-md-6 col-12">
+                <div class="mb-3">
+                    <strong>Cliente:</strong><br />
+                    @(!string.IsNullOrWhiteSpace(nombreCliente)
+                                        ? nombreCliente
+                                        : Model.COD_CLIENTE)
+                </div>
+                <div class="mb-3">
+                    <strong>Tipo de descuento:</strong><br />
+                    @Model.TIPODESCUENTO
+                </div>
+                <div class="mb-3">
+                    <strong>Observaciones:</strong><br />
+                    @Model.OBSERVACIONES
+                </div>
+                <div class="mb-3">
+                    <strong>Estado:</strong><br />
+                    @Model.ESTADO
+                </div>
+                <div class="mb-3">
+                    <strong>Autorizado por:</strong><br />
+                    @(string.IsNullOrWhiteSpace(Model.AUTORIZADO_POR)
+                                        ? "Sin autorizado"
+                                        : Model.AUTORIZADO_POR)
+                </div>
+                <div class="mb-3">
+                    <strong>Ingresado por:</strong><br />
+                    @Model.INGRESADO_POR
+                </div>
+            </div>
+
+            <!-- Columna Derecha: fechas -->
+            <div class="col-md-6 col-12 text-md-start text-start">
+                <div class="mb-3">
+                    <strong>Fecha de solicitud:</strong><br />
+                    @Model.FECHASOLICITUD.ToString("dd/MM/yyyy")
+                </div>
+                <div class="mb-3">
+                    <strong>Fecha inicio descuento:</strong><br />
+                    @(Model.FECHAINICIO.HasValue
+                                        ? Model.FECHAINICIO.Value.ToString("dd/MM/yyyy")
+                                        : "N/A")
+                </div>
+                <div class="mb-3">
+                    <strong>Fecha final del descuento:</strong><br />
+                    @(Model.FECHAFIN.HasValue
+                                        ? Model.FECHAFIN.Value.ToString("dd/MM/yyyy")
+                                        : "N/A")
+                </div>
+                <div class="mb-3">
+                    <strong>Fecha de registro:</strong><br />
+                    @Model.FECHAREGISTRO.ToString("dd/MM/yyyy")
+                </div>
+                <div class="mb-3">
+                    <strong>Fecha de aplicación:</strong><br />
+                    @(Model.FECHA_APLICACION.HasValue
+                                        ? Model.FECHA_APLICACION.Value.ToString("dd/MM/yyyy")
+                                        : "Sin fecha aplicación")
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<hr />
+
+<h4>Detalles de Descuentos</h4>
+
+@if (Model.PREDETDESCUENTOs != null && Model.PREDETDESCUENTOs.Any())
+{
+    <div class="table-responsive">
+        <table class="table table-bordered table-striped">
+            <thead class="table-light">
+                <tr>
+                    <th>Línea</th>
+                    <th>Artículo</th>
+                    <th>Tipo</th>
+                    <th>Valor</th>
+                    <th>Clase</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var detalle in Model.PREDETDESCUENTOs)
+                {
+                    var codLinea = (detalle.COD_LINEA ?? "").Trim();
+                    var codArt = (detalle.COD_ARTICULO ?? "").Trim();
+                    var codClase = (detalle.COD_CLASE ?? "").Trim();
+
+                    string desLinea = "";
+                    if (!string.IsNullOrWhiteSpace(codLinea) && desLineas != null && desLineas.ContainsKey(codLinea))
+                        desLinea = desLineas[codLinea];
+
+                    string desArt = "";
+                    if (!string.IsNullOrWhiteSpace(codArt) && desArticulos != null && desArticulos.ContainsKey(codArt))
+                        desArt = desArticulos[codArt];
+
+                    string textoTipo = detalle.TIPO == "P"
+                    ? "Porcentaje"
+                    : detalle.TIPO == "M"
+                    ? "Monto"
+                    : (detalle.TIPO ?? "");
+
+                    <tr>
+                        <td>@codLinea @((!string.IsNullOrWhiteSpace(desLinea) ? " - " + desLinea : ""))</td>
+
+                        <td>
+                            @if (!string.IsNullOrWhiteSpace(codArt))
+                            {
+                                @codArt @((!string.IsNullOrWhiteSpace(desArt) ? " - " + desArt : ""))
+                            }
+                        </td>
+
+                        <td>@textoTipo</td>
+                        <td>@detalle.VALOR</td>
+                        <td>@(string.IsNullOrWhiteSpace(codClase) ? "" : codClase)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+else
+{
+    <p class="text-muted">No hay detalles de descuento registrados.</p>
+}
+
+<!-- Modal para procesar solicitud -->
+<div class="modal fade" id="procesarModal" tabindex="-1" aria-labelledby="procesarModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form asp-controller="Predescuentos" asp-action="ProcesarSolicitud" method="post">
+                @Html.AntiForgeryToken()
+                <div class="modal-header">
+                    <h5 class="modal-title" id="procesarModalLabel">Procesar Solicitud</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="CodCia" value="@Model.BU_NOMBRE" />
+                    <input type="hidden" name="Consecutivo" value="@Model.CONSECUTIVO" />
+
+                    <div class="mb-3">
+                        <label class="form-label">Estado</label>
+                        <select name="Estado" class="form-select" required>
+                            <option value="" selected disabled>Seleccione un estado</option>
+                            <option value="Aprobado">Aprobado</option>
+                            <option value="Rechazado">Rechazado</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Observaciones</label>
+                        <textarea name="Observaciones" class="form-control" rows="4">@Model.OBSERVACIONES</textarea>
+                    </div>
+
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger">Guardar Cambios</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

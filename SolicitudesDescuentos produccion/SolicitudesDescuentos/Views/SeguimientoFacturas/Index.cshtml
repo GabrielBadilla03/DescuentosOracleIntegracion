@@ -1,0 +1,658 @@
+﻿@model SolicitudesDescuentos.ModelsLanco.SeguimientoFacturasIndexViewModel
+
+@{
+    ViewData["Title"] = "Seguimiento de facturas";
+}
+
+<div class="container-fluid py-3">
+    <h2 class="text-center mb-4">Seguimiento de facturas</h2>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+                <div class="col-12 col-md-4">
+                    <label for="fechaInicio" class="form-label">Fecha inicial</label>
+                    <input id="fechaInicio"
+                           type="date"
+                           class="form-control"
+                           value="@Model.FechaInicio.ToString("yyyy-MM-dd")" />
+                </div>
+
+                <div class="col-12 col-md-4">
+                    <label for="fechaFin" class="form-label">Fecha final</label>
+                    <input id="fechaFin"
+                           type="date"
+                           class="form-control"
+                           value="@Model.FechaFin.ToString("yyyy-MM-dd")" />
+                </div>
+
+                <div class="col-12 col-md-4 d-grid">
+                    <button type="button" id="btnActualizarActual" class="btn btn-primary">
+                        Actualizar pantalla actual
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <ul class="nav nav-tabs mb-3" id="tabsSeguimiento" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active"
+                    id="tab-pistoleadas"
+                    data-bs-toggle="tab"
+                    data-bs-target="#panel-pistoleadas"
+                    type="button"
+                    role="tab"
+                    aria-controls="panel-pistoleadas"
+                    aria-selected="true">
+                Pistoleadas
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link"
+                    id="tab-escaneadas"
+                    data-bs-toggle="tab"
+                    data-bs-target="#panel-escaneadas"
+                    type="button"
+                    role="tab"
+                    aria-controls="panel-escaneadas"
+                    aria-selected="false">
+                Escaneadas
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="contenidoSeguimiento">
+        <div class="tab-pane fade show active"
+             id="panel-pistoleadas"
+             role="tabpanel"
+             aria-labelledby="tab-pistoleadas">
+
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <div>
+                            <strong>Facturas pistoleadas</strong>
+                            <div class="small text-muted">
+                                Procesada si aparece en detalle o bitácora con encabezado activo.
+                            </div>
+                        </div>
+
+                        <div class="d-flex flex-wrap gap-2 align-items-end">
+                            <div>
+                                <label for="estadoPistoleadas" class="form-label mb-1 small">Estado</label>
+                                <select id="estadoPistoleadas" class="form-select form-select-sm">
+                                    <option value="TODOS" selected>Todas</option>
+                                    <option value="PROCESADAS">Procesadas</option>
+                                    <option value="PENDIENTES">Pendientes</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label for="tipoPersonaPistoleadas" class="form-label mb-1 small">Tipo persona</label>
+                                <select id="tipoPersonaPistoleadas" class="form-select form-select-sm">
+                                    <option value="TODOS" selected>Todos</option>
+                                    <option value="A">Agentes</option>
+                                    <option value="T">Transportistas</option>
+                                </select>
+                            </div>
+
+                            <button type="button" id="btnBuscarPistoleadas" class="btn btn-sm btn-outline-primary">
+                                Buscar
+                            </button>
+
+                            <button type="button" id="btnPdfPistoleadas" class="btn btn-sm btn-outline-danger">
+                                Descargar PDF
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card-body">
+                    <div id="alertaPistoleadas"></div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-6 col-lg-3">
+                            <div class="border rounded p-2 h-100">
+                                <div class="text-muted small">Total rango</div>
+                                <div id="pistTotal" class="fs-5 fw-semibold">0</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-lg-3">
+                            <div class="border rounded p-2 h-100">
+                                <div class="text-muted small">Procesadas</div>
+                                <div id="pistProcesadas" class="fs-5 fw-semibold">0</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-lg-3">
+                            <div class="border rounded p-2 h-100">
+                                <div class="text-muted small">Pendientes</div>
+                                <div id="pistPendientes" class="fs-5 fw-semibold">0</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-lg-3">
+                            <div class="border rounded p-2 h-100">
+                                <div class="text-muted small">Mostradas</div>
+                                <div id="pistMostradas" class="fs-5 fw-semibold">0</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Estado</th>
+                                    <th>Origen</th>
+                                    <th>Fecha</th>
+                                    <th>Documento</th>
+                                    <th>Consecutivo</th>
+                                    <th>Cliente</th>
+                                    <th>Nombre</th>
+                                    <th>Ruta</th>
+                                    <th class="text-end">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyPistoleadas"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade"
+             id="panel-escaneadas"
+             role="tabpanel"
+             aria-labelledby="tab-escaneadas">
+
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <div>
+                            <strong>Facturas escaneadas</strong>
+                            <div class="small text-muted">
+                                Lista independiente de pistoleadas. El último intento muestra si procesó, dio error o nunca se intentó.
+                            </div>
+                        </div>
+
+                        <div class="d-flex flex-wrap gap-2 align-items-end">
+                            <div>
+                                <label for="estadoEscaneadas" class="form-label mb-1 small">Estado</label>
+                                <select id="estadoEscaneadas" class="form-select form-select-sm">
+                                    <option value="TODOS" selected>Todas</option>
+                                    <option value="PROCESADAS">Procesadas</option>
+                                    <option value="PENDIENTES">Pendientes</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label for="resultadoEscaneadas" class="form-label mb-1 small">Último intento</label>
+                                <select id="resultadoEscaneadas" class="form-select form-select-sm">
+                                    <option value="TODOS" selected>Todos</option>
+                                    <option value="PROCESADO">Procesado</option>
+                                    <option value="ERROR">Error</option>
+                                    <option value="SIN_INTENTO">Sin intento</option>
+                                </select>
+                            </div>
+
+                            <button type="button" id="btnBuscarEscaneadas" class="btn btn-sm btn-outline-primary">
+                                Buscar
+                            </button>
+
+                            <button type="button" id="btnPdfEscaneadas" class="btn btn-sm btn-outline-danger">
+                                Descargar PDF
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card-body">
+                    <div id="alertaEscaneadas"></div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-6 col-lg-2">
+                            <div class="border rounded p-2 h-100">
+                                <div class="text-muted small">Total rango</div>
+                                <div id="escTotal" class="fs-5 fw-semibold">0</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-lg-2">
+                            <div class="border rounded p-2 h-100">
+                                <div class="text-muted small">Procesadas</div>
+                                <div id="escProcesadas" class="fs-5 fw-semibold">0</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-lg-2">
+                            <div class="border rounded p-2 h-100">
+                                <div class="text-muted small">Pendientes</div>
+                                <div id="escPendientes" class="fs-5 fw-semibold">0</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-lg-2">
+                            <div class="border rounded p-2 h-100">
+                                <div class="text-muted small">Con error</div>
+                                <div id="escErrores" class="fs-5 fw-semibold">0</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-lg-2">
+                            <div class="border rounded p-2 h-100">
+                                <div class="text-muted small">Sin intento</div>
+                                <div id="escSinIntento" class="fs-5 fw-semibold">0</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-lg-2">
+                            <div class="border rounded p-2 h-100">
+                                <div class="text-muted small">Mostradas</div>
+                                <div id="escMostradas" class="fs-5 fw-semibold">0</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Estado</th>
+                                    <th>Último intento</th>
+                                    <th>Error</th>
+                                    <th>Fecha</th>
+                                    <th>Documento</th>
+                                    <th>Consecutivo</th>
+                                    <th>Cliente</th>
+                                    <th>Nombre</th>
+                                    <th>Fecha intento</th>
+                                    <th>Archivo</th>
+                                    <th>Mensaje</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyEscaneadas"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (() => {
+            const urlPistoleadas = '@Url.Action("BuscarPistoleadas", "SeguimientoFacturas")';
+            const urlEscaneadas = '@Url.Action("BuscarEscaneadas", "SeguimientoFacturas")';
+            const urlPdf = '@Url.Action("DescargarPdf", "SeguimientoFacturas")';
+
+            const fechaInicio = document.getElementById('fechaInicio');
+            const fechaFin = document.getElementById('fechaFin');
+
+            const estadoPistoleadas = document.getElementById('estadoPistoleadas');
+            const tipoPersonaPistoleadas = document.getElementById('tipoPersonaPistoleadas');
+            const estadoEscaneadas = document.getElementById('estadoEscaneadas');
+            const resultadoEscaneadas = document.getElementById('resultadoEscaneadas');
+
+            const tbodyPistoleadas = document.getElementById('tbodyPistoleadas');
+            const tbodyEscaneadas = document.getElementById('tbodyEscaneadas');
+
+            let cargadasPistoleadas = false;
+            let cargadasEscaneadas = false;
+
+            function parametrosBase() {
+                return {
+                    fechaInicio: fechaInicio.value,
+                    fechaFin: fechaFin.value
+                };
+            }
+
+            function crearUrl(url, parametros) {
+                const query = new URLSearchParams(parametros);
+                return `${url}?${query.toString()}`;
+            }
+
+            function mostrarAlerta(id, mensaje, tipo = 'danger') {
+                const contenedor = document.getElementById(id);
+                contenedor.replaceChildren();
+
+                if (!mensaje) return;
+
+                const alerta = document.createElement('div');
+                alerta.className = `alert alert-${tipo} py-2`;
+                alerta.setAttribute('role', 'alert');
+                alerta.textContent = mensaje;
+                contenedor.appendChild(alerta);
+            }
+
+            function crearCelda(texto, clase = '') {
+                const td = document.createElement('td');
+                if (clase) td.className = clase;
+                td.textContent = texto ?? '';
+                return td;
+            }
+
+            function crearBadge(texto, clase) {
+                const span = document.createElement('span');
+                span.className = `badge ${clase}`;
+                span.textContent = texto;
+                return span;
+            }
+
+            function fechaCorta(valor) {
+                if (!valor) return '';
+                const fecha = new Date(valor);
+                if (Number.isNaN(fecha.getTime())) return '';
+                return new Intl.DateTimeFormat('es-CR').format(fecha);
+            }
+
+            function fechaHora(valor) {
+                if (!valor) return '';
+                const fecha = new Date(valor);
+                if (Number.isNaN(fecha.getTime())) return '';
+                return new Intl.DateTimeFormat('es-CR', {
+                    dateStyle: 'short',
+                    timeStyle: 'short'
+                }).format(fecha);
+            }
+
+            function monto(valor) {
+                const numero = Number(valor ?? 0);
+                return new Intl.NumberFormat('es-CR', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                }).format(numero);
+            }
+
+            async function obtenerJson(url) {
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' }
+                });
+
+                let data;
+                try {
+                    data = await response.json();
+                } catch {
+                    data = { ok: false, mensaje: 'La respuesta del servidor no es válida.' };
+                }
+
+                if (!response.ok || data.ok === false)
+                    throw new Error(data.mensaje || 'No fue posible completar la consulta.');
+
+                return data;
+            }
+
+            function pintarPistoleadas(data) {
+                document.getElementById('pistTotal').textContent = data.total ?? 0;
+                document.getElementById('pistProcesadas').textContent = data.totalProcesadas ?? 0;
+                document.getElementById('pistPendientes').textContent = data.totalPendientes ?? 0;
+                document.getElementById('pistMostradas').textContent = data.totalMostradas ?? data.items?.length ?? 0;
+
+                tbodyPistoleadas.replaceChildren();
+
+                const items = data.items ?? [];
+                if (items.length === 0) {
+                    const tr = document.createElement('tr');
+                    const td = crearCelda('No hay facturas para los filtros seleccionados.', 'text-center text-muted py-4');
+                    td.colSpan = 9;
+                    tr.appendChild(td);
+                    tbodyPistoleadas.appendChild(tr);
+                    return;
+                }
+
+                for (const item of items) {
+                    const tr = document.createElement('tr');
+
+                    const tdEstado = document.createElement('td');
+                    tdEstado.appendChild(
+                        crearBadge(
+                            item.estadoPistoleo,
+                            item.pistoleadaProcesada ? 'bg-success' : 'bg-warning text-dark'));
+                    tr.appendChild(tdEstado);
+
+                    tr.appendChild(crearCelda(item.origenPistoleo));
+                    tr.appendChild(crearCelda(fechaCorta(item.fechaEmision)));
+                    tr.appendChild(crearCelda(item.documento));
+                    tr.appendChild(crearCelda(item.numeroConsecutivo));
+                    tr.appendChild(crearCelda(item.codigoCliente));
+                    tr.appendChild(crearCelda(item.nombreCliente));
+                    tr.appendChild(crearCelda(item.ruta));
+                    tr.appendChild(crearCelda(monto(item.totalComprobante), 'text-end text-nowrap'));
+
+                    tbodyPistoleadas.appendChild(tr);
+                }
+            }
+
+            function pintarEscaneadas(data) {
+                document.getElementById('escTotal').textContent = data.total ?? 0;
+                document.getElementById('escProcesadas').textContent = data.totalProcesadas ?? 0;
+                document.getElementById('escPendientes').textContent = data.totalPendientes ?? 0;
+                document.getElementById('escErrores').textContent = data.totalLogError ?? 0;
+                document.getElementById('escSinIntento').textContent = data.totalSinIntento ?? 0;
+                document.getElementById('escMostradas').textContent = data.totalMostradas ?? data.items?.length ?? 0;
+
+                tbodyEscaneadas.replaceChildren();
+
+                const items = data.items ?? [];
+                if (items.length === 0) {
+                    const tr = document.createElement('tr');
+                    const td = crearCelda('No hay facturas para los filtros seleccionados.', 'text-center text-muted py-4');
+                    td.colSpan = 11;
+                    tr.appendChild(td);
+                    tbodyEscaneadas.appendChild(tr);
+                    return;
+                }
+
+                for (const item of items) {
+                    const tr = document.createElement('tr');
+
+                    const tdEstado = document.createElement('td');
+                    tdEstado.appendChild(
+                        crearBadge(
+                            item.estadoEscaneo,
+                            item.escaneadaProcesada ? 'bg-success' : 'bg-warning text-dark'));
+                    tr.appendChild(tdEstado);
+
+                    const tdResultado = document.createElement('td');
+                    let claseResultado = 'bg-secondary';
+                    if (item.resultadoEscaneo === 'PROCESADO') claseResultado = 'bg-success';
+                    if (item.resultadoEscaneo === 'ERROR') claseResultado = 'bg-danger';
+                    tdResultado.appendChild(crearBadge(item.resultadoEscaneo, claseResultado));
+                    tr.appendChild(tdResultado);
+
+                    const tdError = document.createElement('td');
+                    if (item.escaneadaConError) {
+                        tdError.appendChild(crearBadge('SÍ', 'bg-danger'));
+                    } else if (!item.idLog) {
+                        tdError.appendChild(crearBadge('SIN INTENTO', 'bg-secondary'));
+                    } else {
+                        tdError.appendChild(crearBadge('NO', 'bg-success'));
+                    }
+                    tr.appendChild(tdError);
+
+                    tr.appendChild(crearCelda(fechaCorta(item.fechaEmision)));
+                    tr.appendChild(crearCelda(item.documento));
+                    tr.appendChild(crearCelda(item.numeroConsecutivo));
+                    tr.appendChild(crearCelda(item.codigoCliente));
+                    tr.appendChild(crearCelda(item.nombreCliente));
+                    tr.appendChild(crearCelda(fechaHora(item.fechaIntento)));
+                    tr.appendChild(crearCelda(item.nombreArchivo));
+                    tr.appendChild(crearCelda(item.mensajeLog));
+
+                    tbodyEscaneadas.appendChild(tr);
+                }
+            }
+
+            async function cargarPistoleadas() {
+                mostrarAlerta('alertaPistoleadas', 'Consultando...', 'info');
+
+                try {
+                    const base = parametrosBase();
+                    const data = await obtenerJson(crearUrl(urlPistoleadas, {
+                        ...base,
+                        estado: estadoPistoleadas.value,
+                        tipoPersona: tipoPersonaPistoleadas.value
+                    }));
+
+                    pintarPistoleadas(data);
+                    mostrarAlerta('alertaPistoleadas', '');
+                    cargadasPistoleadas = true;
+                } catch (error) {
+                    mostrarAlerta('alertaPistoleadas', error.message || 'Error al consultar pistoleadas.');
+                }
+            }
+
+            async function cargarEscaneadas() {
+                mostrarAlerta('alertaEscaneadas', 'Consultando...', 'info');
+
+                try {
+                    const base = parametrosBase();
+                    const data = await obtenerJson(crearUrl(urlEscaneadas, {
+                        ...base,
+                        estado: estadoEscaneadas.value,
+                        resultado: resultadoEscaneadas.value
+                    }));
+
+                    pintarEscaneadas(data);
+                    mostrarAlerta('alertaEscaneadas', '');
+                    cargadasEscaneadas = true;
+                } catch (error) {
+                    mostrarAlerta('alertaEscaneadas', error.message || 'Error al consultar escaneadas.');
+                }
+            }
+
+            async function descargarPdf(tipo) {
+                const esEscaneadas = tipo === 'ESCANEADAS';
+                const alertaId = esEscaneadas
+                    ? 'alertaEscaneadas'
+                    : 'alertaPistoleadas';
+
+                const base = parametrosBase();
+
+                if (!base.fechaInicio || !base.fechaFin) {
+                    mostrarAlerta(
+                        alertaId,
+                        'Debe indicar la fecha inicial y la fecha final.'
+                    );
+                    return;
+                }
+
+                if (base.fechaInicio > base.fechaFin) {
+                    mostrarAlerta(
+                        alertaId,
+                        'La fecha inicial no puede ser mayor que la fecha final.'
+                    );
+                    return;
+                }
+
+                const parametros = {
+                    ...base,
+                    tipo: tipo,
+                    estado: esEscaneadas
+                        ? estadoEscaneadas.value
+                        : estadoPistoleadas.value
+                };
+
+                if (esEscaneadas)
+                    parametros.resultado = resultadoEscaneadas.value;
+                else
+                    parametros.tipoPersona = tipoPersonaPistoleadas.value;
+
+                const url = crearUrl(urlPdf, parametros);
+
+                mostrarAlerta(alertaId, 'Generando PDF...', 'info');
+
+                try {
+                    const response = await fetch(url, {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/pdf, application/json'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        let mensaje = 'No fue posible generar el PDF.';
+
+                        try {
+                            const error = await response.json();
+                            mensaje = error.mensaje || mensaje;
+                        } catch {
+                            // Si el servidor no devolvió JSON, se conserva
+                            // el mensaje genérico.
+                        }
+
+                        throw new Error(mensaje);
+                    }
+
+                    const blob = await response.blob();
+
+                    const objectUrl = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+
+                    const inicio = base.fechaInicio.replaceAll('-', '');
+                    const fin = base.fechaFin.replaceAll('-', '');
+
+                    link.href = objectUrl;
+                    link.download = `Facturas_${tipo}_${inicio}_${fin}.pdf`;
+
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+
+                    URL.revokeObjectURL(objectUrl);
+
+                    mostrarAlerta(
+                        alertaId,
+                        'PDF generado correctamente.',
+                        'success'
+                    );
+                } catch (error) {
+                    mostrarAlerta(
+                        alertaId,
+                        error.message || 'Error al generar el PDF.'
+                    );
+                }
+            }
+
+            function pantallaActiva() {
+                return document.getElementById('tab-escaneadas').classList.contains('active')
+                    ? 'ESCANEADAS'
+                    : 'PISTOLEADAS';
+            }
+
+            function cargarPantallaActual() {
+                if (pantallaActiva() === 'ESCANEADAS')
+                    return cargarEscaneadas();
+
+                return cargarPistoleadas();
+            }
+
+            document.getElementById('btnBuscarPistoleadas').addEventListener('click', cargarPistoleadas);
+            document.getElementById('btnBuscarEscaneadas').addEventListener('click', cargarEscaneadas);
+            document.getElementById('btnPdfPistoleadas').addEventListener('click', () => descargarPdf('PISTOLEADAS'));
+            document.getElementById('btnPdfEscaneadas').addEventListener('click', () => descargarPdf('ESCANEADAS'));
+            document.getElementById('btnActualizarActual').addEventListener('click', cargarPantallaActual);
+
+            estadoPistoleadas.addEventListener('change', cargarPistoleadas);
+            tipoPersonaPistoleadas.addEventListener('change', cargarPistoleadas);
+            estadoEscaneadas.addEventListener('change', cargarEscaneadas);
+            resultadoEscaneadas.addEventListener('change', cargarEscaneadas);
+
+            fechaInicio.addEventListener('change', () => {
+                cargadasPistoleadas = false;
+                cargadasEscaneadas = false;
+            });
+
+            fechaFin.addEventListener('change', () => {
+                cargadasPistoleadas = false;
+                cargadasEscaneadas = false;
+            });
+
+            document.getElementById('tab-pistoleadas').addEventListener('shown.bs.tab', () => {
+                if (!cargadasPistoleadas) cargarPistoleadas();
+            });
+
+            document.getElementById('tab-escaneadas').addEventListener('shown.bs.tab', () => {
+                if (!cargadasEscaneadas) cargarEscaneadas();
+            });
+
+            cargarPistoleadas();
+        })();
+    </script>
+}

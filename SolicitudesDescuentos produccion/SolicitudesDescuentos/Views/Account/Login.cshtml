@@ -1,0 +1,37 @@
+﻿@model LoginViewModel
+
+@{
+    ViewData["Title"] = "Iniciar sesión";
+}
+
+<div class="container d-flex justify-content-center" style="margin-top: 110px;">
+    <div class="card shadow-sm p-3" style="max-width: 400px; width: 100%;">
+        <h3 class="text-center mb-4">Iniciar Sesión</h3>
+
+        <form asp-action="Login" method="post" novalidate>
+            @if (!ViewData.ModelState.IsValid && Context.Request.Method == "POST")
+            {
+                <div class="alert alert-danger">
+                    @Html.ValidationSummary(true)
+                </div>
+            }
+            <div class="mb-3">
+                <label asp-for="CodUsuario" class="form-label">Usuario</label>
+                <input asp-for="CodUsuario" class="form-control" />
+                <span asp-validation-for="CodUsuario" class="text-danger small"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Password" class="form-label">Contraseña</label>
+                <input asp-for="Password" type="password" class="form-control" />
+                <span asp-validation-for="Password" class="text-danger small"></span>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100">Ingresar</button>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    @await Html.PartialAsync("_ValidationScriptsPartial")
+}

@@ -1,0 +1,26 @@
+﻿html {
+  font-size: 14px;
+}
+
+@media (min-width: 768px) {
+  html {
+    font-size: 16px;
+  }
+}
+
+html {
+  position: relative;
+  min-height: 100%;
+}
+
+body {
+  margin-bottom: 60px;
+}
+
+/* ✅ Agranda TODOS los checks del modal Agregar Manual */
+#modalAgregarManual input[type="checkbox"] {
+    width: 1.35rem;
+    height: 1.35rem;
+    cursor: pointer;
+    vertical-align: middle;
+}

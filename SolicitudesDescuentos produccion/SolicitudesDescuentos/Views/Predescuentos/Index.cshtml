@@ -1,0 +1,1737 @@
+﻿@model IEnumerable<SolicitudesDescuentos.ModelsOracle.PREDESCUENTO>
+
+@{
+    ViewData["Title"] = "Index";
+    var nombresClientes = ViewBag.NombresClientes as IDictionary<string, string>;
+
+    var pendientesExcel = (Model ?? Enumerable.Empty<SolicitudesDescuentos.ModelsOracle.PREDESCUENTO>())
+        .Where(p => string.Equals(p.GENERADO, "N", StringComparison.OrdinalIgnoreCase)
+                && string.Equals((p.ESTADO ?? "").Trim(), "Aprobado", StringComparison.OrdinalIgnoreCase))
+        .OrderByDescending(p => int.TryParse(p.CONSECUTIVO, out var c) ? c : 0)
+        .ToList();
+
+    var esPriceEditor = ViewBag.EsPriceEditor as bool? ?? false;
+
+}
+@if (TempData["ErrorMessage"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        @TempData["ErrorMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+    </div>
+}
+
+<h2 class="text-center">Solicitudes de Descuento</h2>
+@{
+    var filtroCodCliente = (ViewBag.FiltroCodCliente as string) ?? "";
+    var filtroFechaInicio = (ViewBag.FiltroFechaInicio as string) ?? "";
+    var filtroFechaFin = (ViewBag.FiltroFechaFin as string) ?? "";
+    var nombreFiltro = "";
+
+    if (!string.IsNullOrWhiteSpace(filtroCodCliente) && nombresClientes != null
+        && nombresClientes.TryGetValue(filtroCodCliente, out var nom))
+    {
+        nombreFiltro = nom ?? "";
+    }
+}
+
+@* Botones en la misma fila *@
+<div class="row gx-2 gy-2 mb-3 justify-content-center justify-content-md-evenly align-items-center">
+
+    @if (User.IsInRole("PRICE_EDITOR"))
+    {
+        <div class="col-auto">
+            <button type="button" class="btn btn-danger"
+                    data-bs-toggle="modal" data-bs-target="#gestionNoPromoModal">
+                Desactivar / Reactivar descuentos
+            </button>
+        </div>
+
+
+        <div class="col-auto">
+            <button type="button" class="btn btn-danger"
+                    data-bs-toggle="modal" data-bs-target="#copiarDescuentosArticuloModal">
+                Agregar descuentos a artículo
+            </button>
+        </div>
+
+        <div class="col-auto">
+            <button type="button" class="btn btn-danger"
+                 data-bs-toggle="modal" data-bs-target="#articulosExcluidosModal">
+                Artículos Excluidos
+            </button>
+        </div>
+    
+
+    <div class="col-auto">
+        <button type="button" class="btn btn-dark"
+                data-bs-toggle="modal" data-bs-target="#reportesModal">
+            Reportes
+        </button>
+    </div>
+    }
+    <div class="col-auto">
+        <button type="button" class="btn btn-danger"
+                data-bs-toggle="modal" data-bs-target="#crearModal">
+            Crear Nueva Solicitud
+        </button>
+    </div>
+</div>
+
+
+@* (Opcional) feedback rápido del flujo *@
+@if (TempData["InfoFlujo"] != null)
+{
+    <div class="alert alert-info alert-dismissible fade show" role="alert">
+        @TempData["InfoFlujo"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+    </div>
+}
+
+<form asp-action="Index" asp-controller="Predescuentos" method="get" class="mb-4">
+    <div class="card shadow-sm mx-auto" style="max-width: 1250px;">
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+
+                <!-- Buscar cliente -->
+                <div class="col-12 col-md-6 col-lg-3">
+                    <label class="form-label">Buscar cliente (código o nombre)</label>
+                    <input type="text"
+                           class="form-control"
+                           id="txtClienteFiltro"
+                           placeholder="Ej: 1000123 o 'Ferretería'"
+                           autocomplete="off" />
+                </div>
+
+                <!-- Resultados cliente -->
+                <div class="col-12 col-md-6 col-lg-3">
+                    <label class="form-label">Resultados</label>
+                    <select class="form-select" id="selClientes" name="codCliente">
+                        <option value="">-- Seleccione un cliente --</option>
+
+                        @if (!string.IsNullOrWhiteSpace(filtroCodCliente))
+                        {
+                            <option value="@filtroCodCliente" selected>
+                                @(string.IsNullOrWhiteSpace(nombreFiltro)
+                                                            ? filtroCodCliente
+                                                            : $"{nombreFiltro} ({filtroCodCliente})")
+                            </option>
+                        }
+                    </select>
+                </div>
+
+                <!-- Fecha inicio -->
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">Fecha inicio</label>
+                    <input type="date"
+                           class="form-control"
+                           name="fechaInicio"
+                           value="@filtroFechaInicio" />
+                </div>
+
+                <!-- Fecha fin -->
+                <div class="col-12 col-md-6 col-lg-2">
+                    <label class="form-label">Fecha fin</label>
+                    <input type="date"
+                           class="form-control"
+                           name="fechaFin"
+                           value="@filtroFechaFin" />
+                </div>
+
+                <!-- Botones -->
+                <div class="col-12 col-lg-1">
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-danger" id="btnFiltrarCliente">
+                            Filtrar
+                        </button>
+                    </div>
+                </div>
+
+                <div class="col-12 col-lg-auto">
+                    <a asp-action="Index"
+                       asp-controller="Predescuentos"
+                       class="btn btn-outline-secondary w-100">
+                        Limpiar
+                    </a>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</form>
+
+<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+    @foreach (var item in Model)
+    {
+        <div class="col">
+            <div class="card shadow h-100">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        Cliente:
+                        @(
+                                            nombresClientes != null
+                                            && !string.IsNullOrWhiteSpace(item.COD_CLIENTE)
+                                            && nombresClientes.ContainsKey(item.COD_CLIENTE)
+                                            ? nombresClientes[item.COD_CLIENTE]
+                                            : item.COD_CLIENTE
+                                            )
+                    </h5>
+                    <p class="card-text">
+                        <strong>Solicitud:</strong> @item.FECHASOLICITUD.ToShortDateString()<br />
+
+                        <strong>Tipo Descuento:</strong> @item.TIPODESCUENTO<br />
+
+                        <strong>Inicio:</strong>
+                        @(
+                                            item.FECHAINICIO == null || item.FECHAINICIO == DateTime.MinValue
+                                            ? "N/A"
+                                            : item.FECHAINICIO.Value.ToShortDateString()
+                                            )<br />
+
+                        <strong>Fin:</strong>
+                        @(
+                                            item.FECHAFIN == null || item.FECHAFIN == DateTime.MinValue
+                                            ? "N/A"
+                                            : item.FECHAFIN.Value.ToShortDateString()
+                                            )<br />
+
+                        <strong>Estado:</strong>
+                        @(
+                                            string.Equals((item.ESTADO ?? "").Trim(), "R", StringComparison.OrdinalIgnoreCase)
+                                            ? "Reversado"
+                                            : item.ESTADO
+                         )<br />
+
+                        <strong>Autorizado por:</strong> @item.AUTORIZADO_POR<br />
+
+                        <strong>Aplicación:</strong>
+                        @(item.FECHA_APLICACION.HasValue
+                                            ? item.FECHA_APLICACION.Value.ToShortDateString()
+                                            : "No aplicada")
+                    </p>
+                </div>
+
+                <div class="card-footer text-center">
+                    @* Solo se permite editar / eliminar en ciertos estados *@
+                    @{
+                        var estadoItem = (item.ESTADO ?? "").Trim();
+                        var puedeEditarEliminar =
+                        !estadoItem.Equals("Pendiente Aprobacion", StringComparison.OrdinalIgnoreCase) &&
+                        !estadoItem.Equals("Aprobado", StringComparison.OrdinalIgnoreCase) &&
+                        !estadoItem.Equals("Reversado", StringComparison.OrdinalIgnoreCase);
+                    }
+
+                    @if (puedeEditarEliminar)
+                    {
+                        <a asp-action="Edit"
+                           asp-route-consecutivo="@item.CONSECUTIVO"
+                           asp-route-codcliente="@item.COD_CLIENTE"
+                           class="btn btn-sm btn-danger mx-1">
+                            Editar
+                        </a>
+
+                        <a asp-action="Delete"
+                           asp-route-id="@item.CONSECUTIVO"
+                           class="btn btn-sm btn-danger mx-1">
+                            Eliminar
+                        </a>
+                    }
+
+                    <a asp-action="Details"
+                       asp-route-buNombre="@item.BU_NOMBRE"
+                       asp-route-codCliente="@item.COD_CLIENTE"
+                       asp-route-id="@item.CONSECUTIVO"
+                       class="btn btn-sm btn-danger">
+                        Detalles
+                    </a>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@* Modal: Reportes *@
+<div class="modal fade" id="reportesModal" tabindex="-1" aria-labelledby="reportesModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content shadow">
+            <div class="modal-header">
+                <h5 class="modal-title" id="reportesModalLabel">Reportes</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+
+            <div class="modal-body">
+                <div class="d-grid gap-2">
+                    <a asp-controller="ReportesCobros"
+                       asp-action="ResumenCobrosAgente"
+                       class="btn btn-danger">
+                        Cobros por Agente
+                    </a>
+                    <a asp-controller="SeguimientoFacturas"
+                       asp-action="Index"
+                       class="btn btn-danger">
+                        InfoRouter
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* Modal: Crear *@
+<div class="modal fade" id="crearModal" tabindex="-1" aria-labelledby="crearModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content shadow">
+            <div class="modal-header">
+                <h5 class="modal-title" id="crearModalLabel">Nueva Solicitud</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body text-center">
+                <p>¿Qué desea hacer?</p>
+                <a asp-action="Create" class="btn btn-danger mb-2 w-100">Crear solo Solicitud</a>
+
+                <button class="btn btn-secondary w-100" disabled>
+                    Crear Cliente y Solicitud (Próximamente)
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* Modal: Generar Excel (checklist GENERADO = N) *@
+<div class="modal fade" id="generarExcelModal" tabindex="-1" aria-labelledby="generarExcelModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content shadow">
+            <div class="modal-header">
+                <h5 class="modal-title" id="generarExcelModalLabel">Generar Excel (Solicitudes no generadas)</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+
+            <form asp-action="DescargarExcel"
+                  asp-controller="Predescuentos"
+                  method="post"
+                  id="formGenerarExcel"
+                  target="_blank">
+                @Html.AntiForgeryToken()
+
+                <input type="hidden" name="tipoFiltro" id="tipoFiltroExcel" value="promocional" />
+
+                <div class="modal-body">
+
+                    @if (pendientesExcel.Any())
+                    {
+                        <div class="alert alert-info mb-3">
+                            Seleccioná las solicitudes para incluirlas en el Excel.
+                        </div>
+
+                        <!-- Filtros -->
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <span class="text-muted small">Filtrar:</span>
+                            <div class="btn-group btn-group-sm" role="group" aria-label="Filtro tipo descuento">
+                                <button type="button" class="btn btn-outline-success active" id="btnFiltroPromo">
+                                    Promocionales
+                                </button>
+                                <button type="button" class="btn btn-outline-success" id="btnFiltroFijo">
+                                    Fijos
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="list-group">
+                            @foreach (var p in pendientesExcel)
+                            {
+                                var nombreCliente =
+                                (nombresClientes != null
+                                && !string.IsNullOrWhiteSpace(p.COD_CLIENTE)
+                                && nombresClientes.ContainsKey(p.COD_CLIENTE))
+                                ? nombresClientes[p.COD_CLIENTE]
+                                : p.COD_CLIENTE;
+
+                                var tipoNorm =
+                                string.Equals(p.TIPODESCUENTO, "Descuento Promocional", StringComparison.OrdinalIgnoreCase)
+                                ? "promocional"
+                                : string.Equals(p.TIPODESCUENTO, "Descuento Fijo", StringComparison.OrdinalIgnoreCase)
+                                ? "fijo"
+                                : "otro";
+
+                                <label class="list-group-item d-flex gap-2 align-items-start item-solicitud"
+                                       data-tipo="@tipoNorm">
+                                    <input class="form-check-input mt-1"
+                                           type="checkbox"
+                                           name="seleccionados"
+                                           value="@($"{p.BU_NOMBRE}|{p.CONSECUTIVO}")" />
+
+                                    <div class="w-100">
+                                        <div class="d-flex justify-content-between">
+                                            <div>
+                                                <strong>@nombreCliente</strong>
+                                                <span class="text-muted">(@p.COD_CLIENTE)</span>
+                                            </div>
+                                            <span class="badge bg-secondary">Consecutivo: @p.CONSECUTIVO</span>
+                                        </div>
+
+                                        <div class="small text-muted">
+                                            Solicitud: @p.FECHASOLICITUD.ToShortDateString()
+                                            &nbsp;|&nbsp; Tipo: @p.TIPODESCUENTO
+                                            &nbsp;|&nbsp; Estado: @p.ESTADO
+                                        </div>
+                                    </div>
+                                </label>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-warning mb-0">
+                            No hay solicitudes que no se hayan <strong>GENERADO</strong> en Excel.
+                        </div>
+                    }
+
+
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+
+                    @* Aún sin controller: por ahora no hace nada *@
+                    <button type="submit" class="btn btn-success" @(pendientesExcel.Any() ? "" : "disabled")>
+                        Generar Excel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+
+@* Modal: Copiar descuentos de un artículo existente a un artículo nuevo *@
+<div class="modal fade" id="copiarDescuentosArticuloModal" tabindex="-1"
+     aria-labelledby="copiarDescuentosArticuloModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content shadow">
+            <form asp-action="CopiarDescuentosAArticuloNuevo"
+                  asp-controller="Predescuentos"
+                  method="post"
+                  id="formCopiarDescuentosArticulo">
+                @Html.AntiForgeryToken()
+
+                <div class="modal-header">
+                    <h5 class="modal-title" id="copiarDescuentosArticuloModalLabel">
+                        Agregar descuentos a un artículo nuevo
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        Seleccione el artículo nuevo y luego un artículo existente que ya tenga descuentos.
+                        Se copiarán todos sus descuentos de cliente y promoción; únicamente cambiará el código del artículo.
+                    </div>
+
+                    <div class="row g-4">
+                        <div class="col-12 col-lg-6">
+                            <div class="card h-100 border-primary">
+                                <div class="card-header fw-bold">1. Artículo nuevo</div>
+                                <div class="card-body">
+                                    <label class="form-label" for="txtArticuloNuevoBuscar">
+                                        Buscar por código o nombre
+                                    </label>
+
+                                    <div class="position-relative">
+                                        <input type="text"
+                                               class="form-control"
+                                               id="txtArticuloNuevoBuscar"
+                                               placeholder="Escriba mínimo 2 caracteres"
+                                               autocomplete="off" />
+
+                                        <div class="dropdown-menu w-100 shadow"
+                                             id="ddlArticuloNuevo"
+                                             style="max-height: 320px; overflow-y: auto;"></div>
+                                    </div>
+
+                                    <input type="hidden" name="itemNuevo" id="hidArticuloNuevo" />
+
+                                    <div class="mt-3">
+                                        <div class="small text-muted">Seleccionado:</div>
+                                        <div class="border rounded p-2 bg-light" id="lblArticuloNuevoSeleccionado">
+                                            Ningún artículo seleccionado.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-lg-6">
+                            <div class="card h-100 border-secondary">
+                                <div class="card-header fw-bold">2. Artículo origen de los descuentos</div>
+                                <div class="card-body">
+                                    <label class="form-label" for="txtArticuloOrigenBuscar">
+                                        Buscar por código o nombre
+                                    </label>
+
+                                    <div class="position-relative">
+                                        <input type="text"
+                                               class="form-control"
+                                               id="txtArticuloOrigenBuscar"
+                                               placeholder="Escriba mínimo 2 caracteres"
+                                               autocomplete="off" />
+
+                                        <div class="dropdown-menu w-100 shadow"
+                                             id="ddlArticuloOrigen"
+                                             style="max-height: 320px; overflow-y: auto;"></div>
+                                    </div>
+
+                                    <input type="hidden" name="itemOrigen" id="hidArticuloOrigen" />
+
+                                    <div class="mt-3">
+                                        <div class="small text-muted">Seleccionado:</div>
+                                        <div class="border rounded p-2 bg-light" id="lblArticuloOrigenSeleccionado">
+                                            Ningún artículo seleccionado.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-warning mt-4 mb-0 d-none" id="mensajeCopiarDescuentos"></div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                    <button type="submit" class="btn btn-danger" id="btnCopiarDescuentos" disabled>
+                        Crear copia de descuentos
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="gestionNoPromoModal" tabindex="-1" aria-labelledby="gestionNoPromoModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content shadow">
+            <div class="modal-header">
+                <h5 class="modal-title" id="gestionNoPromoModalLabel">Desactivar / Reactivar descuentos por artículo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+
+            <div class="modal-body">
+                <ul class="nav nav-tabs mb-3" id="noPromoTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active"
+                                id="tab-desactivar-descuentos"
+                                data-bs-toggle="tab"
+                                data-bs-target="#panel-desactivar-descuentos"
+                                type="button"
+                                role="tab">
+                            Desactivar descuentos
+                        </button>
+                    </li>
+
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link"
+                                id="tab-reactivar-descuentos"
+                                data-bs-toggle="tab"
+                                data-bs-target="#panel-reactivar-descuentos"
+                                type="button"
+                                role="tab">
+                            Reactivar descuentos
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+
+                    <div class="tab-pane fade show active" id="panel-desactivar-descuentos" role="tabpanel">
+                        <form asp-action="DesactivarArticuloNoPromo" asp-controller="Predescuentos" method="post" id="formDesactivarNoPromo">
+                            @Html.AntiForgeryToken()
+
+                            <div class="row g-3">
+                                <div class="col-12 col-lg-6">
+                                    <label class="form-label">Buscar artículo</label>
+                                    <input type="text" class="form-control" id="txtItemFiltro"
+                                           placeholder="Ej: 100-ABC o parte del código"
+                                           autocomplete="off" />
+                                    <div class="form-text">Escribí mínimo 2 caracteres.</div>
+                                </div>
+
+                                <div class="col-12 col-lg-6">
+                                    <label class="form-label">Artículo seleccionado</label>
+                                    <input type="text" class="form-control" id="txtItemSeleccionado" readonly />
+                                    <input type="hidden" name="itemNumber" id="hidItemNumber" />
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label">Resultados</label>
+                                    <div class="list-group" id="lstItems">
+                                        <div class="list-group-item text-muted">Buscá un artículo para ver resultados…</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="text-end mt-3">
+                                <button type="submit" class="btn btn-danger" id="btnDesactivarNoPromo" disabled>
+                                    Desactivar descuentos
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="tab-pane fade" id="panel-reactivar-descuentos" role="tabpanel">
+                        <form asp-action="ReactivarArticuloNoPromo" asp-controller="Predescuentos" method="post" id="formReactivarNoPromo">
+                            @Html.AntiForgeryToken()
+
+                            <div class="row g-3">
+                                <div class="col-12 col-lg-6">
+                                    <label class="form-label">Buscar artículo en ART_NO_PROMO</label>
+                                    <input type="text" class="form-control" id="txtNoPromoFiltro"
+                                           placeholder="Ej: 100-ABC o parte del código"
+                                           autocomplete="off" />
+                                    <div class="form-text">Solo muestra artículos con desactivación activa.</div>
+                                </div>
+
+                                <div class="col-12 col-lg-6">
+                                    <label class="form-label">Artículo seleccionado</label>
+                                    <input type="text" class="form-control" id="txtNoPromoSeleccionado" readonly />
+                                    <input type="hidden" name="itemNumber" id="hidNoPromoItemNumber" />
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label">Resultados</label>
+                                    <div class="list-group" id="lstNoPromoItems">
+                                        <div class="list-group-item text-muted">Buscá un artículo para ver resultados…</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="text-end mt-3">
+                                <button type="submit" class="btn btn-success" id="btnReactivarNoPromo" disabled>
+                                    Reactivar descuentos
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* Modal: Artículos Excluidos *@
+<div class="modal fade" id="articulosExcluidosModal" tabindex="-1" aria-labelledby="articulosExcluidosModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content shadow">
+            <div class="modal-header">
+                <h5 class="modal-title" id="articulosExcluidosModalLabel">Artículos Excluidos</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+
+            <div class="modal-body">
+                @Html.AntiForgeryToken()
+
+                <ul class="nav nav-tabs mb-3" id="articulosExcluidosTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active"
+                                id="tab-listado-excluidos"
+                                data-bs-toggle="tab"
+                                data-bs-target="#panel-listado-excluidos"
+                                type="button"
+                                role="tab">
+                            Listado de excluidos
+                        </button>
+                    </li>
+
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link"
+                                id="tab-gestionar-excluidos"
+                                data-bs-toggle="tab"
+                                data-bs-target="#panel-gestionar-excluidos"
+                                type="button"
+                                role="tab">
+                            Agregar excluidos
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+
+                    @* TAB 1: LISTADO PRINCIPAL *@
+                    <div class="tab-pane fade show active" id="panel-listado-excluidos" role="tabpanel">
+                        <div class="card border-0 shadow-sm mb-3">
+                            <div class="card-body">
+                                <div class="row g-2 align-items-end">
+                                    <div class="col-12 col-md-10">
+                                        <label class="form-label">Buscar por código o nombre</label>
+                                        <input type="text"
+                                               class="form-control"
+                                               id="exclFiltroTextoListado"
+                                               placeholder="Código o nombre del artículo"
+                                               autocomplete="off" />
+                                    </div>
+
+                                    <div class="col-12 col-md-2 d-grid">
+                                        <button type="button" class="btn btn-primary" id="btnBuscarExcluidosListado">
+                                            Buscar
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="form-text mt-2">
+                                    Este listado muestra artículos con ACEPTADESCUENTO = N.
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="lstArticulosExcluidos">
+                            <div class="alert alert-info mb-0">
+                                Cargando artículos excluidos.
+                            </div>
+                        </div>
+                    </div>
+
+                    @* TAB 2: AGREGAR *@
+                    <div class="tab-pane fade" id="panel-gestionar-excluidos" role="tabpanel">
+                        <div class="card border-0 shadow-sm mb-3">
+                            <div class="card-body">
+                                <div class="row g-2 align-items-end">
+                                    <div class="col-12 col-md-3">
+                                        <label class="form-label">Línea</label>
+                                        <select class="form-select" id="exclFiltroLineaGestion">
+                                            <option value="">-- Todas --</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="col-12 col-md-3">
+                                        <label class="form-label">Clase</label>
+                                        <select class="form-select" id="exclFiltroClaseGestion">
+                                            <option value="">-- Todas --</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="col-12 col-md-2">
+                                        <label class="form-label">Medida</label>
+                                        <select class="form-select" id="exclFiltroMedidaGestion">
+                                            <option value="">-- Todas --</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="col-12 col-md-3">
+                                        <label class="form-label">Código o nombre</label>
+                                        <input type="text"
+                                               class="form-control"
+                                               id="exclFiltroTextoGestion"
+                                               placeholder="Código o nombre"
+                                               autocomplete="off" />
+                                    </div>
+                                </div>
+
+                                <div class="form-text mt-2">
+                                    Esta búsqueda muestra artículos con ACEPTADESCUENTO = S. Al agregar, se actualiza a N en XXORA_ITEM_MASTER.
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="lstArticulosGestion">
+                            <div class="alert alert-secondary mb-0">
+                                Usá los filtros para buscar artículos.
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <span class="text-muted small me-auto" id="excluidosMensaje"></span>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (() => {
+          const modal = document.getElementById('generarExcelModal');
+          if (!modal) return;
+
+          let current = 'promocional'; // default SIEMPRE
+
+          function setActive(tipo) {
+            const btnPromo = modal.querySelector('#btnFiltroPromo');
+            const btnFijo  = modal.querySelector('#btnFiltroFijo');
+
+            btnPromo?.classList.toggle('active', tipo === 'promocional');
+            btnFijo?.classList.toggle('active',  tipo === 'fijo');
+
+            // NUEVO: actualizar hidden para el POST
+            const hidden = modal.querySelector('#tipoFiltroExcel');
+            if (hidden) hidden.value = tipo;
+          }
+
+          function applyFilter(tipo) {
+            current = tipo;
+            setActive(tipo);
+
+            const items = modal.querySelectorAll('.item-solicitud');
+
+            items.forEach(item => {
+              const match = item.dataset.tipo === tipo;
+              item.classList.toggle('d-none', !match);
+
+              const cb = item.querySelector('input[type="checkbox"]');
+              if (cb) {
+                if (!match) {
+                  cb.checked = false;  // evita mezclar
+                  cb.disabled = true;  // no se envía
+                } else {
+                  cb.disabled = false;
+                }
+              }
+            });
+          }
+
+          modal.querySelector('#btnFiltroPromo')?.addEventListener('click', () => applyFilter('promocional'));
+          modal.querySelector('#btnFiltroFijo')?.addEventListener('click', () => applyFilter('fijo'));
+
+          modal.addEventListener('show.bs.modal', () => applyFilter('promocional'));
+        })();
+
+
+        (() => {
+          const txt = document.getElementById('txtClienteFiltro');
+          const sel = document.getElementById('selClientes');
+          if (!txt || !sel) return;
+
+          const urlBuscar = '@Url.Action("BuscarClientes", "Predescuentos")';
+
+          let t = null;
+
+          function setLoading() {
+            // Mantener opción seleccionada si existiera
+            const current = sel.value;
+            sel.innerHTML = '<option value="">Buscando...</option>';
+            if (current) {
+              const opt = document.createElement('option');
+              opt.value = current;
+              opt.textContent = current;
+              sel.appendChild(opt);
+              sel.value = current;
+            }
+          }
+
+          function renderResults(data) {
+            const current = sel.value; // por si ya había seleccionado
+
+            sel.innerHTML = '<option value="">-- Seleccione un cliente --</option>';
+
+            if (!Array.isArray(data) || data.length === 0) {
+              const opt = document.createElement('option');
+              opt.value = '';
+              opt.textContent = 'Sin resultados';
+              sel.appendChild(opt);
+              return;
+            }
+
+            data.forEach(x => {
+              const cod = x.codCliente || x.CodCliente;
+              const nom = x.nomCliente || x.NomCliente;
+
+              if (!cod) return;
+
+              const opt = document.createElement('option');
+              opt.value = cod;
+              opt.textContent = nom ? `${nom} (${cod})` : cod;
+              sel.appendChild(opt);
+            });
+
+            // Restaurar selección si todavía existe
+            if (current) sel.value = current;
+          }
+
+          async function buscar() {
+            const q = (txt.value || '').trim();
+            if (q.length < 2) {
+              // Si querés, podés limpiar solo si no hay selección
+              return;
+            }
+
+            try {
+              setLoading();
+              const res = await fetch(`${urlBuscar}?filtro=${encodeURIComponent(q)}`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+              });
+              if (!res.ok) throw new Error('HTTP ' + res.status);
+              const data = await res.json();
+              renderResults(data);
+            } catch (e) {
+              sel.innerHTML = '<option value="">Error al buscar</option>';
+              console.error(e);
+            }
+          }
+
+          txt.addEventListener('input', () => {
+            clearTimeout(t);
+            t = setTimeout(buscar, 300); // debounce
+          });
+
+          // Extra: si presiona Enter en el input, evita submit (porque todavía no eligió)
+          txt.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter') {
+              ev.preventDefault();
+              buscar();
+            }
+          });
+        })();
+
+    </script>
+
+    <script>
+        (() => {
+            const modal = document.getElementById('copiarDescuentosArticuloModal');
+            if (!modal) return;
+
+            const form = modal.querySelector('#formCopiarDescuentosArticulo');
+            const btnGuardar = modal.querySelector('#btnCopiarDescuentos');
+            const mensaje = modal.querySelector('#mensajeCopiarDescuentos');
+            const urlBuscarItems = '@Url.Action("BuscarItems", "Predescuentos")';
+
+            function mostrarMensaje(texto, esError = false) {
+                if (!mensaje) return;
+
+                mensaje.textContent = texto || '';
+                mensaje.classList.toggle('d-none', !texto);
+                mensaje.classList.toggle('alert-danger', esError);
+                mensaje.classList.toggle('alert-warning', !esError);
+            }
+
+            function validarSeleccion() {
+                const nuevo = (modal.querySelector('#hidArticuloNuevo')?.value || '').trim();
+                const origen = (modal.querySelector('#hidArticuloOrigen')?.value || '').trim();
+                const sonIguales = nuevo && origen && nuevo.toUpperCase() === origen.toUpperCase();
+
+                if (btnGuardar) {
+                    btnGuardar.disabled = !nuevo || !origen || sonIguales;
+                }
+
+                if (sonIguales) {
+                    mostrarMensaje('El artículo nuevo y el artículo origen deben ser diferentes.', true);
+                } else {
+                    mostrarMensaje('');
+                }
+            }
+
+            function crearBuscador({ inputId, dropdownId, hiddenId, selectedId }) {
+                const input = modal.querySelector(inputId);
+                const dropdown = modal.querySelector(dropdownId);
+                const hidden = modal.querySelector(hiddenId);
+                const selected = modal.querySelector(selectedId);
+
+                if (!input || !dropdown || !hidden || !selected) return null;
+
+                let timer = null;
+                let requestController = null;
+
+                function ocultarDropdown() {
+                    dropdown.classList.remove('show');
+                }
+
+                function mostrarEstado(texto) {
+                    dropdown.replaceChildren();
+
+                    const item = document.createElement('div');
+                    item.className = 'dropdown-item-text text-muted';
+                    item.textContent = texto;
+                    dropdown.appendChild(item);
+                    dropdown.classList.add('show');
+                }
+
+                function limpiarSeleccion() {
+                    hidden.value = '';
+                    selected.textContent = 'Ningún artículo seleccionado.';
+                    validarSeleccion();
+                }
+
+                function seleccionar(itemNumber, description) {
+                    hidden.value = itemNumber;
+                    selected.textContent = description
+                        ? `${itemNumber} — ${description}`
+                        : itemNumber;
+                    input.value = description
+                        ? `${itemNumber} — ${description}`
+                        : itemNumber;
+                    ocultarDropdown();
+                    validarSeleccion();
+                }
+
+                function renderizar(data) {
+                    dropdown.replaceChildren();
+
+                    if (!Array.isArray(data) || data.length === 0) {
+                        mostrarEstado('No se encontraron artículos.');
+                        return;
+                    }
+
+                    data.forEach(x => {
+                        const itemNumber = x.itemNumber || x.ItemNumber || '';
+                        const description = x.description || x.Description || '';
+
+                        if (!itemNumber) return;
+
+                        const button = document.createElement('button');
+                        button.type = 'button';
+                        button.className = 'dropdown-item py-2 border-bottom text-wrap';
+
+                        const codigo = document.createElement('div');
+                        codigo.className = 'fw-bold';
+                        codigo.textContent = itemNumber;
+
+                        const descripcion = document.createElement('div');
+                        descripcion.className = 'small text-muted';
+                        descripcion.textContent = description || 'Sin descripción';
+
+                        button.append(codigo, descripcion);
+                        button.addEventListener('click', () => seleccionar(itemNumber, description));
+                        dropdown.appendChild(button);
+                    });
+
+                    dropdown.classList.add('show');
+                }
+
+                async function buscar() {
+                    const filtro = (input.value || '').trim();
+                    limpiarSeleccion();
+
+                    if (filtro.length < 2) {
+                        ocultarDropdown();
+                        return;
+                    }
+
+                    requestController?.abort();
+                    requestController = new AbortController();
+
+                    try {
+                        mostrarEstado('Buscando artículos…');
+
+                        const response = await fetch(
+                            `${urlBuscarItems}?filtro=${encodeURIComponent(filtro)}`,
+                            {
+                                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                                signal: requestController.signal
+                            });
+
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}`);
+                        }
+
+                        const data = await response.json();
+                        renderizar(data);
+                    } catch (error) {
+                        if (error.name === 'AbortError') return;
+
+                        console.error(error);
+                        mostrarEstado('Ocurrió un error al buscar artículos.');
+                    }
+                }
+
+                input.addEventListener('input', () => {
+                    clearTimeout(timer);
+                    timer = setTimeout(buscar, 300);
+                });
+
+                input.addEventListener('focus', () => {
+                    if (dropdown.children.length > 0 && input.value.trim().length >= 2) {
+                        dropdown.classList.add('show');
+                    }
+                });
+
+                input.addEventListener('keydown', event => {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        clearTimeout(timer);
+                        buscar();
+                    }
+
+                    if (event.key === 'Escape') {
+                        ocultarDropdown();
+                    }
+                });
+
+                return {
+                    reset() {
+                        clearTimeout(timer);
+                        requestController?.abort();
+                        input.value = '';
+                        hidden.value = '';
+                        selected.textContent = 'Ningún artículo seleccionado.';
+                        dropdown.replaceChildren();
+                        ocultarDropdown();
+                    },
+                    hide: ocultarDropdown
+                };
+            }
+
+            const buscadorNuevo = crearBuscador({
+                inputId: '#txtArticuloNuevoBuscar',
+                dropdownId: '#ddlArticuloNuevo',
+                hiddenId: '#hidArticuloNuevo',
+                selectedId: '#lblArticuloNuevoSeleccionado'
+            });
+
+            const buscadorOrigen = crearBuscador({
+                inputId: '#txtArticuloOrigenBuscar',
+                dropdownId: '#ddlArticuloOrigen',
+                hiddenId: '#hidArticuloOrigen',
+                selectedId: '#lblArticuloOrigenSeleccionado'
+            });
+
+            document.addEventListener('click', event => {
+                if (!modal.contains(event.target)) return;
+
+                if (!event.target.closest('#txtArticuloNuevoBuscar') &&
+                    !event.target.closest('#ddlArticuloNuevo')) {
+                    buscadorNuevo?.hide();
+                }
+
+                if (!event.target.closest('#txtArticuloOrigenBuscar') &&
+                    !event.target.closest('#ddlArticuloOrigen')) {
+                    buscadorOrigen?.hide();
+                }
+            });
+
+            form?.addEventListener('submit', event => {
+                validarSeleccion();
+
+                if (btnGuardar?.disabled) {
+                    event.preventDefault();
+                    return;
+                }
+
+                const nuevo = modal.querySelector('#hidArticuloNuevo')?.value || '';
+                const origen = modal.querySelector('#hidArticuloOrigen')?.value || '';
+
+                const confirmado = window.confirm(
+                    `Se copiarán todos los descuentos de ${origen} al artículo nuevo ${nuevo}. ¿Desea continuar?`);
+
+                if (!confirmado) {
+                    event.preventDefault();
+                    return;
+                }
+
+                btnGuardar.disabled = true;
+                btnGuardar.textContent = 'Procesando…';
+            });
+
+            modal.addEventListener('show.bs.modal', () => {
+                buscadorNuevo?.reset();
+                buscadorOrigen?.reset();
+                mostrarMensaje('');
+
+                if (btnGuardar) {
+                    btnGuardar.disabled = true;
+                    btnGuardar.textContent = 'Crear copia de descuentos';
+                }
+            });
+        })();
+    </script>
+    <script>
+        (() => {
+            const modal = document.getElementById('gestionNoPromoModal');
+            if (!modal) return;
+
+            const urlBuscarItems = '@Url.Action("BuscarItems", "Predescuentos")';
+            const urlBuscarNoPromo = '@Url.Action("BuscarItemsNoPromo", "Predescuentos")';
+
+            function wireSearch({ txtId, listId, hiddenId, selectedId, buttonId, url, emptyMsg,  listarSinFiltro = false }) {
+                const txt = modal.querySelector(txtId);
+                const list = modal.querySelector(listId);
+                const hidden = modal.querySelector(hiddenId);
+                const selected = modal.querySelector(selectedId);
+                const button = modal.querySelector(buttonId);
+
+                if (!txt || !list || !hidden || !selected || !button) return;
+
+                let timer = null;
+
+                function clearResults(msg) {
+                    list.innerHTML = `<div class="list-group-item text-muted">${msg}</div>`;
+                }
+
+                function validate() {
+                    button.disabled = !(hidden.value || '').trim();
+                }
+
+                function setSelected(itemNumber, desc) {
+                    hidden.value = itemNumber || '';
+                    selected.value = desc ? `${itemNumber} — ${desc}` : (itemNumber || '');
+                    validate();
+                }
+
+                function render(data) {
+                    if (!Array.isArray(data) || data.length === 0) {
+                        clearResults(emptyMsg);
+                        return;
+                    }
+
+                    list.innerHTML = '';
+
+                    data.forEach(x => {
+                        const item = x.itemNumber || x.ItemNumber || x.codArticulo || x.CodArticulo || '';
+                        const desc = x.description || x.Description || x.desArticulo || x.DesArticulo || '';
+
+                        if (!item) return;
+
+                        const btn = document.createElement('button');
+                        btn.type = 'button';
+                        btn.className = 'list-group-item list-group-item-action';
+                        btn.innerHTML = `
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div><strong>${item}</strong></div>
+                                <div class="text-muted small">${(desc || '').substring(0, 80)}</div>
+                            </div>`;
+
+                        btn.addEventListener('click', () => setSelected(item, desc));
+                        list.appendChild(btn);
+                    });
+                }
+
+                async function buscar() {
+                    const q = (txt.value || '').trim();
+
+                    hidden.value = '';
+                    selected.value = '';
+                    validate();
+
+                    if (!listarSinFiltro && q.length < 2) {
+                        clearResults('Buscá un artículo para ver resultados…');
+                        return;
+                    }
+
+                    try {
+                        clearResults('Buscando…');
+
+                        const res = await fetch(`${url}?filtro=${encodeURIComponent(q)}`, {
+                            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                        });
+
+                        if (!res.ok) throw new Error('HTTP ' + res.status);
+
+                        const data = await res.json();
+                        render(data);
+                    } catch (e) {
+                        clearResults('Error al buscar artículos.');
+                        console.error(e);
+                    }
+                }
+
+                txt.addEventListener('input', () => {
+                    clearTimeout(timer);
+                    timer = setTimeout(buscar, 300);
+                });
+
+                txt.addEventListener('keydown', ev => {
+                    if (ev.key === 'Enter') {
+                        ev.preventDefault();
+                        buscar();
+                    }
+                });
+
+                return () => {
+                    txt.value = '';
+                    hidden.value = '';
+                    selected.value = '';
+                    validate();
+
+                    if (listarSinFiltro) {
+                        buscar();
+                    } else {
+                        clearResults('Buscá un artículo para ver resultados…');
+                    }
+                };
+            }
+
+            const resetDesactivar = wireSearch({
+                txtId: '#txtItemFiltro',
+                listId: '#lstItems',
+                hiddenId: '#hidItemNumber',
+                selectedId: '#txtItemSeleccionado',
+                buttonId: '#btnDesactivarNoPromo',
+                url: urlBuscarItems,
+                emptyMsg: 'Sin resultados.'
+            });
+
+            const resetReactivar = wireSearch({
+                txtId: '#txtNoPromoFiltro',
+                listId: '#lstNoPromoItems',
+                hiddenId: '#hidNoPromoItemNumber',
+                selectedId: '#txtNoPromoSeleccionado',
+                buttonId: '#btnReactivarNoPromo',
+                url: urlBuscarNoPromo,
+                emptyMsg: 'Sin resultados en ART_NO_PROMO.',
+                listarSinFiltro: true
+            });
+
+            modal.addEventListener('show.bs.modal', () => {
+                resetDesactivar?.();
+                resetReactivar?.();
+            });
+        })();
+    </script>
+    <script>
+        (() => {
+            const modal = document.getElementById('articulosExcluidosModal');
+            if (!modal) return;
+
+            const urlListar = '@Url.Action("ListarArticulosExcluidos", "Predescuentos")';
+            const urlBuscar = '@Url.Action("BuscarArticulosParaExcluir", "Predescuentos")';
+            const urlAgregar = '@Url.Action("AgregarArticuloExcluido", "Predescuentos")';
+            const urlQuitar = '@Url.Action("QuitarArticuloExcluido", "Predescuentos")';
+
+            const urlLineas = '@Url.Action("CatalogoLineasArticulos", "Predescuentos")';
+            const urlClases = '@Url.Action("CatalogoClasesArticulos", "Predescuentos")';
+            const urlMedidas = '@Url.Action("CatalogoMedidasArticulos", "Predescuentos")';
+
+            const tokenInput = modal.querySelector('input[name="__RequestVerificationToken"]');
+
+            const mensaje = document.getElementById('excluidosMensaje');
+            const lstListado = document.getElementById('lstArticulosExcluidos');
+            const lstGestion = document.getElementById('lstArticulosGestion');
+
+            const btnBuscarListado = document.getElementById('btnBuscarExcluidosListado');
+            const btnBuscarGestion = document.getElementById('btnBuscarExcluidosGestion');
+
+            const txtListado = document.getElementById('exclFiltroTextoListado');
+
+            const selLineaGestion = document.getElementById('exclFiltroLineaGestion');
+            const selClaseGestion = document.getElementById('exclFiltroClaseGestion');
+            const selMedidaGestion = document.getElementById('exclFiltroMedidaGestion');
+            const txtGestion = document.getElementById('exclFiltroTextoGestion');
+
+            let catalogosCargados = false;
+
+            function getToken() {
+                return tokenInput ? tokenInput.value : '';
+            }
+
+            function setMensaje(texto, error = false) {
+                if (!mensaje) return;
+
+                mensaje.textContent = texto || '';
+                mensaje.classList.toggle('text-danger', error);
+                mensaje.classList.toggle('text-success', !error && !!texto);
+            }
+
+            function escapeHtml(value) {
+                return String(value ?? '')
+                    .replaceAll('&', '&amp;')
+                    .replaceAll('<', '&lt;')
+                    .replaceAll('>', '&gt;')
+                    .replaceAll('"', '&quot;')
+                    .replaceAll("'", '&#039;');
+            }
+
+            function qs(params) {
+                return new URLSearchParams(params).toString();
+            }
+
+            async function fetchJson(url) {
+                const res = await fetch(url, {
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+
+                return await res.json();
+            }
+
+            function llenarSelect(select, data, textoDefault) {
+                if (!select) return;
+
+                select.innerHTML = '';
+
+                const optDefault = document.createElement('option');
+                optDefault.value = '';
+                optDefault.textContent = textoDefault || '-- Todas --';
+                select.appendChild(optDefault);
+
+                if (!Array.isArray(data)) return;
+
+                data.forEach(x => {
+                    const codigo = x.codigo || x.Codigo || '';
+                    const descripcion = x.descripcion || x.Descripcion || '';
+
+                    if (!codigo) return;
+
+                    const opt = document.createElement('option');
+                    opt.value = codigo;
+                    opt.textContent = descripcion && descripcion !== codigo
+                        ? `${codigo} - ${descripcion}`
+                        : codigo;
+
+                    select.appendChild(opt);
+                });
+            }
+
+            async function cargarClases(codLinea) {
+                llenarSelect(selClaseGestion, [], 'Cargando...');
+
+                const data = await fetchJson(`${urlClases}?codLinea=${encodeURIComponent(codLinea || '')}`);
+
+                llenarSelect(selClaseGestion, data, '-- Todas --');
+            }
+
+            async function cargarCatalogos() {
+                if (catalogosCargados) return;
+
+                const [lineas, medidas] = await Promise.all([
+                    fetchJson(urlLineas),
+                    fetchJson(urlMedidas)
+                ]);
+
+                llenarSelect(selLineaGestion, lineas, '-- Todas --');
+                llenarSelect(selMedidaGestion, medidas, '-- Todas --');
+
+                await cargarClases('');
+
+                catalogosCargados = true;
+            }
+
+            function filtrosListado() {
+                return {
+                    filtro: txtListado?.value || ''
+                };
+            }
+
+            function filtrosGestion() {
+                return {
+                    codLinea: selLineaGestion?.value || '',
+                    codClase: selClaseGestion?.value || '',
+                    medida: selMedidaGestion?.value || '',
+                    filtro: txtGestion?.value || ''
+                };
+            }
+
+            function loadingListado() {
+                lstListado.innerHTML = `
+                    <div class="alert alert-info mb-0">
+                        Cargando artículos excluidos.
+                    </div>`;
+            }
+
+            function loadingGestion() {
+                lstGestion.innerHTML = `
+                    <div class="alert alert-info mb-0">
+                        Buscando artículos disponibles.
+                    </div>`;
+            }
+
+            function renderListado(data) {
+                if (!Array.isArray(data) || data.length === 0) {
+                    lstListado.innerHTML = `
+                        <div class="alert alert-warning mb-0">
+                            No hay artículos con ACEPTADESCUENTO = N.
+                        </div>`;
+                    return;
+                }
+
+                let html = `
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Artículo</th>
+                                    <th>Descripción</th>
+                                    <th>Línea</th>
+                                    <th>Clase</th>
+                                    <th>Medida</th>
+                                    <th>Estado</th>
+                                    <th class="text-end">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody>`;
+
+                data.forEach(x => {
+                    const item = x.itemNumber || '';
+
+                    html += `
+                        <tr>
+                            <td><strong>${escapeHtml(item)}</strong></td>
+                            <td>${escapeHtml(x.descripcion || '')}</td>
+                            <td>${escapeHtml(x.codLinea || '')} ${x.desLinea ? ' - ' + escapeHtml(x.desLinea) : ''}</td>
+                            <td>${escapeHtml(x.codClase || '')} ${x.desClase ? ' - ' + escapeHtml(x.desClase) : ''}</td>
+                            <td>${escapeHtml(x.medida || '')}</td>
+                            <td><span class="badge bg-danger">N</span></td>
+                            <td class="text-end">
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-danger btn-quitar-excluido"
+                                        data-item="${escapeHtml(item)}">
+                                    Quitar
+                                </button>
+                            </td>
+                        </tr>`;
+                });
+
+                html += `
+                            </tbody>
+                        </table>
+                    </div>`;
+
+                lstListado.innerHTML = html;
+            }
+
+            function renderGestion(data) {
+                if (!Array.isArray(data) || data.length === 0) {
+                    lstGestion.innerHTML = `
+                        <div class="alert alert-warning mb-0">
+                            No se encontraron artículos con ACEPTADESCUENTO = S.
+                        </div>`;
+                    return;
+                }
+
+                let html = `
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Artículo</th>
+                                    <th>Descripción</th>
+                                    <th>Línea</th>
+                                    <th>Clase</th>
+                                    <th>Medida</th>
+                                    <th>Estado</th>
+                                    <th class="text-end">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody>`;
+
+                data.forEach(x => {
+                    const item = x.itemNumber || '';
+
+                    html += `
+                        <tr>
+                            <td><strong>${escapeHtml(item)}</strong></td>
+                            <td>${escapeHtml(x.descripcion || '')}</td>
+                            <td>${escapeHtml(x.codLinea || '')} ${x.desLinea ? ' - ' + escapeHtml(x.desLinea) : ''}</td>
+                            <td>${escapeHtml(x.codClase || '')} ${x.desClase ? ' - ' + escapeHtml(x.desClase) : ''}</td>
+                            <td>${escapeHtml(x.medida || '')}</td>
+                            <td><span class="badge bg-success">S</span></td>
+                            <td class="text-end">
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-primary btn-agregar-excluido"
+                                        data-item="${escapeHtml(item)}">
+                                    Agregar
+                                </button>
+                            </td>
+                        </tr>`;
+                });
+
+                html += `
+                            </tbody>
+                        </table>
+                    </div>`;
+
+                lstGestion.innerHTML = html;
+            }
+
+            async function cargarListado() {
+                try {
+                    loadingListado();
+                    setMensaje('');
+
+                    const res = await fetch(`${urlListar}?${qs(filtrosListado())}`, {
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    });
+
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+
+                    const data = await res.json();
+                    renderListado(data);
+                } catch (e) {
+                    console.error(e);
+                    lstListado.innerHTML = `
+                        <div class="alert alert-danger mb-0">
+                            Error al cargar artículos excluidos.
+                        </div>`;
+                }
+            }
+
+            async function buscarGestion() {
+                try {
+                    loadingGestion();
+                    setMensaje('');
+
+                    const f = filtrosGestion();
+
+                    if (!f.codLinea.trim() && !f.codClase.trim() && !f.medida.trim() && f.filtro.trim().length < 2) {
+                        lstGestion.innerHTML = `
+                            <div class="alert alert-secondary mb-0">
+                                Seleccioná línea, clase, medida o escribí mínimo 2 caracteres en código/nombre.
+                            </div>`;
+                        return;
+                    }
+
+                    const res = await fetch(`${urlBuscar}?${qs(f)}`, {
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    });
+
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+
+                    const data = await res.json();
+                    renderGestion(data);
+                } catch (e) {
+                    console.error(e);
+                    lstGestion.innerHTML = `
+                        <div class="alert alert-danger mb-0">
+                            Error al buscar artículos disponibles.
+                        </div>`;
+                }
+            }
+
+            async function postArticulo(url, itemNumber) {
+                const body = new URLSearchParams();
+                body.append('itemNumber', itemNumber);
+
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                        'RequestVerificationToken': getToken(),
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: body.toString()
+                });
+
+                const data = await res.json().catch(() => null);
+
+                if (!res.ok || !data || data.ok === false) {
+                    throw new Error(data?.mensaje || 'No se pudo procesar la acción.');
+                }
+
+                return data;
+            }
+
+            modal.addEventListener('click', async (ev) => {
+                const btnAgregar = ev.target.closest('.btn-agregar-excluido');
+                const btnQuitar = ev.target.closest('.btn-quitar-excluido');
+
+                if (!btnAgregar && !btnQuitar) return;
+
+                const btn = btnAgregar || btnQuitar;
+                const item = btn.dataset.item || '';
+
+                if (!item) return;
+
+                btn.disabled = true;
+
+                try {
+                    if (btnAgregar) {
+                        const r = await postArticulo(urlAgregar, item);
+                        setMensaje(r.mensaje || 'Artículo agregado.');
+                    } else {
+                        const r = await postArticulo(urlQuitar, item);
+                        setMensaje(r.mensaje || 'Artículo quitado.');
+                    }
+
+                    await cargarListado();
+
+                    const gestionActivo = document
+                        .getElementById('panel-gestionar-excluidos')
+                        ?.classList
+                        .contains('active');
+
+                    if (gestionActivo) {
+                        await buscarGestion();
+                    }
+                } catch (e) {
+                    console.error(e);
+                    setMensaje(e.message || 'Error al procesar.', true);
+                } finally {
+                    btn.disabled = false;
+                }
+            });
+
+                    function debounce(fn, delay = 350) {
+            let timer = null;
+
+            return (...args) => {
+                clearTimeout(timer);
+                timer = setTimeout(() => fn(...args), delay);
+            };
+        }
+
+        const buscarListadoAuto = debounce(() => {
+            cargarListado();
+        }, 350);
+
+        const buscarGestionAuto = debounce(() => {
+            buscarGestion();
+        }, 350);
+
+        // Botones siguen funcionando manualmente
+        btnBuscarListado?.addEventListener('click', cargarListado);
+        btnBuscarGestion?.addEventListener('click', buscarGestion);
+
+        // TAB LISTADO: buscar automáticamente por código o nombre
+        txtListado?.addEventListener('input', () => {
+            buscarListadoAuto();
+        });
+
+        txtListado?.addEventListener('keydown', ev => {
+            if (ev.key === 'Enter') {
+                ev.preventDefault();
+                cargarListado();
+            }
+        });
+
+        // TAB AGREGAR: línea cambia, recarga clases y busca automáticamente
+        selLineaGestion?.addEventListener('change', async () => {
+            await cargarClases(selLineaGestion.value);
+            await buscarGestion();
+        });
+
+        // TAB AGREGAR: clase cambia y busca automáticamente
+        selClaseGestion?.addEventListener('change', () => {
+            buscarGestionAuto();
+        });
+
+        // TAB AGREGAR: medida cambia y busca automáticamente
+        selMedidaGestion?.addEventListener('change', () => {
+            buscarGestionAuto();
+        });
+
+        // TAB AGREGAR: texto busca automáticamente mientras escribe
+        txtGestion?.addEventListener('input', () => {
+            buscarGestionAuto();
+        });
+
+        txtGestion?.addEventListener('keydown', ev => {
+            if (ev.key === 'Enter') {
+                ev.preventDefault();
+                buscarGestion();
+            }
+        });
+
+            modal.addEventListener('show.bs.modal', async () => {
+                try {
+                    setMensaje('');
+                    await cargarCatalogos();
+                    await cargarListado();
+                } catch (e) {
+                    console.error(e);
+                    setMensaje('Error cargando catálogos.', true);
+                }
+            });
+        })();
+    </script>
+}

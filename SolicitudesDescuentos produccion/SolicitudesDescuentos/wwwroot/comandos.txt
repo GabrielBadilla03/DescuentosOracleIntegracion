@@ -1,0 +1,20 @@
+﻿
+
+traer todas las tablas de un esquema en oracle ef core
+Scaffold-DbContext "User Id=BG_INTUSER;Password=BGx49cHm5*81X489v;Data Source=bgatptest_low;
+Tns_Admin=C:\Users\gabri\Downloads\ConsoleApp2\ConsoleApp2\WALLET_BGATP_TEST;
+Wallet_Location=C:\Users\gabri\Downloads\ConsoleApp2\ConsoleApp2\WALLET_BGATP_TEST;Wallet_Password=BGx1_89db9ax21;
+" Oracle.EntityFrameworkCore -Context OracleContext -OutputDir Models -Schemas BG_INTUSER -Tables XXORA_CUSTOMER_MASTER
+-UseDatabaseNames -NoOnConfiguring -Force
+
+traer las tablas de navius lanco
+Scaffold-DbContext "User Id=NUEVO;Password=LCR2001;Data Source=192.168.179.1:1522/LANCO;" Oracle.EntityFrameworkCore -Context LancoDbContext -OutputDir Modelslanco -Tables LOG_ENVIO_PDF_ORACLE,VENDOCENCFED,CXCENCFACREC,CXCDETFACREC,CXCDETFACRECBIT,PLAEMPLEADO,CXC_AGE_COBRO,CXC_DETAGE_COBRO,CXC_CLIENTE_COBRO,CXC_EMPLEADO_COBRO,PLAENCPAGO,PLAPAGOPANILLA -UseDatabaseNames -NoOnConfiguring -Force
+
+traer las tablas de navius lanco tiendas
+Scaffold-DbContext "User Id=LANCOP;Password=LANCOP1978;Data Source=10.0.104.2:1521/LANCOP;" Oracle.EntityFrameworkCore -Context LancoTiendasContext -OutputDir Models -Tables INV_ARTIC_PROV -UseDatabaseNames -NoOnConfiguring -Force 
+
+traer las tablas de oracle
+Scaffold-DbContext "User Id=BG_INTUSER;Password=BGx49cHn4*81y900x;Data Source=bgatprod_low;Tns_Admin=C:\Users\gabri\Downloads\ConsoleApp2\Wallet_BGATPROD;Wallet_Location=C:\Users\gabri\Downloads\ConsoleApp2\Wallet_BGATPROD;" Oracle.EntityFrameworkCore -Context OracleContext -OutputDir ModelsOracle -Tables INV_ARTICULO,INV_MEDIDA,INV_CLASE,INV_LINEA,PREDESCLASEORACLE,GEN_CLIENTES,PREDESCUENTO,PREDETDESCUENTO,PREDESCUENTOS_MASTER,XXORA_DISCOUNT_LIST,ART_NO_PROMO,ART_DET_NO_PROMO,GEN_MAS_COMISION,CXC_DET_COMISION,XXORA_CUSTOMER_MASTER,XXORA_COMISIONES,GEN_VENDEDOR,XXORA_ITEM_MASTER,CXC_DETAGE_COBRO,CXC_CLIENTE_COBRO,CXC_EMPLEADO_COBRO,CXC_AGE_COBRO,GENCLIENTEIMPULSADOR,IMPULSADORESORACLE -UseDatabaseNames -NoOnConfiguring -Force
+
+
+dotnet publish .\SolicitudesDescuentos.csproj -c Release -f net6.0 -r win-x64 --self-contained true /p:PublishSingleFile=false -o "C:\Servicios\SolicitudesDescuentos_Publicado"
