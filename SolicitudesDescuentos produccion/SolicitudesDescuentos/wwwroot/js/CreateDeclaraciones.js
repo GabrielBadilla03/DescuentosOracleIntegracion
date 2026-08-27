@@ -12,6 +12,7 @@ let filtroClienteTimeout = null;
 let filtroArticuloTimeout = null;
 let bloqueoTraerDescuentos = false; // usado para copia inicial desde solicitud (querystring)
 
+
 function appUrl(path) {
     const base = (window.AppBasePath || '/').replace(/\/$/, '');
     const cleanPath = String(path || '').replace(/^\//, '');
@@ -142,6 +143,24 @@ $(document).ready(function () {
 
     function getBuNombre() {
         return safeTrim($('#CodCia').val() || 'LANCO_CR');
+    }
+
+
+    // Línea y Clase usan el mismo contexto de elegibilidad que Artículo.
+    function paramsCatalogoElegible(filtro) {
+        return {
+            filtro: filtro || '',
+            codCliente: getCodCliente(),
+            buNombre: getBuNombre(),
+            tipoDescuento: $('#Tipodescuento').val() || ''
+        };
+    }
+
+    function paramsClaseElegible(codLinea, filtro) {
+        return {
+            ...paramsCatalogoElegible(filtro),
+            codLinea: codLinea || ''
+        };
     }
 
     // =========================================================
@@ -347,7 +366,8 @@ $(document).ready(function () {
 
         $.getJSON(appUrl('Predescuentos/GetDescuentosCliente'), {
             codCliente: codCliente,
-            codCia: ""     // o simplemente NO lo envíes
+            codCia: "",
+            tipoDescuento: $('#Tipodescuento').val() || ''
         })
             .done(function (data) {
                 const arr = Array.isArray(data) ? data : [];
@@ -428,7 +448,7 @@ $(document).ready(function () {
         $tbody.empty();
         $("#chkLineaTodo").prop("checked", false);
 
-        $.getJSON(appUrl('Predescuentos/BuscarLineas'), { filtro: "" })
+        $.getJSON(appUrl('Predescuentos/BuscarLineas'), paramsCatalogoElegible(""))
             .done(function (data) {
                 if (!Array.isArray(data) || data.length === 0) {
                     $tbody.append('<tr><td colspan="3" class="text-center text-muted">Sin resultados</td></tr>');
@@ -642,7 +662,7 @@ $(document).ready(function () {
             xhrBuscarLineasArticulo.abort();
         }
 
-        xhrBuscarLineasArticulo = $.getJSON(appUrl('Predescuentos/BuscarLineas'), { filtro })
+        xhrBuscarLineasArticulo = $.getJSON(appUrl('Predescuentos/BuscarLineas'), paramsCatalogoElegible(filtro))
             .done(function (data) {
                 if (!Array.isArray(data) || data.length === 0) return;
 
@@ -737,7 +757,7 @@ $(document).ready(function () {
 
         if (filtro.length < 2) return;
 
-        $.getJSON(appUrl('/Predescuentos/BuscarLineas'), { filtro }, function (data) {
+        $.getJSON(appUrl('Predescuentos/BuscarLineas'), paramsCatalogoElegible(filtro), function (data) {
             if (!Array.isArray(data) || data.length === 0) return;
 
             data.forEach(item => {
@@ -760,7 +780,7 @@ $(document).ready(function () {
 
         if (!codLinea) return;
 
-        $.getJSON(appUrl('Predescuentos/BuscarClaseartsPorlinea'), { codLinea, filtro: "" }, function (data) {
+        $.getJSON(appUrl('Predescuentos/BuscarClaseartsPorlinea'), paramsClaseElegible(codLinea, ""), function (data) {
             if (!Array.isArray(data) || data.length === 0) {
                 $tbody.append('<tr><td colspan="3" class="text-center text-muted">Sin resultados</td></tr>');
                 return;
@@ -1029,7 +1049,11 @@ $(document).ready(function () {
 
         validarBotonCrear();
 
-        $.getJSON(appUrl('Predescuentos/GetDescuentosCombinados'), { clienteOrigen, clienteDestino })
+        $.getJSON(appUrl('Predescuentos/GetDescuentosCombinados'), {
+            clienteOrigen,
+            clienteDestino,
+            tipoDescuento: $('#Tipodescuento').val() || ''
+        })
             .done(function (data) {
                 const arr = Array.isArray(data) ? data : [];
                 refrescarTablaDetalles(arr);
@@ -1159,7 +1183,7 @@ $(document).ready(function () {
 
         showModal('modalEditarDetalle');
 
-        $.getJSON(appUrl('/Predescuentos/BuscarLineas'), { filtro: detalle.codLinea || '' })
+        $.getJSON(appUrl('Predescuentos/BuscarLineas'), paramsCatalogoElegible(detalle.codLinea || ''))
             .done(function (data) {
                 const $selectLinea = $("#CodLineaEditar");
                 $selectLinea.empty();
@@ -1182,7 +1206,7 @@ $(document).ready(function () {
                     const codLinea = detalle.codLinea;
                     const $selectClase = $("#CodClaseEditar");
 
-                    $.getJSON(appUrl('/Predescuentos/BuscarClaseartsPorlinea'), { codLinea, filtro })
+                    $.getJSON(appUrl('Predescuentos/BuscarClaseartsPorlinea'), paramsClaseElegible(codLinea, filtro))
                         .done(function (dataClase) {
                             $selectClase.empty().prop("disabled", false);
                             if (!Array.isArray(dataClase) || dataClase.length === 0) return;
@@ -1205,7 +1229,7 @@ $(document).ready(function () {
                     const codLinea = detalle.codLinea;
                     const $selectArticulo = $("#CodArticuloEditar");
 
-                    $.getJSON(appUrl('/Predescuentos/BuscarArticulosPorLinea'), {
+                    $.getJSON(appUrl('Predescuentos/BuscarArticulosPorLinea'), {
                         codLinea,
                         filtro,
                         codCliente: getCodCliente(),
@@ -1255,7 +1279,7 @@ $(document).ready(function () {
             return;
         }
 
-        $.getJSON(appUrl('/Predescuentos/BuscarLineas'), { filtro }, function (data) {
+        $.getJSON(appUrl('Predescuentos/BuscarLineas'), paramsCatalogoElegible(filtro), function (data) {
             $selectLinea.empty();
 
             if (!Array.isArray(data) || data.length === 0) {
@@ -1298,7 +1322,7 @@ $(document).ready(function () {
             return;
         }
 
-        $.getJSON(appUrl('/Predescuentos/BuscarArticulosPorLinea'), {
+        $.getJSON(appUrl('Predescuentos/BuscarArticulosPorLinea'), {
             codLinea,
             filtro,
             codCliente: getCodCliente(),
@@ -1340,7 +1364,7 @@ $(document).ready(function () {
             return;
         }
 
-        $.getJSON(appUrl('/Predescuentos/BuscarClaseartsPorlinea'), { codLinea, filtro }, function (data) {
+        $.getJSON(appUrl('Predescuentos/BuscarClaseartsPorlinea'), paramsClaseElegible(codLinea, filtro), function (data) {
             $selectClase.empty();
 
             if (!Array.isArray(data) || data.length === 0) {
