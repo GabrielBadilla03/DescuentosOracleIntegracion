@@ -22,11 +22,21 @@
         public string? ChequeDevuelto { get; set; }
     }
 
+    public class ClienteSinPorcentajeVendedorVm
+    {
+        public string IdCliente { get; set; } = "";
+        public string NombreCliente { get; set; } = "";
+        public string Vendedor { get; set; } = "";
+    }
+
     public class ResumenCobrosAgentePageVm
     {
         public ResumenCobrosAgenteFiltroVm Filtro { get; set; } = new();
 
         public List<string> GruposAgente { get; set; } = new();
+
+        public List<ClienteSinPorcentajeVendedorVm> ClientesSinPorcentajeVendedor
+        { get; set; } = new();
     }
 
     public class ResumenCobrosAgenteFilaVm

@@ -21,6 +21,7 @@ using System.Globalization;
 using QDocument = QuestPDF.Fluent.Document;
 using QLicenseType = QuestPDF.Infrastructure.LicenseType;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Configuration;
 using System.Data;
 using System.Data.Common;
 using System.Threading;
@@ -32,6 +33,7 @@ namespace SolicitudesDescuentos.Controllers
         private readonly OracleContext _context;
         private readonly LancoDbContext _lancoContext;
         private readonly IMemoryCache _cache;
+        private readonly IConfiguration _configuration;
 
         private static readonly SemaphoreSlim CalculoComisionesLock = new(1, 1);
         private static readonly SemaphoreSlim ActualizacionNaviusLock = new(1, 1);
@@ -159,11 +161,13 @@ namespace SolicitudesDescuentos.Controllers
         public ReportesCobrosController(
             OracleContext context,
             LancoDbContext lancoContext,
-            IMemoryCache cache)
+            IMemoryCache cache,
+            IConfiguration configuration)
         {
             _context = context;
             _lancoContext = lancoContext;
             _cache = cache;
+            _configuration = configuration;
         }
 
         private sealed class CatalogosReporte
@@ -541,10 +545,57 @@ namespace SolicitudesDescuentos.Controllers
             var vm = new ResumenCobrosAgentePageVm
             {
                 Filtro = filtro,
-                GruposAgente = await ObtenerGruposAgenteAsync(filtro.BuNombre)
+                GruposAgente = await ObtenerGruposAgenteAsync(filtro.BuNombre),
+                ClientesSinPorcentajeVendedor =
+                    await ObtenerClientesSinPorcentajeVendedorAsync(filtro.BuNombre)
             };
 
             return View(vm);
+        }
+
+        private async Task<List<ClienteSinPorcentajeVendedorVm>>
+            ObtenerClientesSinPorcentajeVendedorAsync(string? buNombre)
+        {
+            var bu = string.IsNullOrWhiteSpace(buNombre)
+                ? "LANCO_CR"
+                : buNombre.Trim().ToUpperInvariant();
+
+            // XXORA_CUSTOMER_MASTER puede tener más de una fila por cliente
+            // (por ejemplo, por sitio). Se consultan los registros sin porcentaje
+            // y luego se muestra una sola fila por IDCLIENTE en la advertencia.
+            var registros = await _context.XXORA_CUSTOMER_MASTERs
+                .AsNoTracking()
+                .Where(x =>
+                    x.BU_NOMBRE != null &&
+                    x.BU_NOMBRE.Trim().ToUpper() == bu &&
+                    x.IDCLIENTE != null &&
+                    x.IDCLIENTE.Trim() != "" &&
+                    (x.PORCIENTO_VENDEDOR == null ||
+                     x.PORCIENTO_VENDEDOR.Trim() == ""))
+                .Select(x => new
+                {
+                    IdCliente = x.IDCLIENTE!,
+                    NombreCliente = x.NOMBRE_CLIENTE,
+                    Vendedor = x.IDVENDEDOR ?? x.VENDEDOR
+                })
+                .ToListAsync();
+
+            return registros
+                .Select(x => new ClienteSinPorcentajeVendedorVm
+                {
+                    IdCliente = (x.IdCliente ?? "").Trim(),
+                    NombreCliente = (x.NombreCliente ?? "").Trim(),
+                    Vendedor = (x.Vendedor ?? "").Trim()
+                })
+                .Where(x => !string.IsNullOrWhiteSpace(x.IdCliente))
+                .GroupBy(
+                    x => x.IdCliente,
+                    StringComparer.OrdinalIgnoreCase)
+                .Select(g => g.First())
+                .OrderBy(
+                    x => x.IdCliente,
+                    StringComparer.OrdinalIgnoreCase)
+                .ToList();
         }
 
         private async Task<List<string>> ObtenerGruposAgenteAsync(string? buNombre)
@@ -2289,6 +2340,27 @@ namespace SolicitudesDescuentos.Controllers
         }
 
 
+        private string ObtenerNombreJefe(string? grupoDescripcion)
+        {
+            var grupo = (grupoDescripcion ?? "").Trim();
+
+            if (string.IsNullOrWhiteSpace(grupo))
+                return "";
+
+            // GetSection().GetChildren() permite comparar sin depender de
+            // mayúsculas/minúsculas del nombre escrito en appsettings.json.
+            var coincidencia = _configuration
+                .GetSection("NombreJefes")
+                .GetChildren()
+                .FirstOrDefault(x =>
+                    string.Equals(
+                        (x.Key ?? "").Trim(),
+                        grupo,
+                        StringComparison.OrdinalIgnoreCase));
+
+            return (coincidencia?.Value ?? "").Trim();
+        }
+
         private static string ObtenerDescripcionGrupo(string? grupo)
         {
             return Normalizar(grupo) switch
@@ -2301,8 +2373,35 @@ namespace SolicitudesDescuentos.Controllers
                 "KM" => "KAM 2",
                 "OF" => "OFICINA",
                 "PE" => "PEGAMENTOS",
-                _ => grupo ?? ""
+                _ => (grupo ?? "").Trim()
             };
+        }
+
+        // El nombre del jefe se utiliza EXCLUSIVAMENTE en el reporte
+        // Cobros Diarios por Agente (PDF / Excel).
+        private string ObtenerTituloGrupoCobrosDiarios(
+            string? grupoCodigo,
+            string? grupoDescripcion)
+        {
+            var codigo = (grupoCodigo ?? "").Trim();
+            var descripcion = string.IsNullOrWhiteSpace(grupoDescripcion)
+                ? ObtenerDescripcionGrupo(codigo)
+                : grupoDescripcion.Trim();
+
+            var nombreJefe = ObtenerNombreJefe(descripcion);
+
+            var partes = new List<string>();
+
+            if (!string.IsNullOrWhiteSpace(codigo))
+                partes.Add($"Grupo {codigo}");
+
+            if (!string.IsNullOrWhiteSpace(descripcion))
+                partes.Add(descripcion);
+
+            if (!string.IsNullOrWhiteSpace(nombreJefe))
+                partes.Add($"Jefe: {nombreJefe}");
+
+            return string.Join(" - ", partes);
         }
 
         private static decimal ConvertirMontoImpulsador(
@@ -2834,50 +2933,83 @@ namespace SolicitudesDescuentos.Controllers
                                     }
                                     else
                                     {
-                                        foreach (var fila in filas)
+                                        var grupos = filas
+                                            .GroupBy(x => new
+                                            {
+                                                x.GrupoCodigo,
+                                                x.GrupoDescripcion
+                                            })
+                                            .OrderBy(
+                                                x => x.Key.GrupoCodigo,
+                                                StringComparer.OrdinalIgnoreCase)
+                                            .ToList();
+
+                                        foreach (var grupo in grupos)
                                         {
-                                            table.Cell()
-                                                .Element(BodyStyleCobrosDiarios)
-                                                .Text(fila.CodAgente);
+                                            var tituloGrupo =
+                                                ObtenerTituloGrupoCobrosDiarios(
+                                                    grupo.Key.GrupoCodigo,
+                                                    grupo.Key.GrupoDescripcion);
 
-                                            table.Cell()
-                                                .Element(BodyStyleCobrosDiarios)
-                                                .Text(fila.NombreAgente);
+                                            if (!string.IsNullOrWhiteSpace(tituloGrupo))
+                                            {
+                                                table.Cell()
+                                                    .ColumnSpan(7)
+                                                    .PaddingTop(5)
+                                                    .PaddingBottom(2)
+                                                    .Text(tituloGrupo)
+                                                    .FontSize(6.5f)
+                                                    .Bold();
+                                            }
 
-                                            table.Cell()
-                                                .Element(BodyStyleCobrosDiarios)
-                                                .AlignRight()
-                                                .Text(
-                                                    FormatoMontoCobrosDiarios(
-                                                        fila.CobrosDia));
+                                            foreach (var fila in grupo
+                                                .OrderBy(
+                                                    x => x.CodAgente,
+                                                    StringComparer.OrdinalIgnoreCase))
+                                            {
+                                                table.Cell()
+                                                    .Element(BodyStyleCobrosDiarios)
+                                                    .Text(fila.CodAgente);
 
-                                            table.Cell()
-                                                .Element(BodyStyleCobrosDiarios)
-                                                .AlignRight()
-                                                .Text(
-                                                    FormatoMontoCobrosDiarios(
-                                                        fila.ChequesDevueltos));
+                                                table.Cell()
+                                                    .Element(BodyStyleCobrosDiarios)
+                                                    .Text(fila.NombreAgente);
 
-                                            table.Cell()
-                                                .Element(BodyStyleCobrosDiarios)
-                                                .AlignRight()
-                                                .Text(
-                                                    FormatoMontoCobrosDiarios(
-                                                        fila.Descuentos));
+                                                table.Cell()
+                                                    .Element(BodyStyleCobrosDiarios)
+                                                    .AlignRight()
+                                                    .Text(
+                                                        FormatoMontoCobrosDiarios(
+                                                            fila.CobrosDia));
 
-                                            table.Cell()
-                                                .Element(BodyStyleCobrosDiarios)
-                                                .AlignRight()
-                                                .Text(
-                                                    FormatoMontoCobrosDiarios(
-                                                        fila.CobroNeto));
+                                                table.Cell()
+                                                    .Element(BodyStyleCobrosDiarios)
+                                                    .AlignRight()
+                                                    .Text(
+                                                        FormatoMontoCobrosDiarios(
+                                                            fila.ChequesDevueltos));
 
-                                            table.Cell()
-                                                .Element(BodyStyleCobrosDiarios)
-                                                .AlignRight()
-                                                .Text(
-                                                    FormatoMontoCobrosDiarios(
-                                                        fila.CobrosMes));
+                                                table.Cell()
+                                                    .Element(BodyStyleCobrosDiarios)
+                                                    .AlignRight()
+                                                    .Text(
+                                                        FormatoMontoCobrosDiarios(
+                                                            fila.Descuentos));
+
+                                                table.Cell()
+                                                    .Element(BodyStyleCobrosDiarios)
+                                                    .AlignRight()
+                                                    .Text(
+                                                        FormatoMontoCobrosDiarios(
+                                                            fila.CobroNeto));
+
+                                                table.Cell()
+                                                    .Element(BodyStyleCobrosDiarios)
+                                                    .AlignRight()
+                                                    .Text(
+                                                        FormatoMontoCobrosDiarios(
+                                                            fila.CobrosMes));
+                                            }
                                         }
 
                                         table.Cell()
@@ -3042,17 +3174,48 @@ namespace SolicitudesDescuentos.Controllers
             }
             else
             {
-                foreach (var fila in filas)
+                var grupos = filas
+                    .GroupBy(x => new
+                    {
+                        x.GrupoCodigo,
+                        x.GrupoDescripcion
+                    })
+                    .OrderBy(
+                        x => x.Key.GrupoCodigo,
+                        StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                foreach (var grupo in grupos)
                 {
-                    ws.Cell(row, 1).Value = fila.CodAgente;
-                    ws.Cell(row, 2).Value = fila.NombreAgente;
-                    ws.Cell(row, 3).Value = fila.CobrosDia;
-                    ws.Cell(row, 4).Value =
-                        fila.ChequesDevueltos;
-                    ws.Cell(row, 5).Value = fila.Descuentos;
-                    ws.Cell(row, 6).Value = fila.CobroNeto;
-                    ws.Cell(row, 7).Value = fila.CobrosMes;
-                    row++;
+                    var tituloGrupo =
+                        ObtenerTituloGrupoCobrosDiarios(
+                            grupo.Key.GrupoCodigo,
+                            grupo.Key.GrupoDescripcion);
+
+                    if (!string.IsNullOrWhiteSpace(tituloGrupo))
+                    {
+                        ws.Cell(row, 1).Value = tituloGrupo;
+                        ws.Range(row, 1, row, 7).Merge();
+                        ws.Range(row, 1, row, 7)
+                            .Style.Font.Bold = true;
+                        row++;
+                    }
+
+                    foreach (var fila in grupo
+                        .OrderBy(
+                            x => x.CodAgente,
+                            StringComparer.OrdinalIgnoreCase))
+                    {
+                        ws.Cell(row, 1).Value = fila.CodAgente;
+                        ws.Cell(row, 2).Value = fila.NombreAgente;
+                        ws.Cell(row, 3).Value = fila.CobrosDia;
+                        ws.Cell(row, 4).Value =
+                            fila.ChequesDevueltos;
+                        ws.Cell(row, 5).Value = fila.Descuentos;
+                        ws.Cell(row, 6).Value = fila.CobroNeto;
+                        ws.Cell(row, 7).Value = fila.CobrosMes;
+                        row++;
+                    }
                 }
 
                 ws.Cell(row, 1).Value =
@@ -4747,18 +4910,18 @@ namespace SolicitudesDescuentos.Controllers
                 {
                     CodAgente = codAgente,
                     NombreAgente =
-         agente?.NOMBRE_VENDEDOR ??
-         codAgente,
+                        agente?.NOMBRE_VENDEDOR ??
+                        codAgente,
 
                     GrupoCodigo = grupoCodigo,
                     GrupoDescripcion =
-         ObtenerDescripcionGrupo(grupoCodigo),
+                        ObtenerDescripcionGrupo(grupoCodigo),
 
                     CodCliente = codCliente,
                     NombreCliente =
-                     cliente?.NOMBRE_CLIENTE ??
-                     cliente?.PARTY_NAME ??
-                     codCliente,
+                        cliente?.NOMBRE_CLIENTE ??
+                        cliente?.PARTY_NAME ??
+                        codCliente,
 
                     CobroBruto = ConvertirMontoImpulsador(
                      cobro.COBROBRUTO,
