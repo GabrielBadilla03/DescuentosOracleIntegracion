@@ -780,6 +780,25 @@ namespace SolicitudesDescuentos.Controllers
                     idPeriodoPlanilla);
             }
 
+            // La moneda seleccionada en pantalla es únicamente la moneda del reporte.
+            // Navius y la planilla siempre deben alimentarse con montos calculados en CRC.
+            // Se crea un filtro independiente para no alterar la selección del usuario
+            // cuando se redirija nuevamente a la pantalla.
+            var filtroCalculoNavius = new ResumenCobrosAgenteFiltroVm
+            {
+                BuNombre = filtro.BuNombre,
+                FechaDesde = filtro.FechaDesde,
+                FechaHasta = filtro.FechaHasta,
+                TipoCambio = filtro.TipoCambio,
+                VendedorDesde = filtro.VendedorDesde,
+                VendedorHasta = filtro.VendedorHasta,
+                ClienteDesde = filtro.ClienteDesde,
+                ClienteHasta = filtro.ClienteHasta,
+                GrupoAgente = filtro.GrupoAgente,
+                Moneda = "CRC",
+                ChequeDevuelto = filtro.ChequeDevuelto
+            };
+
             await ActualizacionNaviusLock.WaitAsync();
 
             try
@@ -788,8 +807,47 @@ namespace SolicitudesDescuentos.Controllers
                 var periodoReporte = checked((short)parametros.Periodo);
 
                 /*
-                 * Únicamente se necesitan estas dos tablas para actualizar
-                 * PLAPAGOPLANILLA.
+                 * IMPORTANTE:
+                 * Antes de leer CXC_AGE_COBRO y CXC_EMPLEADO_COBRO se fuerza
+                 * nuevamente el cálculo completo en CRC.
+                 *
+                 * Esto evita que una generación previa del reporte en USD deje
+                 * CXC_AGE_COBRO con importes en dólares y luego esos mismos montos
+                 * sean enviados a Navius/planilla como si fueran colones.
+                 *
+                 * Se usa el mismo lock del cálculo de reportes para impedir que
+                 * otro PDF/Excel recalcule las tablas al mismo tiempo.
+                 */
+                await CalculoComisionesLock.WaitAsync();
+
+                try
+                {
+                    await EjecutarCalculoAgentesAsync(
+                        filtroCalculoNavius,
+                        parametros);
+
+                    await EjecutarCalculoImpulsadoresAsync(
+                        filtroCalculoNavius,
+                        parametros);
+
+                    // Las tablas quedaron físicamente preparadas en CRC.
+                    // La caché debe reflejar ese estado. Si el usuario vuelve
+                    // a pedir USD después de la actualización, la firma será
+                    // diferente y el reporte se recalculará correctamente en USD.
+                    _cache.Set(
+                        UltimaFirmaCalculoCacheKey,
+                        ConstruirFirmaCalculo(
+                            filtroCalculoNavius,
+                            parametros));
+                }
+                finally
+                {
+                    CalculoComisionesLock.Release();
+                }
+
+                /*
+                 * Únicamente después del recálculo en CRC se leen estas dos
+                 * tablas para actualizar PLAPAGOPLANILLA.
                  */
                 var agentes = await _context.CXC_AGE_COBROs
                     .AsNoTracking()
@@ -882,6 +940,7 @@ namespace SolicitudesDescuentos.Controllers
                         $"de {agentes.Count:N0}; " +
                         $"CXC_EMPLEADO_COBRO nuevos: " +
                         $"{empleadosInsertados:N0} de {empleados.Count:N0}. " +
+                        $"El cálculo se ejecutó en CRC antes de cargar Navius. " +
                         $"Los registros que ya existían se conservaron.";
                 }
                 catch
