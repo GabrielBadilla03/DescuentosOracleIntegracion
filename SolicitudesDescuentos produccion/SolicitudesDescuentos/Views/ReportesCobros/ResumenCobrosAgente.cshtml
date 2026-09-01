@@ -26,11 +26,6 @@
             ? "CRC"
             : Model.Filtro.Moneda.Trim().ToUpperInvariant();
 
-    var monedaBaseValue =
-        string.IsNullOrWhiteSpace(Context.Request.Query["MonedaBase"].ToString())
-            ? "CRC"
-            : Context.Request.Query["MonedaBase"].ToString().Trim().ToUpperInvariant();
-
     var tipoChkDev1Value =
         string.IsNullOrWhiteSpace(Context.Request.Query["TipoChkDev1"].ToString())
             ? "CHD"
@@ -62,6 +57,125 @@
     var idPeriodoPlanillaValue =
         Context.Request.Query["IdPeriodoPlanilla"].ToString();
 }
+
+<style>
+    .comisiones-page {
+        max-width: 1220px;
+        margin: 0 auto 35px auto;
+    }
+
+    .comisiones-card {
+        border: 1px solid #dee2e6;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 3px 12px rgba(0, 0, 0, .08);
+    }
+
+        .comisiones-card .card-body {
+            padding: 26px;
+        }
+
+    .seccion-reporte {
+        padding-bottom: 22px;
+        margin-bottom: 22px;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+        .seccion-reporte:last-of-type {
+            margin-bottom: 0;
+        }
+
+    .titulo-seccion {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 16px;
+        color: #495057;
+        font-size: 15px;
+        font-weight: 700;
+    }
+
+        .titulo-seccion::before {
+            content: "";
+            display: inline-block;
+            width: 4px;
+            height: 19px;
+            border-radius: 3px;
+            background-color: #dc3545;
+        }
+
+    .form-label {
+        margin-bottom: 6px;
+        font-weight: 500;
+    }
+
+    .form-control,
+    .form-select {
+        min-height: 39px;
+    }
+
+    .campo-ayuda {
+        margin-top: 5px;
+        color: #6c757d;
+        font-size: 12px;
+        line-height: 1.35;
+    }
+
+    .filtro-nombre {
+        background-color: #f8f9fa;
+    }
+
+    .btn-rojo {
+        color: #fff !important;
+        background-color: #dc3545 !important;
+        border-color: #dc3545 !important;
+        transition: all .15s ease-in-out;
+    }
+
+        .btn-rojo:hover,
+        .btn-rojo:focus {
+            color: #fff !important;
+            background-color: #bb2d3b !important;
+            border-color: #b02a37 !important;
+        }
+
+        .btn-rojo:active {
+            color: #fff !important;
+            background-color: #b02a37 !important;
+            border-color: #a52834 !important;
+        }
+
+    .acciones-reportes {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 10px;
+        padding-top: 4px;
+    }
+
+        .acciones-reportes .btn {
+            min-width: 150px;
+        }
+
+    .alerta-calculo {
+        margin-bottom: 22px;
+        font-size: 14px;
+    }
+
+    @@media (max-width: 767.98px) {
+        .comisiones-card .card-body {
+            padding: 18px;
+        }
+
+        .acciones-reportes {
+            flex-direction: column;
+        }
+
+            .acciones-reportes .btn {
+                width: 100%;
+            }
+    }
+</style>
 
 <h2 class="text-center mb-4">Cálculo de Comisiones</h2>
 
@@ -133,7 +247,7 @@
 
                 <div class="modal-footer">
                     <button type="button"
-                            class="btn btn-warning"
+                            class="btn btn-danger"
                             data-bs-dismiss="modal">
                         Entendido
                     </button>
@@ -145,8 +259,8 @@
 
 <form asp-controller="ReportesCobros"
       method="get"
-      class="mb-4"
-      id="formReporteCobros">
+      id="formReporteCobros"
+      class="comisiones-page">
 
     @Html.AntiForgeryToken()
 
@@ -155,335 +269,467 @@
            name="BuNombre"
            value="LANCO_CR" />
 
-    <div class="card shadow-sm mx-auto" style="max-width: 1180px;">
+    <div class="card comisiones-card">
         <div class="card-body">
-            <div class="row g-3 align-items-end">
 
-                <div class="col-12 col-lg-4">
-                    <label class="form-label">Tipo de reporte</label>
-                    <select id="TipoReporte" class="form-select">
-                        <option value="R">Resumen Cobros Por Agente</option>
-                        <option value="A">Cobros Diarios por Agente</option>
-                        <option value="D">Detalle Cobros Por Agente y Comisión</option>
-                        <option value="C">Comisiones X Agente X Cliente</option>
-                        <option value="I">Comisiones por Impulsador y Agente</option>
-                    </select>
+            @* ============================================================
+               PARÁMETROS DEL REPORTE
+               ============================================================ *@
+            <div class="seccion-reporte">
+
+                <div class="titulo-seccion">
+                    Parámetros del reporte
                 </div>
 
-                <div class="col-6 col-md-3 col-lg-2">
-                    <label class="form-label">Moneda reporte</label>
-                    <select id="Moneda"
-                            name="Moneda"
-                            class="form-select">
-                        @if (monedaValue == "USD")
-                        {
-                            <option value="CRC">CRC</option>
-                            <option value="USD" selected>USD</option>
-                        }
-                        else
-                        {
-                            <option value="CRC" selected>CRC</option>
-                            <option value="USD">USD</option>
-                        }
-                    </select>
-                </div>
+                <div class="row g-3 align-items-start">
 
-                <div class="col-6 col-md-3 col-lg-2">
-                    <label class="form-label">Moneda base</label>
-                    <select id="MonedaBase"
-                            name="MonedaBase"
-                            class="form-select">
-                        @if (monedaBaseValue == "USD")
-                        {
-                            <option value="CRC">CRC</option>
-                            <option value="USD" selected>USD</option>
-                        }
-                        else
-                        {
-                            <option value="CRC" selected>CRC</option>
-                            <option value="USD">USD</option>
-                        }
-                    </select>
-                </div>
+                    <div class="col-12 col-lg-4">
+                        <label for="TipoReporte" class="form-label">
+                            Tipo de reporte
+                        </label>
 
-                <div class="col-6 col-md-3 col-lg-2">
-                    <label class="form-label">Año fiscal</label>
-                    <input type="number"
-                           id="AnoFiscal"
-                           name="AnoFiscal"
-                           min="2000"
-                           max="2100"
-                           class="form-control"
-                           value="@anoFiscalValue" />
-                </div>
+                        <select id="TipoReporte"
+                                class="form-select">
+                            <option value="R">Resumen Cobros Por Agente</option>
+                            <option value="A">Cobros Diarios por Agente</option>
+                            <option value="D">Detalle Cobros Por Agente y Comisión</option>
+                            <option value="C">Comisiones X Agente X Cliente</option>
+                            <option value="I">Comisiones por Impulsador y Agente</option>
+                        </select>
+                    </div>
 
-                <div class="col-6 col-md-3 col-lg-2">
-                    <label class="form-label">Periodo</label>
-                    <select id="Periodo"
-                            name="Periodo"
-                            class="form-select">
-                        @for (var mes = 1; mes <= 12; mes++)
-                        {
-                            if (mes == periodoValue)
+                    <div class="col-12 col-sm-6 col-lg-2">
+                        <label for="Moneda" class="form-label">
+                            Moneda
+                        </label>
+
+                        <select id="Moneda"
+                                name="Moneda"
+                                class="form-select">
+                            @if (monedaValue == "USD")
                             {
-                                <option value="@mes" selected>@mes</option>
+                                <option value="CRC">CRC</option>
+                                <option value="USD" selected>USD</option>
                             }
                             else
                             {
-                                <option value="@mes">@mes</option>
+                                <option value="CRC" selected>CRC</option>
+                                <option value="USD">USD</option>
                             }
-                        }
-                    </select>
-                </div>
+                        </select>
 
-                <div class="col-12 col-md-3 col-lg-2">
-                    <label class="form-label">ID período planilla</label>
-                    <input type="number"
-                           id="IdPeriodoPlanilla"
-                           name="IdPeriodoPlanilla"
-                           min="1"
-                           max="999999"
-                           step="1"
-                           class="form-control"
-                           value="@idPeriodoPlanillaValue"
-                           placeholder="Ej. 202608" />
-                    <div class="form-text">
-                        Independiente del período del reporte.
+                        <div class="campo-ayuda">
+                            Todos los montos se unifican a esta moneda.
+                        </div>
                     </div>
-                </div>
 
-                <div class="col-12 col-md-4">
-                    <label class="form-label">Fecha inicial</label>
-                    <input type="date"
-                           id="FechaDesde"
-                           name="FechaDesde"
-                           class="form-control"
-                           value="@Model.Filtro.FechaDesde?.ToString("yyyy-MM-dd")"
-                           readonly />
-                </div>
+                    <div class="col-12 col-sm-6 col-lg-2">
+                        <label for="AnoFiscal" class="form-label">
+                            Año fiscal
+                        </label>
 
-                <div class="col-12 col-md-4">
-                    <label class="form-label">Fecha final</label>
-                    <input type="date"
-                           id="FechaHasta"
-                           name="FechaHasta"
-                           class="form-control"
-                           value="@Model.Filtro.FechaHasta?.ToString("yyyy-MM-dd")"
-                           readonly />
-                </div>
+                        <input type="number"
+                               id="AnoFiscal"
+                               name="AnoFiscal"
+                               min="2000"
+                               max="2100"
+                               class="form-control"
+                               value="@anoFiscalValue" />
+                    </div>
 
-                <div class="col-12 col-md-4">
-                    <label class="form-label">Tipo cambio</label>
-                    <input type="number"
-                           step="0.0001"
-                           min="0.0001"
-                           id="TipoCambio"
-                           name="TipoCambio"
-                           class="form-control"
-                           value="@tipoCambioValue" />
-                </div>
+                    <div class="col-12 col-sm-6 col-lg-2">
+                        <label for="Periodo" class="form-label">
+                            Período
+                        </label>
 
-                <div class="col-12 col-md-3">
-                    <label class="form-label">Chk. Dev. 1</label>
-                    <input type="text"
-                           id="TipoChkDev1"
-                           name="TipoChkDev1"
-                           maxlength="30"
-                           class="form-control text-uppercase"
-                           value="@tipoChkDev1Value" />
-                </div>
-
-                <div class="col-12 col-md-3">
-                    <label class="form-label">Chk. Dev. 2</label>
-                    <input type="text"
-                           id="TipoChkDev2"
-                           name="TipoChkDev2"
-                           maxlength="30"
-                           class="form-control text-uppercase"
-                           value="@tipoChkDev2Value" />
-                </div>
-
-                <div class="col-12 col-md-3">
-                    <label class="form-label">Descuento</label>
-                    <input type="text"
-                           id="TipoDescuento"
-                           name="TipoDescuento"
-                           maxlength="30"
-                           class="form-control text-uppercase"
-                           value="@tipoDescuentoValue" />
-                </div>
-
-                <div class="col-6 col-md-2">
-                    <label class="form-label">% impuesto</label>
-                    <input type="number"
-                           id="PorcentajeImpuesto"
-                           name="PorcentajeImpuesto"
-                           min="0"
-                           step="0.01"
-                           class="form-control"
-                           value="@porcentajeImpuestoValue" />
-                </div>
-
-                <div class="col-6 col-md-1">
-                    <label class="form-label">Impuesto</label>
-                    <select id="AplicarImpuesto"
-                            name="AplicarImpuesto"
-                            class="form-select">
-                        @if (aplicarImpuestoValue == "N")
-                        {
-                            <option value="S">Sí</option>
-                            <option value="N" selected>No</option>
-                        }
-                        else
-                        {
-                            <option value="S" selected>Sí</option>
-                            <option value="N">No</option>
-                        }
-                    </select>
-                </div>
-
-                <div class="col-12 col-md-6">
-                    <label class="form-label">Grupo agente</label>
-                    <select name="GrupoAgente" class="form-select">
-                        <option value="">Todos</option>
-
-                        @foreach (var grupo in Model.GruposAgente)
-                        {
-                            if (Model.Filtro.GrupoAgente == grupo)
+                        <select id="Periodo"
+                                name="Periodo"
+                                class="form-select">
+                            @for (var mes = 1; mes <= 12; mes++)
                             {
-                                <option value="@grupo" selected>@grupo</option>
+                                if (mes == periodoValue)
+                                {
+                                    <option value="@mes" selected>@mes</option>
+                                }
+                                else
+                                {
+                                    <option value="@mes">@mes</option>
+                                }
                             }
-                            else
-                            {
-                                <option value="@grupo">@grupo</option>
-                            }
-                        }
-                    </select>
-                </div>
-
-                <div class="col-12">
-                    <div class="alert alert-info py-2 mb-0">
-                        La primera vez que se genera un reporte se preparan los datos
-                        de agentes e impulsadores. Si después solamente cambia el tipo
-                        de reporte o el formato PDF/Excel, se reutiliza el cálculo
-                        anterior. El proceso se ejecuta nuevamente cuando cambia algún
-                        otro parámetro del formulario.
+                        </select>
                     </div>
-                </div>
 
-                <div class="col-12 col-md-3">
-                    <label class="form-label">Cliente desde (ID cliente)</label>
-                    <div class="input-group">
-                        <input type="text"
-                               id="ClienteDesde"
-                               name="ClienteDesde"
-                               class="form-control lookup-cliente"
-                               value="@Model.Filtro.ClienteDesde"
-                               autocomplete="off"
-                               placeholder="F9 para buscar ID cliente" />
-                        <button type="button"
-                                class="btn btn-outline-secondary btn-buscar-cliente"
-                                data-target="ClienteDesde">
-                            F9
-                        </button>
+                    <div class="col-12 col-sm-6 col-lg-2">
+                        <label for="IdPeriodoPlanilla" class="form-label">
+                            ID período planilla
+                        </label>
+
+                        <input type="number"
+                               id="IdPeriodoPlanilla"
+                               name="IdPeriodoPlanilla"
+                               min="1"
+                               max="999999"
+                               step="1"
+                               class="form-control"
+                               value="@idPeriodoPlanillaValue"
+                               placeholder="Ej. 202608" />
+
+                        <div class="campo-ayuda">
+                            Independiente del período del reporte.
+                        </div>
                     </div>
-                    <input type="text" id="ClienteDesdeNombre" class="form-control form-control-sm mt-1" readonly />
-                </div>
 
-                <div class="col-12 col-md-3">
-                    <label class="form-label">Cliente hasta (ID cliente)</label>
-                    <div class="input-group">
-                        <input type="text"
-                               id="ClienteHasta"
-                               name="ClienteHasta"
-                               class="form-control lookup-cliente"
-                               value="@Model.Filtro.ClienteHasta"
-                               autocomplete="off"
-                               placeholder="F9 para buscar ID cliente" />
-                        <button type="button"
-                                class="btn btn-outline-secondary btn-buscar-cliente"
-                                data-target="ClienteHasta">
-                            F9
-                        </button>
-                    </div>
-                    <input type="text" id="ClienteHastaNombre" class="form-control form-control-sm mt-1" readonly />
-                </div>
-
-                <div class="col-12 col-md-3">
-                    <label class="form-label">Vendedor desde</label>
-                    <div class="input-group">
-                        <input type="text"
-                               id="VendedorDesde"
-                               name="VendedorDesde"
-                               class="form-control lookup-vendedor"
-                               value="@Model.Filtro.VendedorDesde"
-                               autocomplete="off"
-                               placeholder="F9 para buscar" />
-                        <button type="button"
-                                class="btn btn-outline-secondary btn-buscar-vendedor"
-                                data-target="VendedorDesde">
-                            F9
-                        </button>
-                    </div>
-                    <input type="text" id="VendedorDesdeNombre" class="form-control form-control-sm mt-1" readonly />
-                </div>
-
-                <div class="col-12 col-md-3">
-                    <label class="form-label">Vendedor hasta</label>
-                    <div class="input-group">
-                        <input type="text"
-                               id="VendedorHasta"
-                               name="VendedorHasta"
-                               class="form-control lookup-vendedor"
-                               value="@Model.Filtro.VendedorHasta"
-                               autocomplete="off"
-                               placeholder="F9 para buscar" />
-                        <button type="button"
-                                class="btn btn-outline-secondary btn-buscar-vendedor"
-                                data-target="VendedorHasta">
-                            F9
-                        </button>
-                    </div>
-                    <input type="text" id="VendedorHastaNombre" class="form-control form-control-sm mt-1" readonly />
-                </div>
-
-                <div class="col-12 d-flex flex-wrap gap-2 justify-content-center mt-4">
-                    <button type="submit"
-                            id="btnDescargarPdf"
-                            formtarget="_blank"
-                            class="btn btn-primary">
-                        Descargar PDF
-                    </button>
-
-                    <button type="submit"
-                            id="btnDescargarExcel"
-                            formtarget="_blank"
-                            class="btn btn-success">
-                        Descargar Excel
-                    </button>
-
-                    <button type="submit"
-                            id="btnActualizarNavius"
-                            formaction="@Url.Action("ActualizarNavius", "ReportesCobros")"
-                            formmethod="post"
-                            formtarget="_self"
-                            class="btn btn-danger">
-                        Actualizar Navius y planilla
-                    </button>
-
-                    <a asp-controller="ImpulsadoresOracle"
-                       asp-action="Index"
-                       class="btn btn-warning">
-                        Administrar impulsadores
-                    </a>
-
-                    <a asp-controller="Predescuentos"
-                       asp-action="Index"
-                       class="btn btn-outline-secondary">
-                        Volver
-                    </a>
                 </div>
             </div>
+
+
+            @* ============================================================
+               PERÍODO Y CONVERSIÓN MONETARIA
+               ============================================================ *@
+            <div class="seccion-reporte">
+
+                <div class="titulo-seccion">
+                    Período y conversión monetaria
+                </div>
+
+                <div class="row g-3">
+
+                    <div class="col-12 col-md-4">
+                        <label for="FechaDesde" class="form-label">
+                            Fecha inicial
+                        </label>
+
+                        <input type="date"
+                               id="FechaDesde"
+                               name="FechaDesde"
+                               class="form-control"
+                               value="@Model.Filtro.FechaDesde?.ToString("yyyy-MM-dd")"
+                               readonly />
+                    </div>
+
+                    <div class="col-12 col-md-4">
+                        <label for="FechaHasta" class="form-label">
+                            Fecha final
+                        </label>
+
+                        <input type="date"
+                               id="FechaHasta"
+                               name="FechaHasta"
+                               class="form-control"
+                               value="@Model.Filtro.FechaHasta?.ToString("yyyy-MM-dd")"
+                               readonly />
+                    </div>
+
+                    <div class="col-12 col-md-4">
+                        <label for="TipoCambio" class="form-label">
+                            Tipo de cambio
+                        </label>
+
+                        <input type="number"
+                               step="0.0001"
+                               min="0.0001"
+                               id="TipoCambio"
+                               name="TipoCambio"
+                               class="form-control"
+                               value="@tipoCambioValue" />
+
+                        <div class="campo-ayuda">
+                            Se utiliza para convertir montos entre CRC y USD.
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+
+            @* ============================================================
+               PARÁMETROS DE COMISIÓN
+               ============================================================ *@
+            <div class="seccion-reporte">
+
+                <div class="titulo-seccion">
+                    Parámetros de comisión
+                </div>
+
+                <div class="row g-3">
+
+                    <div class="col-12 col-sm-6 col-lg-2">
+                        <label for="TipoChkDev1" class="form-label">
+                            Chk. Dev. 1
+                        </label>
+
+                        <input type="text"
+                               id="TipoChkDev1"
+                               name="TipoChkDev1"
+                               maxlength="30"
+                               class="form-control text-uppercase"
+                               value="@tipoChkDev1Value" />
+                    </div>
+
+                    <div class="col-12 col-sm-6 col-lg-2">
+                        <label for="TipoChkDev2" class="form-label">
+                            Chk. Dev. 2
+                        </label>
+
+                        <input type="text"
+                               id="TipoChkDev2"
+                               name="TipoChkDev2"
+                               maxlength="30"
+                               class="form-control text-uppercase"
+                               value="@tipoChkDev2Value" />
+                    </div>
+
+                    <div class="col-12 col-sm-6 col-lg-3">
+                        <label for="TipoDescuento" class="form-label">
+                            Descuento
+                        </label>
+
+                        <input type="text"
+                               id="TipoDescuento"
+                               name="TipoDescuento"
+                               maxlength="30"
+                               class="form-control text-uppercase"
+                               value="@tipoDescuentoValue" />
+                    </div>
+
+                    <div class="col-12 col-sm-6 col-lg-2">
+                        <label for="PorcentajeImpuesto" class="form-label">
+                            % impuesto
+                        </label>
+
+                        <input type="number"
+                               id="PorcentajeImpuesto"
+                               name="PorcentajeImpuesto"
+                               min="0"
+                               step="0.01"
+                               class="form-control"
+                               value="@porcentajeImpuestoValue" />
+                    </div>
+
+                    <div class="col-12 col-sm-6 col-lg-2">
+                        <label for="AplicarImpuesto" class="form-label">
+                            Impuesto
+                        </label>
+
+                        <select id="AplicarImpuesto"
+                                name="AplicarImpuesto"
+                                class="form-select">
+                            @if (aplicarImpuestoValue == "N")
+                            {
+                                <option value="S">Sí</option>
+                                <option value="N" selected>No</option>
+                            }
+                            else
+                            {
+                                <option value="S" selected>Sí</option>
+                                <option value="N">No</option>
+                            }
+                        </select>
+                    </div>
+
+                </div>
+            </div>
+
+
+            @* ============================================================
+               FILTROS
+               ============================================================ *@
+            <div class="seccion-reporte">
+
+                <div class="titulo-seccion">
+                    Filtros
+                </div>
+
+                <div class="row g-3">
+
+                    <div class="col-12 col-lg-6">
+                        <label class="form-label">
+                            Grupo agente
+                        </label>
+
+                        <select name="GrupoAgente"
+                                class="form-select">
+                            <option value="">Todos</option>
+
+                            @foreach (var grupo in Model.GruposAgente)
+                            {
+                                if (Model.Filtro.GrupoAgente == grupo)
+                                {
+                                    <option value="@grupo" selected>@grupo</option>
+                                }
+                                else
+                                {
+                                    <option value="@grupo">@grupo</option>
+                                }
+                            }
+                        </select>
+                    </div>
+
+                </div>
+
+                <div class="row g-3 mt-1">
+
+                    <div class="col-12 col-md-6 col-lg-3">
+                        <label class="form-label">
+                            Cliente desde
+                        </label>
+
+                        <div class="input-group">
+                            <input type="text"
+                                   id="ClienteDesde"
+                                   name="ClienteDesde"
+                                   class="form-control lookup-cliente"
+                                   value="@Model.Filtro.ClienteDesde"
+                                   autocomplete="off"
+                                   placeholder="ID cliente" />
+
+                            <button type="button"
+                                    class="btn btn-rojo btn-buscar-cliente"
+                                    data-target="ClienteDesde">
+                                F9
+                            </button>
+                        </div>
+
+                        <input type="text"
+                               id="ClienteDesdeNombre"
+                               class="form-control form-control-sm mt-2 filtro-nombre"
+                               readonly />
+                    </div>
+
+                    <div class="col-12 col-md-6 col-lg-3">
+                        <label class="form-label">
+                            Cliente hasta
+                        </label>
+
+                        <div class="input-group">
+                            <input type="text"
+                                   id="ClienteHasta"
+                                   name="ClienteHasta"
+                                   class="form-control lookup-cliente"
+                                   value="@Model.Filtro.ClienteHasta"
+                                   autocomplete="off"
+                                   placeholder="ID cliente" />
+
+                            <button type="button"
+                                    class="btn btn-rojo btn-buscar-cliente"
+                                    data-target="ClienteHasta">
+                                F9
+                            </button>
+                        </div>
+
+                        <input type="text"
+                               id="ClienteHastaNombre"
+                               class="form-control form-control-sm mt-2 filtro-nombre"
+                               readonly />
+                    </div>
+
+                    <div class="col-12 col-md-6 col-lg-3">
+                        <label class="form-label">
+                            Vendedor desde
+                        </label>
+
+                        <div class="input-group">
+                            <input type="text"
+                                   id="VendedorDesde"
+                                   name="VendedorDesde"
+                                   class="form-control lookup-vendedor"
+                                   value="@Model.Filtro.VendedorDesde"
+                                   autocomplete="off"
+                                   placeholder="Código vendedor" />
+
+                            <button type="button"
+                                    class="btn btn-rojo btn-buscar-vendedor"
+                                    data-target="VendedorDesde">
+                                F9
+                            </button>
+                        </div>
+
+                        <input type="text"
+                               id="VendedorDesdeNombre"
+                               class="form-control form-control-sm mt-2 filtro-nombre"
+                               readonly />
+                    </div>
+
+                    <div class="col-12 col-md-6 col-lg-3">
+                        <label class="form-label">
+                            Vendedor hasta
+                        </label>
+
+                        <div class="input-group">
+                            <input type="text"
+                                   id="VendedorHasta"
+                                   name="VendedorHasta"
+                                   class="form-control lookup-vendedor"
+                                   value="@Model.Filtro.VendedorHasta"
+                                   autocomplete="off"
+                                   placeholder="Código vendedor" />
+
+                            <button type="button"
+                                    class="btn btn-rojo btn-buscar-vendedor"
+                                    data-target="VendedorHasta">
+                                F9
+                            </button>
+                        </div>
+
+                        <input type="text"
+                               id="VendedorHastaNombre"
+                               class="form-control form-control-sm mt-2 filtro-nombre"
+                               readonly />
+                    </div>
+
+                </div>
+            </div>
+
+
+            <div class="alert alert-info alerta-calculo">
+                <strong>Información:</strong>
+                La primera vez que se genera un reporte se preparan los datos
+                de agentes e impulsadores. Si después solamente cambia el tipo
+                de reporte o el formato PDF/Excel, se reutiliza el cálculo
+                anterior. El proceso se ejecuta nuevamente cuando cambia algún
+                otro parámetro del formulario.
+            </div>
+
+
+            <div class="acciones-reportes">
+
+                <button type="submit"
+                        id="btnDescargarPdf"
+                        formtarget="_blank"
+                        class="btn btn-rojo">
+                    Descargar PDF
+                </button>
+
+                <button type="submit"
+                        id="btnDescargarExcel"
+                        formtarget="_blank"
+                        class="btn btn-rojo">
+                    Descargar Excel
+                </button>
+
+                <button type="submit"
+                        id="btnActualizarNavius"
+                        formaction="@Url.Action("ActualizarNavius", "ReportesCobros")"
+                        formmethod="post"
+                        formtarget="_self"
+                        class="btn btn-rojo">
+                    Actualizar Navius y planilla
+                </button>
+
+                <a asp-controller="ImpulsadoresOracle"
+                   asp-action="Index"
+                   class="btn btn-rojo">
+                    Administrar impulsadores
+                </a>
+
+                <a asp-controller="Predescuentos"
+                   asp-action="Index"
+                   class="btn btn-rojo">
+                    Volver
+                </a>
+
+            </div>
+
         </div>
     </div>
 </form>

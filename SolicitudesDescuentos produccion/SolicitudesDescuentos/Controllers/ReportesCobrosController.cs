@@ -41,12 +41,13 @@ namespace SolicitudesDescuentos.Controllers
         private const string SucursalFija = "001";
         private const string LineaCobroFija = "001";
         private const string DescripcionLineaCobroFija = "CREDITO NORMAL";
+        // Moneda base real del negocio. Ya no se expone al usuario.
+        private const string MonedaBaseSistema = "CRC";
 
         public sealed class ParametrosCalculoComisionVm
         {
             public int AnoFiscal { get; set; }
             public int Periodo { get; set; }
-            public string? MonedaBase { get; set; }
             public string? TipoChkDev1 { get; set; }
             public string? TipoChkDev2 { get; set; }
             public string? TipoDescuento { get; set; }
@@ -933,7 +934,6 @@ namespace SolicitudesDescuentos.Controllers
                     ClienteHasta = filtro.ClienteHasta,
                     VendedorDesde = filtro.VendedorDesde,
                     VendedorHasta = filtro.VendedorHasta,
-                    MonedaBase = parametros.MonedaBase,
                     TipoChkDev1 = parametros.TipoChkDev1,
                     TipoChkDev2 = parametros.TipoChkDev2,
                     TipoDescuento = parametros.TipoDescuento,
@@ -2430,12 +2430,52 @@ namespace SolicitudesDescuentos.Controllers
                 $"Moneda de reporte no soportada: {moneda}. Solo se permiten CRC y USD.");
         }
 
+        private static decimal ConvertirMonedaReporte(
+            decimal monto,
+            string? monedaOrigen,
+            string? monedaDestino,
+            decimal tipoCambio)
+        {
+            var origen = Normalizar(monedaOrigen);
+            var destino = Normalizar(monedaDestino);
+
+            if (origen != "CRC" && origen != "USD")
+            {
+                throw new InvalidOperationException(
+                    $"Moneda origen no soportada: {origen}. Solo se permiten CRC y USD.");
+            }
+
+            if (destino != "CRC" && destino != "USD")
+            {
+                throw new InvalidOperationException(
+                    $"Moneda destino no soportada: {destino}. Solo se permiten CRC y USD.");
+            }
+
+            if (origen == destino)
+                return monto;
+
+            if (tipoCambio <= 0)
+            {
+                throw new InvalidOperationException(
+                    "El tipo de cambio debe ser mayor que cero para convertir monedas.");
+            }
+
+            // TipoCambio = CRC por 1 USD.
+            var convertido =
+                origen == "USD" && destino == "CRC"
+                    ? monto * tipoCambio
+                    : monto / tipoCambio; // CRC -> USD
+
+            return Math.Round(
+                convertido,
+                2,
+                MidpointRounding.AwayFromZero);
+        }
+
         private static decimal ConvertirMonto(decimal monto, string? moneda, decimal tipoCambio)
         {
-            // Los procedimientos ya guardan los importes en la moneda final:
-            // - agentes: moneda solicitada en P_MONEDA;
-            // - impulsadores: moneda base.
-            // No se debe volver a aplicar el tipo de cambio en el controller.
+            // CALCULA_COMISIONES ya guarda los importes de agentes en la
+            // moneda seleccionada en P_MONEDA. No se vuelve a convertir aquí.
             return monto;
         }
 
@@ -2474,10 +2514,6 @@ namespace SolicitudesDescuentos.Controllers
 
             if (parametros.Periodo < 1 || parametros.Periodo > 12)
                 parametros.Periodo = fechaBase.Month;
-
-            parametros.MonedaBase = string.IsNullOrWhiteSpace(parametros.MonedaBase)
-                ? "CRC"
-                : parametros.MonedaBase.Trim().ToUpperInvariant();
 
             parametros.TipoChkDev1 = string.IsNullOrWhiteSpace(parametros.TipoChkDev1)
                 ? "CHD"
@@ -2544,7 +2580,7 @@ namespace SolicitudesDescuentos.Controllers
                     AgregarParametro(command, "P_MONEDA", filtro.Moneda, DbType.String);
                     AgregarParametro(command, "P_ANO", parametros.AnoFiscal, DbType.Int32);
                     AgregarParametro(command, "P_PER", parametros.Periodo, DbType.Int32);
-                    AgregarParametro(command, "P_COD_MONEDA_BASE", parametros.MonedaBase, DbType.String);
+                    AgregarParametro(command, "P_COD_MONEDA_BASE", MonedaBaseSistema, DbType.String);
                     AgregarParametro(command, "P_TIPO_CAMBIO", filtro.TipoCambio, DbType.Decimal);
                     AgregarParametro(command, "P_TIPO_CHKDEV", parametros.TipoChkDev1, DbType.String);
                     AgregarParametro(command, "P_TIPO_CHKDEV1", parametros.TipoChkDev2, DbType.String);
@@ -2582,7 +2618,7 @@ namespace SolicitudesDescuentos.Controllers
                     AgregarParametro(command, "P_SUC", SucursalFija, DbType.String);
                     AgregarParametro(command, "P_ANO", parametros.AnoFiscal, DbType.Int32);
                     AgregarParametro(command, "P_PERIODO", parametros.Periodo, DbType.Int32);
-                    AgregarParametro(command, "P_COD_MONEDA_BASE", parametros.MonedaBase, DbType.String);
+                    AgregarParametro(command, "P_COD_MONEDA_BASE", MonedaBaseSistema, DbType.String);
                     AgregarParametro(command, "P_TIPO_CAMBIO", filtro.TipoCambio, DbType.Decimal);
                     AgregarParametro(command, "P_TIPO_CHKDEV", parametros.TipoChkDev1, DbType.String);
                     AgregarParametro(command, "P_TIPO_CHKDEV1", parametros.TipoChkDev2, DbType.String);
@@ -2677,7 +2713,6 @@ namespace SolicitudesDescuentos.Controllers
                     CultureInfo.InvariantCulture),
                 parametros.Periodo.ToString(
                     CultureInfo.InvariantCulture),
-                Texto(parametros.MonedaBase),
                 Texto(parametros.TipoChkDev1),
                 Texto(parametros.TipoChkDev2),
                 Texto(parametros.TipoDescuento),
@@ -2757,7 +2792,7 @@ namespace SolicitudesDescuentos.Controllers
         // - Fuente exclusiva: XXORA_COMISIONES.
         // - Factura: NUM_TRX_APLICADA.
         // - Cobros Dia: MONTO_ORIGINAL_FACTURA, conservando el impuesto.
-        // - Moneda: MONEDA_FACTURA; CRC y USD nunca se mezclan.
+        // - Moneda origen: MONEDA_FACTURA; CRC y USD se convierten a la moneda seleccionada.
         // - Descuentos: DESCUENTO.
         // - Chk Dev.: CHEQUE_DEVUELTO.
         // - Cobro Neto = Cobros Dia - Chk Dev. - Descuentos.
@@ -3308,11 +3343,10 @@ namespace SolicitudesDescuentos.Controllers
              * Este filtro aplica únicamente al reporte
              * Cobros Diarios por Agente.
              *
-             * La separación se hace con MONEDA_FACTURA:
-             * - CRC: únicamente facturas en colones.
-             * - USD: únicamente facturas en dólares.
-             *
-             * No se convierte ni se mezcla ninguna moneda.
+             * Se leen facturas CRC y USD. La moneda seleccionada es la
+             * moneda DESTINO del reporte:
+             * - CRC: los CRC quedan igual y los USD se multiplican por tipo de cambio.
+             * - USD: los USD quedan igual y los CRC se dividen por tipo de cambio.
              */
             var monedaReporte =
                 string.Equals(
@@ -3356,8 +3390,7 @@ namespace SolicitudesDescuentos.Controllers
                AND X.VENDEDOR IS NOT NULL
                AND X.NUM_TRX_APLICADA IS NOT NULL
                AND X.MONEDA_FACTURA IS NOT NULL
-               AND TRIM(UPPER(X.MONEDA_FACTURA)) =
-                   TRIM(UPPER({monedaReporte}))
+               AND TRIM(UPPER(X.MONEDA_FACTURA)) IN ('CRC', 'USD')
 
                -- Excluye las facturas registradas como mano de obra.
                AND NOT EXISTS
@@ -3530,7 +3563,10 @@ namespace SolicitudesDescuentos.Controllers
 
                     Factura =
                         Normalizar(
-                            x.NUM_TRX_APLICADA)
+                            x.NUM_TRX_APLICADA),
+
+                    MonedaOrigen =
+                        Normalizar(x.MONEDA_FACTURA)
                 })
                 .ToList();
 
@@ -3595,14 +3631,32 @@ namespace SolicitudesDescuentos.Controllers
                             Math.Abs(montoCheque));
                 }
 
+                var montoFacturaConvertido = ConvertirMonedaReporte(
+                    montoFactura,
+                    factura.Key.MonedaOrigen,
+                    monedaReporte,
+                    filtro.TipoCambio);
+
+                var descuentoConvertido = ConvertirMonedaReporte(
+                    descuento,
+                    factura.Key.MonedaOrigen,
+                    monedaReporte,
+                    filtro.TipoCambio);
+
+                var chequeDevueltoConvertido = ConvertirMonedaReporte(
+                    chequeDevuelto,
+                    factura.Key.MonedaOrigen,
+                    monedaReporte,
+                    filtro.TipoCambio);
+
                 trabajo.Periodo.Cobros +=
-                    montoFactura;
+                    montoFacturaConvertido;
 
                 trabajo.Periodo.Descuentos +=
-                    descuento;
+                    descuentoConvertido;
 
                 trabajo.Periodo.ChequesDevueltos +=
-                    chequeDevuelto;
+                    chequeDevueltoConvertido;
             }
 
             return trabajos.Values
