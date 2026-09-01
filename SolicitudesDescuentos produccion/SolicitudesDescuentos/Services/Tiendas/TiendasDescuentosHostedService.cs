@@ -43,19 +43,36 @@ public sealed class TiendasDescuentosHostedService : BackgroundService
         {
             try
             {
-                using var scope = _scopeFactory.CreateScope();
+                /*
+                 * Evita ejecuciones simultáneas durante recycle de IIS o
+                 * cuando el App Pool utiliza más de un proceso en el mismo
+                 * servidor. La lógica funcional del job no cambia.
+                 */
+                using var jobLock =
+                    CrossProcessJobLock.TryAcquire("TiendasDescuentosHostedService");
 
-                var service = scope.ServiceProvider
-                    .GetRequiredService<ITiendasDescuentosService>();
-
-                var resultado = await service.SincronizarAsync(
-                    stoppingToken);
-
-                if (!resultado.Ok)
+                if (!jobLock.Acquired)
                 {
-                    _logger.LogWarning(
-                        "La sincronización de descuentos de tiendas no se completó: {Mensaje}",
-                        resultado.Mensaje);
+                    _logger.LogInformation(
+                        "Se omitió este ciclo de TiendasDescuentosHostedService " +
+                        "porque otra instancia del job ya se encuentra ejecutándose.");
+                }
+                else
+                {
+                    using var scope = _scopeFactory.CreateScope();
+
+                    var service = scope.ServiceProvider
+                        .GetRequiredService<ITiendasDescuentosService>();
+
+                    var resultado = await service.SincronizarAsync(
+                        stoppingToken);
+
+                    if (!resultado.Ok)
+                    {
+                        _logger.LogWarning(
+                            "La sincronización de descuentos de tiendas no se completó: {Mensaje}",
+                            resultado.Mensaje);
+                    }
                 }
             }
             catch (OperationCanceledException)

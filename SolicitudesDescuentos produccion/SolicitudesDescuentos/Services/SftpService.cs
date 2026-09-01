@@ -2,6 +2,12 @@
 
 namespace SolicitudesDescuentos.Services;
 
+public enum SftpUploadResult
+{
+    Subido,
+    YaExistiaMismoTamano
+}
+
 public class SftpService
 {
     private readonly string _host;
@@ -62,7 +68,53 @@ public class SftpService
         return fp;
     }
 
-    public void UploadFile(string localFullPath, string remoteDir, string remoteFileName, bool overwrite = true)
+    /// <summary>
+    /// Método original. Se conserva la misma firma y el mismo comportamiento
+    /// para no afectar ningún flujo existente que ya lo utilice.
+    /// </summary>
+    public void UploadFile(
+        string localFullPath,
+        string remoteDir,
+        string remoteFileName,
+        bool overwrite = true)
+    {
+        _ = UploadFileInternal(
+            localFullPath,
+            remoteDir,
+            remoteFileName,
+            overwrite,
+            omitirSiExisteMismoTamano: false);
+    }
+
+    /// <summary>
+    /// Variante utilizada exclusivamente por el worker automático.
+    ///
+    /// Si el archivo remoto ya existe con exactamente el mismo nombre y tamaño,
+    /// no se vuelve a transmitir. Esto permite recuperarse del caso donde el
+    /// SFTP terminó correctamente pero falló el SaveChanges de GENERADO='S'.
+    ///
+    /// El nombre remoto recibido se conserva exactamente igual.
+    /// </summary>
+    public SftpUploadResult UploadFileIdempotent(
+        string localFullPath,
+        string remoteDir,
+        string remoteFileName,
+        bool overwrite = true)
+    {
+        return UploadFileInternal(
+            localFullPath,
+            remoteDir,
+            remoteFileName,
+            overwrite,
+            omitirSiExisteMismoTamano: true);
+    }
+
+    private SftpUploadResult UploadFileInternal(
+        string localFullPath,
+        string remoteDir,
+        string remoteFileName,
+        bool overwrite,
+        bool omitirSiExisteMismoTamano)
     {
         if (string.IsNullOrWhiteSpace(localFullPath))
             throw new ArgumentException("Ruta local inválida.", nameof(localFullPath));
@@ -103,7 +155,8 @@ public class SftpService
                 }
                 else
                 {
-                    throw new InvalidOperationException("Falta SshHostKeyFingerprint para la conexión SFTP.");
+                    throw new InvalidOperationException(
+                        "Falta SshHostKeyFingerprint para la conexión SFTP.");
                 }
             }
             else
@@ -118,14 +171,37 @@ public class SftpService
         if (!session.FileExists(remoteDir))
             session.CreateDirectory(remoteDir);
 
+        var remotePath = $"{remoteDir.TrimEnd('/')}/{remoteFileName}";
+
+        if (omitirSiExisteMismoTamano && session.FileExists(remotePath))
+        {
+            var localLength = new FileInfo(localFullPath).Length;
+            var remoteLength = session.GetFileInfo(remotePath).Length;
+
+            if (localLength == remoteLength)
+                return SftpUploadResult.YaExistiaMismoTamano;
+        }
+
+        /*
+         * Para la ruta original se mantiene exactamente el comportamiento
+         * anterior de PutFiles. El parámetro overwrite se conserva por
+         * compatibilidad con la firma existente.
+         */
+        _ = overwrite;
+
         var transferOptions = new TransferOptions
         {
             TransferMode = TransferMode.Binary
         };
 
-        var remotePath = $"{remoteDir.TrimEnd('/')}/{remoteFileName}";
-        var transferResult = session.PutFiles(localFullPath, remotePath, remove: false, options: transferOptions);
+        var transferResult = session.PutFiles(
+            localFullPath,
+            remotePath,
+            remove: false,
+            options: transferOptions);
 
         transferResult.Check();
+
+        return SftpUploadResult.Subido;
     }
 }
