@@ -685,224 +685,244 @@ namespace SolicitudesDescuentos.Controllers
             return Json(data);
         }
 
-        private async Task<(bool Ok, string Mensaje, int Detalles)> RegistrarArticuloNoPromoDesdeXxoraAsync(
-            string itemNumber,
+        private async Task<(bool Ok, string Mensaje, int Procesados)> ActivarArticulosNoPromoAsync(
+            IEnumerable<string>? itemNumbers,
             CancellationToken ct = default)
         {
             const string bu = "LANCO_CR";
             const string org = "CR_3";
-            const string estadoActivo = "Activo";
-            const string generadoN = "N";
 
-            static string T(string? s) => (s ?? "").Trim();
+            static string N(string? value) =>
+                (value ?? string.Empty).Trim().ToUpperInvariant();
 
-            static string N(string? s) => (s ?? "").Trim().ToUpperInvariant();
+            var items = (itemNumbers ?? Enumerable.Empty<string>())
+                .Select(N)
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
-            static string RuleBucketLocal(string? rule)
+            if (items.Count == 0)
+                return (false, "Debe seleccionar al menos un artículo para desactivar descuentos.", 0);
+
+            // Validación defensiva: la vista usa INV_ARTICULO, pero el POST puede ser manipulado.
+            var encontrados = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            const int chunkSize = 900;
+
+            for (var i = 0; i < items.Count; i += chunkSize)
             {
-                var x = N(rule);
+                var chunk = items.Skip(i).Take(chunkSize).ToList();
 
-                if (string.IsNullOrWhiteSpace(x))
-                    return "";
+                var rows = await _OracleContext.INV_ARTICULOs
+                    .AsNoTracking()
+                    .Where(a =>
+                        a.COD_ARTICULO != null &&
+                        chunk.Contains(a.COD_ARTICULO.Trim().ToUpper()))
+                    .Select(a => a.COD_ARTICULO)
+                    .Distinct()
+                    .ToListAsync(ct);
 
-                if (x == "PROMOCION" || x.Contains("PROMOC"))
-                    return "PROMOCION";
-
-                if (x == "CLIENTE" || x.Contains("CLIENT"))
-                    return "CLIENTE";
-
-                return "";
+                foreach (var row in rows)
+                {
+                    var key = N(row);
+                    if (!string.IsNullOrWhiteSpace(key))
+                        encontrados.Add(key);
+                }
             }
 
-            static DateTime? NormalizeEndDateByRule(string? rule, DateTime? end)
+            var inexistentes = items
+                .Where(x => !encontrados.Contains(x))
+                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (inexistentes.Count > 0)
             {
-                return string.Equals(RuleBucketLocal(rule), "CLIENTE", StringComparison.OrdinalIgnoreCase)
-                    ? null
-                    : end;
+                return (
+                    false,
+                    "No se encontraron en INV_ARTICULO los siguientes artículos: " +
+                    string.Join(", ", inexistentes),
+                    0);
             }
-
-            itemNumber = T(itemNumber);
-
-            if (string.IsNullOrWhiteSpace(itemNumber))
-                return (false, "Debe indicar un artículo.", 0);
-
-            var itemKey = itemNumber.ToUpperInvariant();
 
             await using var trx = await _OracleContext.Database.BeginTransactionAsync(ct);
 
             try
             {
-                // =====================================================
-                // 1) Buscar los descuentos actuales del artículo en XXORA
-                // =====================================================
-                var xxoraRowsRaw = await _OracleContext.XXORA_DISCOUNT_LISTs
-                    .AsNoTracking()
-                    .Where(x =>
-                        x.BU_NAME != null &&
-                        x.ITEM_NUMBER != null &&
-                        x.BU_NAME.Trim().ToUpper() == bu &&
-                        x.ITEM_NUMBER.Trim().ToUpper() == itemKey)
-                    .Select(x => new
+                foreach (var itemKey in items)
+                {
+                    ct.ThrowIfCancellationRequested();
+
+                    var header = await _OracleContext.ART_NO_PROMOs
+                        .FirstOrDefaultAsync(a =>
+                            a.BU_NAME != null &&
+                            a.ORGANIZATION_CODE != null &&
+                            a.ITEM_NUMBER != null &&
+                            a.BU_NAME.Trim().ToUpper() == bu &&
+                            a.ORGANIZATION_CODE.Trim().ToUpper() == org &&
+                            a.ITEM_NUMBER.Trim().ToUpper() == itemKey,
+                            ct);
+
+                    if (header != null)
                     {
-                        x.RULE_DISCOUNT_NAME,
-                        x.PARTY_NUMBER,
-                        x.PRICING_UOM_CODE,
-                        x.DISCOUNT_PRICE,
-                        x.START_DATE,
-                        x.END_DATE
-                    })
-                    .ToListAsync(ct);
+                        // Cada nueva activación de NO PROMO empieza con un respaldo limpio.
+                        // El JOB volverá a copiar los descuentos actuales desde XXORA.
+                        await _OracleContext.Database.ExecuteSqlInterpolatedAsync($@"
+                            DELETE FROM ART_DET_NO_PROMO
+                             WHERE TRIM(UPPER(BU_NAME)) = {bu}
+                               AND TRIM(UPPER(ORGANIZATION_CODE)) = {org}
+                               AND TRIM(UPPER(ITEM_NUMBER)) = {itemKey}
+                        ", ct);
 
-                if (xxoraRowsRaw.Count == 0)
-                {
-                    await trx.RollbackAsync(ct);
-
-                    return (
-                        false,
-                        $"No hay registros en XXORA_DISCOUNT_LIST para el artículo {itemKey}. No se insertó ART_NO_PROMO.",
-                        0
-                    );
-                }
-
-                // =====================================================
-                // 2) Normalizar filas y quitar duplicados
-                //    El índice único de ART_DET_NO_PROMO usa:
-                //    BU_NAME, ORGANIZATION_CODE, ITEM_NUMBER,
-                //    RULE_DISCOUNT_NAME, PARTY_NUMBER, START_DATE.
-                // =====================================================
-                var xxoraRows = xxoraRowsRaw
-                    .Select(r => new
+                        header.ESTADO = "Activo";
+                        header.GENERADO = "N";
+                        _OracleContext.ART_NO_PROMOs.Update(header);
+                    }
+                    else
                     {
-                        Rule = T(r.RULE_DISCOUNT_NAME),
-                        Party = T(r.PARTY_NUMBER),
-                        Uom = string.IsNullOrWhiteSpace(r.PRICING_UOM_CODE)
-                            ? null
-                            : T(r.PRICING_UOM_CODE),
-                        DiscountPrice = r.DISCOUNT_PRICE,
-                        StartDate = r.START_DATE,
-                        EndDate = NormalizeEndDateByRule(r.RULE_DISCOUNT_NAME, r.END_DATE)
-                    })
-                    .Where(r =>
-                        !string.IsNullOrWhiteSpace(r.Rule) &&
-                        !string.IsNullOrWhiteSpace(r.Party))
-                    .GroupBy(r =>
-                        $"{N(r.Rule)}|{N(r.Party)}|{r.StartDate:yyyyMMddHHmmss}",
-                        StringComparer.OrdinalIgnoreCase)
-                    .Select(g => g.First())
-                    .ToList();
-
-                if (xxoraRows.Count == 0)
-                {
-                    await trx.RollbackAsync(ct);
-
-                    return (
-                        false,
-                        $"No hay registros válidos en XXORA_DISCOUNT_LIST para el artículo {itemKey}. Revise RULE_DISCOUNT_NAME o PARTY_NUMBER.",
-                        0
-                    );
+                        _OracleContext.ART_NO_PROMOs.Add(new ART_NO_PROMO
+                        {
+                            BU_NAME = bu,
+                            ORGANIZATION_CODE = org,
+                            ITEM_NUMBER = itemKey,
+                            ESTADO = "Activo",
+                            GENERADO = "N"
+                        });
+                    }
                 }
 
-                // =====================================================
-                // 3) Borrar primero ART_DET_NO_PROMO
-                //    porque depende del header ART_NO_PROMO.
-                // =====================================================
-                await _OracleContext.Database.ExecuteSqlInterpolatedAsync($@"
-            DELETE FROM ART_DET_NO_PROMO
-             WHERE TRIM(UPPER(BU_NAME)) = {bu}
-               AND TRIM(UPPER(ORGANIZATION_CODE)) = {org}
-               AND TRIM(UPPER(ITEM_NUMBER)) = {itemKey}
-        ", ct);
-
-                // =====================================================
-                // 4) Borrar ART_NO_PROMO si ya existía
-                // =====================================================
-                await _OracleContext.Database.ExecuteSqlInterpolatedAsync($@"
-            DELETE FROM ART_NO_PROMO
-             WHERE TRIM(UPPER(BU_NAME)) = {bu}
-               AND TRIM(UPPER(ORGANIZATION_CODE)) = {org}
-               AND TRIM(UPPER(ITEM_NUMBER)) = {itemKey}
-        ", ct);
-
-                // =====================================================
-                // 5) Insertar ART_NO_PROMO nuevo
-                //    Esto queda listo para que el worker lo procese.
-                // =====================================================
-                await _OracleContext.Database.ExecuteSqlInterpolatedAsync($@"
-            INSERT INTO ART_NO_PROMO
-            (
-                BU_NAME,
-                ORGANIZATION_CODE,
-                ITEM_NUMBER,
-                ESTADO,
-                GENERADO
-            )
-            VALUES
-            (
-                {bu},
-                {org},
-                {itemKey},
-                {estadoActivo},
-                {generadoN}
-            )
-        ", ct);
-
-                // =====================================================
-                // 6) Insertar ART_DET_NO_PROMO desde XXORA_DISCOUNT_LIST
-                // =====================================================
-                foreach (var r in xxoraRows)
-                {
-                    var rule = r.Rule;
-                    var party = r.Party;
-                    var uom = r.Uom;
-                    var discountPrice = r.DiscountPrice;
-                    var startDate = r.StartDate;
-                    var endDate = r.EndDate;
-
-                    await _OracleContext.Database.ExecuteSqlInterpolatedAsync($@"
-                INSERT INTO ART_DET_NO_PROMO
-                (
-                    BU_NAME,
-                    ORGANIZATION_CODE,
-                    ITEM_NUMBER,
-                    RULE_DISCOUNT_NAME,
-                    PARTY_NUMBER,
-                    DISCOUNT_PRICE,
-                    START_DATE,
-                    END_DATE,
-                    PRICING_UOM_CODE
-                )
-                VALUES
-                (
-                    {bu},
-                    {org},
-                    {itemKey},
-                    {rule},
-                    {party},
-                    {discountPrice},
-                    {startDate},
-                    {endDate},
-                    {uom}
-                )
-            ", ct);
-                }
-
+                await _OracleContext.SaveChangesAsync(ct);
                 await trx.CommitAsync(ct);
 
                 return (
                     true,
-                    $"ART_NO_PROMO y ART_DET_NO_PROMO regenerados correctamente para el artículo {itemKey}.",
-                    xxoraRows.Count
-                );
+                    $"Se marcaron {items.Count} artículo(s) como Activo / N. " +
+                    "El job copiará los descuentos actuales a ART_DET_NO_PROMO antes de generar los archivos.",
+                    items.Count);
             }
             catch (Exception ex)
             {
                 await trx.RollbackAsync(ct);
+                _OracleContext.ChangeTracker.Clear();
 
                 return (
                     false,
-                    $"Error registrando ART_NO_PROMO / ART_DET_NO_PROMO para el artículo {itemKey}: {ex.Message}",
-                    0
-                );
+                    $"Error marcando artículos en ART_NO_PROMO: {ex.Message}",
+                    0);
+            }
+        }
+
+        private async Task<(bool Ok, string Mensaje, int Procesados)> InactivarArticulosNoPromoAsync(
+            IEnumerable<string>? itemNumbers,
+            CancellationToken ct = default)
+        {
+            const string bu = "LANCO_CR";
+            const string org = "CR_3";
+
+            static string N(string? value) =>
+                (value ?? string.Empty).Trim().ToUpperInvariant();
+
+            var items = (itemNumbers ?? Enumerable.Empty<string>())
+                .Select(N)
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (items.Count == 0)
+                return (false, "Debe seleccionar al menos un artículo para reactivar descuentos.", 0);
+
+            await using var trx = await _OracleContext.Database.BeginTransactionAsync(ct);
+
+            try
+            {
+                var headers = new List<ART_NO_PROMO>();
+                var sinHeader = new List<string>();
+                var sinRespaldo = new List<string>();
+
+                foreach (var itemKey in items)
+                {
+                    ct.ThrowIfCancellationRequested();
+
+                    var header = await _OracleContext.ART_NO_PROMOs
+                        .FirstOrDefaultAsync(a =>
+                            a.BU_NAME != null &&
+                            a.ORGANIZATION_CODE != null &&
+                            a.ITEM_NUMBER != null &&
+                            a.BU_NAME.Trim().ToUpper() == bu &&
+                            a.ORGANIZATION_CODE.Trim().ToUpper() == org &&
+                            a.ITEM_NUMBER.Trim().ToUpper() == itemKey,
+                            ct);
+
+                    if (header == null)
+                    {
+                        sinHeader.Add(itemKey);
+                        continue;
+                    }
+
+                    var existeRespaldo = await _OracleContext.ART_DET_NO_PROMOs
+                        .AsNoTracking()
+                        .AnyAsync(d =>
+                            d.BU_NAME != null &&
+                            d.ORGANIZATION_CODE != null &&
+                            d.ITEM_NUMBER != null &&
+                            d.BU_NAME.Trim().ToUpper() == bu &&
+                            d.ORGANIZATION_CODE.Trim().ToUpper() == org &&
+                            d.ITEM_NUMBER.Trim().ToUpper() == itemKey,
+                            ct);
+
+                    if (!existeRespaldo)
+                    {
+                        sinRespaldo.Add(itemKey);
+                        continue;
+                    }
+
+                    headers.Add(header);
+                }
+
+                if (sinHeader.Count > 0 || sinRespaldo.Count > 0)
+                {
+                    await trx.RollbackAsync(ct);
+                    _OracleContext.ChangeTracker.Clear();
+
+                    var errores = new List<string>();
+
+                    if (sinHeader.Count > 0)
+                        errores.Add("sin ART_NO_PROMO: " + string.Join(", ", sinHeader));
+
+                    if (sinRespaldo.Count > 0)
+                        errores.Add("sin respaldo en ART_DET_NO_PROMO: " + string.Join(", ", sinRespaldo));
+
+                    return (
+                        false,
+                        "No se realizó ningún cambio porque hay artículos " + string.Join("; ", errores) + ".",
+                        0);
+                }
+
+                foreach (var header in headers)
+                {
+                    // Al pasar a Inactivo NO se toca ART_DET_NO_PROMO.
+                    // Ese respaldo será utilizado por el job para reactivar en Fusion.
+                    header.ESTADO = "Inactivo";
+                    header.GENERADO = "N";
+                    _OracleContext.ART_NO_PROMOs.Update(header);
+                }
+
+                await _OracleContext.SaveChangesAsync(ct);
+                await trx.CommitAsync(ct);
+
+                return (
+                    true,
+                    $"Se marcaron {headers.Count} artículo(s) como Inactivo / N. " +
+                    "El respaldo de ART_DET_NO_PROMO se conserva para la reactivación.",
+                    headers.Count);
+            }
+            catch (Exception ex)
+            {
+                await trx.RollbackAsync(ct);
+                _OracleContext.ChangeTracker.Clear();
+
+                return (
+                    false,
+                    $"Error marcando artículos como Inactivo: {ex.Message}",
+                    0);
             }
         }
 
@@ -1224,18 +1244,19 @@ namespace SolicitudesDescuentos.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> DesactivarArticuloNoPromo(string itemNumber)
+        public async Task<IActionResult> DesactivarArticuloNoPromo(
+            List<string>? itemNumbers,
+            string? itemNumber = null)
         {
-            itemNumber = (itemNumber ?? "").Trim();
+            var items = itemNumbers ?? new List<string>();
 
-            if (string.IsNullOrWhiteSpace(itemNumber))
-            {
-                TempData["ErrorMessage"] = "Debe seleccionar un artículo para desactivar descuentos.";
-                return RedirectToAction(nameof(Index));
-            }
+            // Compatibilidad con el POST individual anterior por si el navegador
+            // todavía tiene una versión cacheada de la vista/JavaScript.
+            if (!string.IsNullOrWhiteSpace(itemNumber))
+                items.Add(itemNumber);
 
-            var result = await RegistrarArticuloNoPromoDesdeXxoraAsync(
-                itemNumber,
+            var result = await ActivarArticulosNoPromoAsync(
+                items,
                 HttpContext.RequestAborted);
 
             if (!result.Ok)
@@ -1244,30 +1265,24 @@ namespace SolicitudesDescuentos.Controllers
                 return RedirectToAction(nameof(Index));
             }
 
-            TempData["InfoFlujo"] =
-                $"Artículo {itemNumber} marcado para desactivar descuentos. Quedó en ART_NO_PROMO como Activo / N. Detalles copiados: {result.Detalles}.";
-
+            TempData["InfoFlujo"] = result.Mensaje;
             return RedirectToAction(nameof(Index));
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ReactivarArticuloNoPromo(string itemNumber)
+        public async Task<IActionResult> ReactivarArticuloNoPromo(
+            List<string>? itemNumbers,
+            string? itemNumber = null)
         {
-            itemNumber = (itemNumber ?? "").Trim();
+            var items = itemNumbers ?? new List<string>();
 
-            if (string.IsNullOrWhiteSpace(itemNumber))
-            {
-                TempData["ErrorMessage"] = "Debe seleccionar un artículo para reactivar descuentos.";
-                return RedirectToAction(nameof(Index));
-            }
+            if (!string.IsNullOrWhiteSpace(itemNumber))
+                items.Add(itemNumber);
 
-            var result = await ReactivarFlujoItemAsync(
-                itemNumber: itemNumber,
-                startDate: null,
-                endDate: null,
-                descuento: 0m,
-                ct: HttpContext.RequestAborted);
+            var result = await InactivarArticulosNoPromoAsync(
+                items,
+                HttpContext.RequestAborted);
 
             if (!result.Ok)
             {
@@ -1275,9 +1290,7 @@ namespace SolicitudesDescuentos.Controllers
                 return RedirectToAction(nameof(Index));
             }
 
-            TempData["InfoFlujo"] =
-                $"Artículo {itemNumber} marcado para reactivar descuentos. Quedó en ART_NO_PROMO como Inactivo / N.";
-
+            TempData["InfoFlujo"] = result.Mensaje;
             return RedirectToAction(nameof(Index));
         }
 

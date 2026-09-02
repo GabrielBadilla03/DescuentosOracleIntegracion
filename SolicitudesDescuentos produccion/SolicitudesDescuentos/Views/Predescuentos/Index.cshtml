@@ -57,18 +57,18 @@
 
         <div class="col-auto">
             <button type="button" class="btn btn-danger"
-                 data-bs-toggle="modal" data-bs-target="#articulosExcluidosModal">
+                    data-bs-toggle="modal" data-bs-target="#articulosExcluidosModal">
                 Artículos Excluidos
             </button>
         </div>
-    
 
-    <div class="col-auto">
-        <button type="button" class="btn btn-dark"
-                data-bs-toggle="modal" data-bs-target="#reportesModal">
-            Reportes
-        </button>
-    </div>
+    
+        <div class="col-auto">
+            <button type="button" class="btn btn-dark"
+                    data-bs-toggle="modal" data-bs-target="#reportesModal">
+                Reportes
+            </button>
+        </div>
     }
     <div class="col-auto">
         <button type="button" class="btn btn-danger"
@@ -541,24 +541,47 @@
                 </ul>
 
                 <div class="tab-content">
-
                     <div class="tab-pane fade show active" id="panel-desactivar-descuentos" role="tabpanel">
-                        <form asp-action="DesactivarArticuloNoPromo" asp-controller="Predescuentos" method="post" id="formDesactivarNoPromo">
+                        <form asp-action="DesactivarArticuloNoPromo"
+                              asp-controller="Predescuentos"
+                              method="post"
+                              id="formDesactivarNoPromo">
                             @Html.AntiForgeryToken()
+
+                            <div class="alert alert-info py-2">
+                                Seleccione uno o varios artículos. Al confirmar solamente se dejarán en
+                                <strong>ART_NO_PROMO como Activo / N</strong>. El job hará el respaldo de los
+                                descuentos actuales en ART_DET_NO_PROMO antes de generar el archivo.
+                            </div>
 
                             <div class="row g-3">
                                 <div class="col-12 col-lg-6">
                                     <label class="form-label">Buscar artículo</label>
-                                    <input type="text" class="form-control" id="txtItemFiltro"
+                                    <input type="text"
+                                           class="form-control"
+                                           id="txtItemFiltro"
                                            placeholder="Ej: 100-ABC o parte del código"
                                            autocomplete="off" />
-                                    <div class="form-text">Escribí mínimo 2 caracteres.</div>
+                                    <div class="form-text">Escribí mínimo 2 caracteres. Podés hacer varias búsquedas sin perder la selección.</div>
                                 </div>
 
                                 <div class="col-12 col-lg-6">
-                                    <label class="form-label">Artículo seleccionado</label>
-                                    <input type="text" class="form-control" id="txtItemSeleccionado" readonly />
-                                    <input type="hidden" name="itemNumber" id="hidItemNumber" />
+                                    <label class="form-label">Artículos seleccionados</label>
+                                    <input type="text"
+                                           class="form-control"
+                                           id="txtItemSeleccionado"
+                                           value="0 artículos seleccionados"
+                                           readonly />
+                                    <div id="hiddenItemsDesactivarNoPromo"></div>
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label">Selección actual</label>
+                                    <div id="seleccionadosDesactivarNoPromo"
+                                         class="border rounded p-2 bg-light d-flex flex-wrap gap-2"
+                                         style="min-height: 44px;">
+                                        <span class="text-muted">Ningún artículo seleccionado.</span>
+                                    </div>
                                 </div>
 
                                 <div class="col-12">
@@ -571,47 +594,70 @@
 
                             <div class="text-end mt-3">
                                 <button type="submit" class="btn btn-danger" id="btnDesactivarNoPromo" disabled>
-                                    Desactivar descuentos
+                                    Desactivar descuentos seleccionados
                                 </button>
                             </div>
                         </form>
                     </div>
 
                     <div class="tab-pane fade" id="panel-reactivar-descuentos" role="tabpanel">
-                        <form asp-action="ReactivarArticuloNoPromo" asp-controller="Predescuentos" method="post" id="formReactivarNoPromo">
+                        <form asp-action="ReactivarArticuloNoPromo"
+                              asp-controller="Predescuentos"
+                              method="post"
+                              id="formReactivarNoPromo">
                             @Html.AntiForgeryToken()
+
+                            <div class="alert alert-info py-2">
+                                Seleccione uno o varios artículos activos en ART_NO_PROMO. Al confirmar se pasarán a
+                                <strong>Inactivo / N</strong> y se conservará ART_DET_NO_PROMO para que el job restaure
+                                ese respaldo.
+                            </div>
 
                             <div class="row g-3">
                                 <div class="col-12 col-lg-6">
                                     <label class="form-label">Buscar artículo en ART_NO_PROMO</label>
-                                    <input type="text" class="form-control" id="txtNoPromoFiltro"
+                                    <input type="text"
+                                           class="form-control"
+                                           id="txtNoPromoFiltro"
                                            placeholder="Ej: 100-ABC o parte del código"
                                            autocomplete="off" />
-                                    <div class="form-text">Solo muestra artículos con desactivación activa.</div>
+                                    <div class="form-text">Solo muestra artículos con desactivación activa. Sin filtro muestra todos.</div>
                                 </div>
 
                                 <div class="col-12 col-lg-6">
-                                    <label class="form-label">Artículo seleccionado</label>
-                                    <input type="text" class="form-control" id="txtNoPromoSeleccionado" readonly />
-                                    <input type="hidden" name="itemNumber" id="hidNoPromoItemNumber" />
+                                    <label class="form-label">Artículos seleccionados</label>
+                                    <input type="text"
+                                           class="form-control"
+                                           id="txtNoPromoSeleccionado"
+                                           value="0 artículos seleccionados"
+                                           readonly />
+                                    <div id="hiddenItemsReactivarNoPromo"></div>
+                                </div>
+
+                                <div class="col-12">
+                                    <label class="form-label">Selección actual</label>
+                                    <div id="seleccionadosReactivarNoPromo"
+                                         class="border rounded p-2 bg-light d-flex flex-wrap gap-2"
+                                         style="min-height: 44px;">
+                                        <span class="text-muted">Ningún artículo seleccionado.</span>
+                                    </div>
                                 </div>
 
                                 <div class="col-12">
                                     <label class="form-label">Resultados</label>
                                     <div class="list-group" id="lstNoPromoItems">
-                                        <div class="list-group-item text-muted">Buscá un artículo para ver resultados…</div>
+                                        <div class="list-group-item text-muted">Cargando artículos activos…</div>
                                     </div>
                                 </div>
                             </div>
 
                             <div class="text-end mt-3">
                                 <button type="submit" class="btn btn-success" id="btnReactivarNoPromo" disabled>
-                                    Reactivar descuentos
+                                    Reactivar descuentos seleccionados
                                 </button>
                             </div>
                         </form>
                     </div>
-
                 </div>
             </div>
 
@@ -1097,7 +1143,6 @@
                     !event.target.closest('#ddlArticuloNuevo')) {
                     buscadorNuevo?.hide();
                 }
-
                 if (!event.target.closest('#txtArticuloOrigenBuscar') &&
                     !event.target.closest('#ddlArticuloOrigen')) {
                     buscadorOrigen?.hide();
@@ -1147,85 +1192,194 @@
             const urlBuscarItems = '@Url.Action("BuscarItems", "Predescuentos")';
             const urlBuscarNoPromo = '@Url.Action("BuscarItemsNoPromo", "Predescuentos")';
 
-            function wireSearch({ txtId, listId, hiddenId, selectedId, buttonId, url, emptyMsg,  listarSinFiltro = false }) {
+            function escapeHtml(value) {
+                return String(value ?? '')
+                    .replaceAll('&', '&amp;')
+                    .replaceAll('<', '&lt;')
+                    .replaceAll('>', '&gt;')
+                    .replaceAll('"', '&quot;')
+                    .replaceAll("'", '&#039;');
+            }
+
+            function crearSelectorMultiple({
+                formId,
+                txtId,
+                listId,
+                selectedInputId,
+                selectedContainerId,
+                hiddenContainerId,
+                buttonId,
+                url,
+                emptyMsg,
+                listarSinFiltro = false
+            }) {
+                const form = modal.querySelector(formId);
                 const txt = modal.querySelector(txtId);
                 const list = modal.querySelector(listId);
-                const hidden = modal.querySelector(hiddenId);
-                const selected = modal.querySelector(selectedId);
+                const selectedInput = modal.querySelector(selectedInputId);
+                const selectedContainer = modal.querySelector(selectedContainerId);
+                const hiddenContainer = modal.querySelector(hiddenContainerId);
                 const button = modal.querySelector(buttonId);
 
-                if (!txt || !list || !hidden || !selected || !button) return;
+                if (!form || !txt || !list || !selectedInput ||
+                    !selectedContainer || !hiddenContainer || !button) {
+                    return null;
+                }
 
+                const seleccionados = new Map();
                 let timer = null;
+                let requestController = null;
+                let ultimosResultados = [];
+
+                function normalizar(value) {
+                    return String(value ?? '').trim().toUpperCase();
+                }
 
                 function clearResults(msg) {
-                    list.innerHTML = `<div class="list-group-item text-muted">${msg}</div>`;
+                    list.innerHTML = `<div class="list-group-item text-muted">${escapeHtml(msg)}</div>`;
                 }
 
-                function validate() {
-                    button.disabled = !(hidden.value || '').trim();
+                function renderSeleccionados() {
+                    hiddenContainer.replaceChildren();
+                    selectedContainer.replaceChildren();
+
+                    const valores = Array.from(seleccionados.values())
+                        .sort((a, b) => a.item.localeCompare(b.item, undefined, { numeric: true, sensitivity: 'base' }));
+
+                    selectedInput.value = `${valores.length} artículo${valores.length === 1 ? '' : 's'} seleccionado${valores.length === 1 ? '' : 's'}`;
+                    button.disabled = valores.length === 0;
+
+                    if (valores.length === 0) {
+                        const empty = document.createElement('span');
+                        empty.className = 'text-muted';
+                        empty.textContent = 'Ningún artículo seleccionado.';
+                        selectedContainer.appendChild(empty);
+                    }
+
+                    valores.forEach(x => {
+                        const hidden = document.createElement('input');
+                        hidden.type = 'hidden';
+                        hidden.name = 'itemNumbers';
+                        hidden.value = x.item;
+                        hiddenContainer.appendChild(hidden);
+
+                        const badge = document.createElement('span');
+                        badge.className = 'badge text-bg-secondary d-inline-flex align-items-center gap-2 p-2';
+
+                        const text = document.createElement('span');
+                        text.textContent = x.desc ? `${x.item} — ${x.desc}` : x.item;
+
+                        const quitar = document.createElement('button');
+                        quitar.type = 'button';
+                        quitar.className = 'btn-close btn-close-white';
+                        quitar.setAttribute('aria-label', `Quitar ${x.item}`);
+                        quitar.addEventListener('click', () => {
+                            seleccionados.delete(normalizar(x.item));
+                            renderSeleccionados();
+                            renderResultados(ultimosResultados);
+                        });
+
+                        badge.append(text, quitar);
+                        selectedContainer.appendChild(badge);
+                    });
                 }
 
-                function setSelected(itemNumber, desc) {
-                    hidden.value = itemNumber || '';
-                    selected.value = desc ? `${itemNumber} — ${desc}` : (itemNumber || '');
-                    validate();
+                function alternarSeleccion(item, desc) {
+                    const key = normalizar(item);
+                    if (!key) return;
+
+                    if (seleccionados.has(key)) {
+                        seleccionados.delete(key);
+                    } else {
+                        seleccionados.set(key, {
+                            item: String(item).trim(),
+                            desc: String(desc ?? '').trim()
+                        });
+                    }
+
+                    renderSeleccionados();
+                    renderResultados(ultimosResultados);
                 }
 
-                function render(data) {
-                    if (!Array.isArray(data) || data.length === 0) {
+                function renderResultados(data) {
+                    ultimosResultados = Array.isArray(data) ? data : [];
+
+                    if (ultimosResultados.length === 0) {
                         clearResults(emptyMsg);
                         return;
                     }
 
-                    list.innerHTML = '';
+                    list.replaceChildren();
 
-                    data.forEach(x => {
+                    ultimosResultados.forEach(x => {
                         const item = x.itemNumber || x.ItemNumber || x.codArticulo || x.CodArticulo || '';
                         const desc = x.description || x.Description || x.desArticulo || x.DesArticulo || '';
+                        const key = normalizar(item);
 
-                        if (!item) return;
+                        if (!key) return;
 
-                        const btn = document.createElement('button');
-                        btn.type = 'button';
-                        btn.className = 'list-group-item list-group-item-action';
-                        btn.innerHTML = `
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div><strong>${item}</strong></div>
-                                <div class="text-muted small">${(desc || '').substring(0, 80)}</div>
-                            </div>`;
+                        const seleccionado = seleccionados.has(key);
+                        const row = document.createElement('button');
+                        row.type = 'button';
+                        row.className = 'list-group-item list-group-item-action d-flex align-items-center gap-3';
+                        row.classList.toggle('active', seleccionado);
+                        row.setAttribute('aria-pressed', seleccionado ? 'true' : 'false');
 
-                        btn.addEventListener('click', () => setSelected(item, desc));
-                        list.appendChild(btn);
+                        const check = document.createElement('input');
+                        check.type = 'checkbox';
+                        check.className = 'form-check-input flex-shrink-0';
+                        check.checked = seleccionado;
+                        check.tabIndex = -1;
+                        check.style.pointerEvents = 'none';
+
+                        const contenido = document.createElement('div');
+                        contenido.className = 'text-start flex-grow-1';
+
+                        const codigo = document.createElement('div');
+                        codigo.className = 'fw-bold';
+                        codigo.textContent = item;
+
+                        const descripcion = document.createElement('div');
+                        descripcion.className = seleccionado ? 'small text-white-50' : 'small text-muted';
+                        descripcion.textContent = desc || 'Sin descripción';
+
+                        contenido.append(codigo, descripcion);
+                        row.append(check, contenido);
+                        row.addEventListener('click', () => alternarSeleccion(item, desc));
+                        list.appendChild(row);
                     });
                 }
 
                 async function buscar() {
                     const q = (txt.value || '').trim();
 
-                    hidden.value = '';
-                    selected.value = '';
-                    validate();
-
                     if (!listarSinFiltro && q.length < 2) {
+                        ultimosResultados = [];
                         clearResults('Buscá un artículo para ver resultados…');
                         return;
                     }
+
+                    requestController?.abort();
+                    requestController = new AbortController();
 
                     try {
                         clearResults('Buscando…');
 
                         const res = await fetch(`${url}?filtro=${encodeURIComponent(q)}`, {
-                            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                            signal: requestController.signal
                         });
 
                         if (!res.ok) throw new Error('HTTP ' + res.status);
 
                         const data = await res.json();
-                        render(data);
+                        renderResultados(data);
                     } catch (e) {
-                        clearResults('Error al buscar artículos.');
+                        if (e.name === 'AbortError') return;
+
                         console.error(e);
+                        ultimosResultados = [];
+                        clearResults('Error al buscar artículos.');
                     }
                 }
 
@@ -1237,39 +1391,72 @@
                 txt.addEventListener('keydown', ev => {
                     if (ev.key === 'Enter') {
                         ev.preventDefault();
+                        clearTimeout(timer);
                         buscar();
                     }
                 });
 
-                return () => {
+                form.addEventListener('submit', ev => {
+                    if (seleccionados.size === 0) {
+                        ev.preventDefault();
+                        return;
+                    }
+
+                    const accion = formId === '#formDesactivarNoPromo'
+                        ? 'desactivar los descuentos'
+                        : 'reactivar los descuentos';
+
+                    if (!window.confirm(`Se van a ${accion} de ${seleccionados.size} artículo(s). ¿Desea continuar?`)) {
+                        ev.preventDefault();
+                        return;
+                    }
+
+                    button.disabled = true;
+                    button.textContent = 'Procesando…';
+                });
+
+                function reset() {
+                    clearTimeout(timer);
+                    requestController?.abort();
+                    seleccionados.clear();
+                    ultimosResultados = [];
                     txt.value = '';
-                    hidden.value = '';
-                    selected.value = '';
-                    validate();
+                    button.textContent = formId === '#formDesactivarNoPromo'
+                        ? 'Desactivar descuentos seleccionados'
+                        : 'Reactivar descuentos seleccionados';
+                    renderSeleccionados();
 
                     if (listarSinFiltro) {
                         buscar();
                     } else {
                         clearResults('Buscá un artículo para ver resultados…');
                     }
-                };
+                }
+
+                renderSeleccionados();
+
+                return { reset };
             }
 
-            const resetDesactivar = wireSearch({
+            const selectorDesactivar = crearSelectorMultiple({
+                formId: '#formDesactivarNoPromo',
                 txtId: '#txtItemFiltro',
                 listId: '#lstItems',
-                hiddenId: '#hidItemNumber',
-                selectedId: '#txtItemSeleccionado',
+                selectedInputId: '#txtItemSeleccionado',
+                selectedContainerId: '#seleccionadosDesactivarNoPromo',
+                hiddenContainerId: '#hiddenItemsDesactivarNoPromo',
                 buttonId: '#btnDesactivarNoPromo',
                 url: urlBuscarItems,
                 emptyMsg: 'Sin resultados.'
             });
 
-            const resetReactivar = wireSearch({
+            const selectorReactivar = crearSelectorMultiple({
+                formId: '#formReactivarNoPromo',
                 txtId: '#txtNoPromoFiltro',
                 listId: '#lstNoPromoItems',
-                hiddenId: '#hidNoPromoItemNumber',
-                selectedId: '#txtNoPromoSeleccionado',
+                selectedInputId: '#txtNoPromoSeleccionado',
+                selectedContainerId: '#seleccionadosReactivarNoPromo',
+                hiddenContainerId: '#hiddenItemsReactivarNoPromo',
                 buttonId: '#btnReactivarNoPromo',
                 url: urlBuscarNoPromo,
                 emptyMsg: 'Sin resultados en ART_NO_PROMO.',
@@ -1277,8 +1464,8 @@
             });
 
             modal.addEventListener('show.bs.modal', () => {
-                resetDesactivar?.();
-                resetReactivar?.();
+                selectorDesactivar?.reset();
+                selectorReactivar?.reset();
             });
         })();
     </script>
@@ -1297,7 +1484,6 @@
             const urlMedidas = '@Url.Action("CatalogoMedidasArticulos", "Predescuentos")';
 
             const tokenInput = modal.querySelector('input[name="__RequestVerificationToken"]');
-
             const mensaje = document.getElementById('excluidosMensaje');
             const lstListado = document.getElementById('lstArticulosExcluidos');
             const lstGestion = document.getElementById('lstArticulosGestion');

@@ -293,6 +293,183 @@ public class DescuentosBatchService : IDescuentosBatchService
             string.Join(", ", empleadosOrdenados));
     }
 
+    private async Task<(bool Ok, string Mensaje, int Detalles)> PrepararRespaldoNoPromoActivoAsync(
+        ART_NO_PROMO art,
+        CancellationToken cancellationToken)
+    {
+        var buKey = N(art.BU_NAME);
+        var orgKey = N(art.ORGANIZATION_CODE);
+        var itemKey = N(art.ITEM_NUMBER);
+
+        if (string.IsNullOrWhiteSpace(buKey) ||
+            string.IsNullOrWhiteSpace(orgKey) ||
+            string.IsNullOrWhiteSpace(itemKey))
+        {
+            return (
+                false,
+                "ART_NO_PROMO tiene BU_NAME, ORGANIZATION_CODE o ITEM_NUMBER vacío.",
+                0);
+        }
+
+        /*
+         * Flujo normal:
+         * 1) La vista borra ART_DET_NO_PROMO y deja ART_NO_PROMO en Activo / N.
+         * 2) Este job crea el respaldo desde XXORA_DISCOUNT_LIST.
+         * 3) Después se genera y sube el ZIP.
+         *
+         * Si el ZIP/SFTP falló después de haber creado el respaldo, en el
+         * siguiente ciclo se conserva ese mismo snapshot. Así un reintento no
+         * sustituye el respaldo por datos que pudieron cambiar mientras tanto.
+         */
+        var yaExisteRespaldo = await _db.ART_DET_NO_PROMOs
+            .AsNoTracking()
+            .AnyAsync(d =>
+                d.BU_NAME != null &&
+                d.ORGANIZATION_CODE != null &&
+                d.ITEM_NUMBER != null &&
+                d.BU_NAME.Trim().ToUpper() == buKey &&
+                d.ORGANIZATION_CODE.Trim().ToUpper() == orgKey &&
+                d.ITEM_NUMBER.Trim().ToUpper() == itemKey,
+                cancellationToken);
+
+        if (yaExisteRespaldo)
+        {
+            return (
+                true,
+                "ART_DET_NO_PROMO ya contiene el respaldo de este ciclo; se reutilizará para el reintento.",
+                0);
+        }
+
+        var xxoraRowsRaw = await _db.XXORA_DISCOUNT_LISTs
+            .AsNoTracking()
+            .Where(x =>
+                x.BU_NAME != null &&
+                x.ITEM_NUMBER != null &&
+                x.BU_NAME.Trim().ToUpper() == buKey &&
+                x.ITEM_NUMBER.Trim().ToUpper() == itemKey)
+            .Select(x => new
+            {
+                x.RULE_DISCOUNT_NAME,
+                x.PARTY_NUMBER,
+                x.PRICING_UOM_CODE,
+                x.DISCOUNT_PRICE,
+                x.START_DATE,
+                x.END_DATE
+            })
+            .ToListAsync(cancellationToken);
+
+        if (xxoraRowsRaw.Count == 0)
+        {
+            return (
+                false,
+                $"No hay descuentos en XXORA_DISCOUNT_LIST para BU={buKey}, ITEM={itemKey}. " +
+                "ART_NO_PROMO permanece Activo / N para reintento.",
+                0);
+        }
+
+        /*
+         * ART_DET_NO_PROMO tiene índice único por:
+         * BU, ORG, ITEM, RULE, PARTY, START_DATE.
+         * Se conserva la misma deduplicación que existía en el flujo de la vista.
+         *
+         * IMPORTANTE: END_DATE se copia EXACTAMENTE desde XXORA_DISCOUNT_LIST.
+         * Ya no existe tratamiento especial CLIENTE => NULL.
+         */
+        var filas = xxoraRowsRaw
+            .Select(r => new
+            {
+                Rule = T(r.RULE_DISCOUNT_NAME),
+                Party = T(r.PARTY_NUMBER),
+                Uom = string.IsNullOrWhiteSpace(r.PRICING_UOM_CODE)
+                    ? null
+                    : T(r.PRICING_UOM_CODE),
+                DiscountPrice = r.DISCOUNT_PRICE,
+                StartDate = r.START_DATE,
+                EndDate = r.END_DATE
+            })
+            .Where(r =>
+                !string.IsNullOrWhiteSpace(r.Rule) &&
+                !string.IsNullOrWhiteSpace(r.Party))
+            .GroupBy(r =>
+                $"{N(r.Rule)}|{N(r.Party)}|{r.StartDate:yyyyMMddHHmmss}",
+                StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .ToList();
+
+        if (filas.Count == 0)
+        {
+            return (
+                false,
+                $"XXORA_DISCOUNT_LIST no contiene filas válidas para BU={buKey}, ITEM={itemKey}. " +
+                "Revise RULE_DISCOUNT_NAME y PARTY_NUMBER.",
+                0);
+        }
+
+        await using var trx = await _db.Database.BeginTransactionAsync(cancellationToken);
+
+        try
+        {
+            // Defensa adicional: el flujo de la vista ya lo deja vacío.
+            await _db.Database.ExecuteSqlInterpolatedAsync($@"
+                DELETE FROM ART_DET_NO_PROMO
+                 WHERE TRIM(UPPER(BU_NAME)) = {buKey}
+                   AND TRIM(UPPER(ORGANIZATION_CODE)) = {orgKey}
+                   AND TRIM(UPPER(ITEM_NUMBER)) = {itemKey}
+            ", cancellationToken);
+
+            foreach (var fila in filas)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var rule = fila.Rule;
+                var party = fila.Party;
+                var uom = fila.Uom;
+                var discountPrice = fila.DiscountPrice;
+                var startDate = fila.StartDate;
+                var endDate = fila.EndDate;
+
+                await _db.Database.ExecuteSqlInterpolatedAsync($@"
+                    INSERT INTO ART_DET_NO_PROMO
+                    (
+                        BU_NAME,
+                        ORGANIZATION_CODE,
+                        ITEM_NUMBER,
+                        RULE_DISCOUNT_NAME,
+                        PARTY_NUMBER,
+                        DISCOUNT_PRICE,
+                        START_DATE,
+                        END_DATE,
+                        PRICING_UOM_CODE
+                    )
+                    VALUES
+                    (
+                        {buKey},
+                        {orgKey},
+                        {itemKey},
+                        {rule},
+                        {party},
+                        {discountPrice},
+                        {startDate},
+                        {endDate},
+                        {uom}
+                    )
+                ", cancellationToken);
+            }
+
+            await trx.CommitAsync(cancellationToken);
+
+            return (
+                true,
+                $"Respaldo ART_DET_NO_PROMO creado desde XXORA_DISCOUNT_LIST. Filas={filas.Count}.",
+                filas.Count);
+        }
+        catch
+        {
+            await trx.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
     private async Task ProcesarArticulosNoPromoAsync(
         CancellationToken cancellationToken)
     {
@@ -318,6 +495,33 @@ public class DescuentosBatchService : IDescuentosBatchService
             try
             {
                 cancellationToken.ThrowIfCancellationRequested();
+
+                if (Eq(art.ESTADO, "Activo"))
+                {
+                    var respaldo = await PrepararRespaldoNoPromoActivoAsync(
+                        art,
+                        cancellationToken);
+
+                    if (!respaldo.Ok)
+                    {
+                        _logger.LogWarning(
+                            "No se preparó ART_DET_NO_PROMO para BU={BU}, ORG={Org}, ITEM={Item}. Motivo: {Motivo}",
+                            art.BU_NAME,
+                            art.ORGANIZATION_CODE,
+                            art.ITEM_NUMBER,
+                            respaldo.Mensaje);
+
+                        continue;
+                    }
+
+                    _logger.LogInformation(
+                        "ART_DET_NO_PROMO listo antes de generar. BU={BU}, ORG={Org}, ITEM={Item}, DetallesCopiados={Detalles}. {Mensaje}",
+                        art.BU_NAME,
+                        art.ORGANIZATION_CODE,
+                        art.ITEM_NUMBER,
+                        respaldo.Detalles,
+                        respaldo.Mensaje);
+                }
 
                 var result = await _archivosService.GenerarNoPromoPendienteAsync(
                     bu: T(art.BU_NAME),
@@ -417,10 +621,32 @@ public class DescuentosBatchService : IDescuentosBatchService
                          a.ITEM_NUMBER == art.ITEM_NUMBER,
                     cancellationToken);
 
-                if (entity != null)
+                if (entity != null &&
+                    Eq(entity.ESTADO, art.ESTADO) &&
+                    Eq(entity.GENERADO, "N"))
+                {
                     entity.GENERADO = "S";
+                    await _db.SaveChangesAsync(cancellationToken);
+                }
+                else
+                {
+                    /*
+                     * Mientras se generaba/subía el ZIP el usuario pudo cambiar
+                     * el artículo de Activo a Inactivo (o viceversa). No se pisa
+                     * ese nuevo GENERADO='N'; el siguiente ciclo procesará la
+                     * nueva solicitud.
+                     */
+                    _db.ChangeTracker.Clear();
 
-                await _db.SaveChangesAsync(cancellationToken);
+                    _logger.LogWarning(
+                        "El ZIP se subió, pero ART_NO_PROMO cambió durante el proceso. " +
+                        "No se sobrescribió el estado actual con GENERADO='S'. " +
+                        "BU={BU}, ORG={Org}, ITEM={Item}, EstadoProcesado={EstadoProcesado}.",
+                        art.BU_NAME,
+                        art.ORGANIZATION_CODE,
+                        art.ITEM_NUMBER,
+                        art.ESTADO);
+                }
 
                 _logger.LogInformation(
                     "ZIP ART_NO_PROMO generado y subido por SFTP: Local={Local}, Remoto={RemoteDir}/{FileName}, BU={BU}, ORG={Org}, ITEM={Item}.",
