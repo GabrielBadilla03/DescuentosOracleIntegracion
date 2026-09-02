@@ -4421,7 +4421,8 @@ namespace SolicitudesDescuentos.Controllers
                        acceptedItems.Contains(T(codArt));
             }
 
-            // set de artículos que SÍ tienen fijo (END_DATE NULL) en XXORA para este cliente
+            // Set de artículos que tienen descuento CLIENTE en XXORA para este cliente.
+            // El tipo se identifica exclusivamente por RULE_DISCOUNT_NAME; END_DATE ya no distingue FIJO/PROMOCION.
             var fixedItems = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var chunk in Chunk(candidateItems.ToList(), 900))
@@ -4432,8 +4433,9 @@ namespace SolicitudesDescuentos.Controllers
                         x.BU_NAME == buNombre &&
                         x.PARTY_NUMBER == codCliente &&
                         x.ITEM_NUMBER != null &&
+                        x.RULE_DISCOUNT_NAME != null &&
                         chunk.Contains(x.ITEM_NUMBER) &&
-                        x.END_DATE == null // ✅ FIJO
+                        x.RULE_DISCOUNT_NAME.Trim().ToUpper().Contains("CLIENT")
                     )
                     .Select(x => x.ITEM_NUMBER)
                     .Distinct()
@@ -4679,14 +4681,16 @@ namespace SolicitudesDescuentos.Controllers
         }
 
         // Rango ORIGINAL por solicitud:
-        // - Fijo: inicio = FECHA_APLICACION (fallback FECHAINICIO/FECHASOLICITUD), fin vacío
-        // - Promocional: inicio = FECHAINICIO (fallback FECHASOLICITUD), fin = FECHAFIN
+        // - Fijo/CLIENTE: inicio = FECHA_APLICACION (fallback FECHAINICIO/FECHASOLICITUD),
+        //   fin = FECHASOLICITUD + 5 años.
+        // - Promocional: inicio = FECHAINICIO (fallback FECHASOLICITUD), fin = FECHAFIN.
         private static (DateTime? Start, DateTime? End) GetRangoOriginal(PREDESCUENTO pre)
         {
             if (string.Equals(pre.TIPODESCUENTO, "Descuento Fijo", StringComparison.OrdinalIgnoreCase))
             {
                 var start = pre.FECHA_APLICACION ?? pre.FECHAINICIO ?? pre.FECHASOLICITUD;
-                return (start, null);
+                var end = pre.FECHASOLICITUD.AddYears(5);
+                return (start, end);
             }
             else
             {
@@ -4707,7 +4711,8 @@ namespace SolicitudesDescuentos.Controllers
             if (esFijo)
             {
                 var start = pre.FECHA_APLICACION ?? pre.FECHAINICIO ?? pre.FECHASOLICITUD;
-                return (start, null);
+                var end = pre.FECHASOLICITUD.AddYears(5);
+                return (start, end);
             }
             else
             {

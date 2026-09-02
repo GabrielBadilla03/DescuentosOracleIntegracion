@@ -75,19 +75,8 @@ public class ArchivosDescuentosService : IArchivosDescuentosService
 
         static string N(string? s) => (s ?? "").Trim().ToUpperInvariant();
 
-        static string RuleBucketLocal(string? rule)
-        {
-            var x = N(rule);
-            if (string.IsNullOrWhiteSpace(x)) return "";
-            if (x == "PROMOCION" || x.Contains("PROMOC")) return "PROMOCION";
-            if (x == "CLIENTE" || x.Contains("CLIENT")) return "CLIENTE";
-            return "";
-        }
-
-        static DateTime? NormalizeEndDateByRule(string? rule, DateTime? end)
-            => string.Equals(RuleBucketLocal(rule), "CLIENTE", StringComparison.OrdinalIgnoreCase)
-                ? null
-                : end;
+        // CLIENTE y PROMOCION conservan siempre el END_DATE real.
+        // El tipo de regla se diferencia por RULE_DISCOUNT_NAME, nunca por END_DATE NULL.
 
         await using var trx = await _OracleContext.Database.BeginTransactionAsync(ct);
 
@@ -157,7 +146,7 @@ public class ArchivosDescuentosService : IArchivosDescuentosService
                         e.PARTY_NUMBER,
                         e.DISCOUNT_PRICE,
                         e.START_DATE,
-                        NormalizeEndDateByRule(e.RULE_DISCOUNT_NAME, e.END_DATE))),
+                        e.END_DATE)),
                 StringComparer.OrdinalIgnoreCase);
 
             foreach (var r in xxoraRows)
@@ -169,7 +158,7 @@ public class ArchivosDescuentosService : IArchivosDescuentosService
                 if (string.IsNullOrWhiteSpace(party)) continue;
 
                 var uom = string.IsNullOrWhiteSpace(r.PRICING_UOM_CODE) ? null : r.PRICING_UOM_CODE.Trim();
-                var effectiveEnd = NormalizeEndDateByRule(rule, r.END_DATE);
+                var effectiveEnd = r.END_DATE;
                 var k = MakeArtDetKey(rule, party, r.DISCOUNT_PRICE, r.START_DATE, effectiveEnd);
 
                 if (!existentesSet.Add(k))
@@ -438,9 +427,27 @@ public class ArchivosDescuentosService : IArchivosDescuentosService
 
             DateTime? end;
             if (forzarVencimientoDiaAnterior)
+            {
                 end = DateTime.Today.AddSeconds(-1);
+            }
+            else if (tipo == "promocional")
+            {
+                // PROMOCION: utiliza la fecha fin definida en la solicitud.
+                end = h.FECHAFIN;
+            }
             else
-                end = tipo == "promocional" ? h.FECHAFIN : null;
+            {
+                // CLIENTE/FIJO: ya no se genera END_DATE vacío.
+                // Se usa el mismo vencimiento del PricingTerm: FECHASOLICITUD + 5 años.
+                end = pricingTermEnd;
+            }
+
+            if (!end.HasValue)
+            {
+                return ArchivoProcesoResult.Fallo(
+                    $"La solicitud {T(h.CONSECUTIVO)} no tiene una fecha fin válida para {bucketName}. " +
+                    "No se permite generar MatrixRulesInterface con END_DATE vacío.");
+            }
 
             var detalles = await _OracleContext.PREDETDESCUENTOs
                 .AsNoTracking()
@@ -549,6 +556,13 @@ public class ArchivosDescuentosService : IArchivosDescuentosService
 
         if (exportRows.Count == 0)
             return ArchivoProcesoResult.Fallo("No se pudieron generar filas exportables (sin detalles o sin artículos coincidentes).");
+
+        if (exportRows.Any(r => !r.End.HasValue))
+        {
+            return ArchivoProcesoResult.Fallo(
+                $"No se puede generar {bucketName}: existe al menos una regla con END_DATE vacío. " +
+                "CLIENTE y PROMOCION deben llevar fecha fin.");
+        }
 
         static string Key4(string bu, string party, string item, string uom) =>
             $"{(bu ?? "").Trim().ToUpperInvariant()}|{(party ?? "").Trim().ToUpperInvariant()}|{(item ?? "").Trim().ToUpperInvariant()}|{(uom ?? "").Trim().ToUpperInvariant()}";
@@ -792,7 +806,6 @@ public class ArchivosDescuentosService : IArchivosDescuentosService
                 new[] { party },
                 items,
                 uoms,
-                soloFijosEndNull: tipo == "fijo",
                 ruleFilter: tipo == "promocional" ? "PROMOC" : "CLIENT",
                 ct: ct);
 
@@ -819,16 +832,8 @@ public class ArchivosDescuentosService : IArchivosDescuentosService
             DateTime? oldEnd = NormalizeDt(old.End);
             DateTime? newEndNorm = NormalizeDt(newEnd);
 
-            if (tipo == "fijo" && !forzarVencimientoDiaAnterior)
-            {
-                bool sameStart = oldStart == newStartNorm;
-                bool sameEnd = oldEnd == null && newEndNorm == null;
-
-                return samePrice && sameStart && sameEnd
-                    ? ACTION_NOOP
-                    : ACTION_UPDATE;
-            }
-
+            // CLIENTE y PROMOCION se comparan exactamente por precio y fechas.
+            // END_DATE ya no se utiliza para identificar el tipo de descuento.
             bool sameDates =
                 oldStart == newStartNorm &&
                 oldEnd == newEndNorm;
@@ -1173,7 +1178,6 @@ public class ArchivosDescuentosService : IArchivosDescuentosService
         IEnumerable<string> partyNumbers,
         IEnumerable<string> itemNumbers,
         IEnumerable<string> uoms,
-        bool soloFijosEndNull,
         string? ruleFilter = null,
         CancellationToken ct = default)
     {
@@ -1205,9 +1209,8 @@ public class ArchivosDescuentosService : IArchivosDescuentosService
                         x.RULE_DISCOUNT_NAME.Trim().ToUpper().Contains(ruleNorm));
                 }
 
-                q = soloFijosEndNull
-                    ? q.Where(x => x.END_DATE == null)
-                    : q.Where(x => x.END_DATE != null);
+                // El tipo se determina exclusivamente por RULE_DISCOUNT_NAME.
+                // No se filtra CLIENTE/PROMOCION usando END_DATE NULL/NOT NULL.
 
                 if (uomList.Count > 0)
                 {
@@ -1601,6 +1604,13 @@ public class ArchivosDescuentosService : IArchivosDescuentosService
 
         if (exportRows.Count == 0)
             return ArchivoProcesoResult.Fallo($"No se pudieron generar filas para ART_NO_PROMO ITEM={itemKey}. Revise RULE_DISCOUNT_NAME, PARTY_NUMBER o PRICING_UOM_CODE.");
+
+        if ((esNuevo || esReactivacion) && exportRows.Any(r => !r.End.HasValue))
+        {
+            return ArchivoProcesoResult.Fallo(
+                $"ART_NO_PROMO ITEM={itemKey} contiene al menos una regla sin END_DATE. " +
+                "CLIENTE y PROMOCION deben llevar fecha fin antes de generar el archivo.");
+        }
 
         var fechaNombreArchivo = DateTime.Today.ToString(
             "ddMMyy",
