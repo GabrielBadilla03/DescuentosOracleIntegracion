@@ -4421,44 +4421,75 @@ namespace SolicitudesDescuentos.Controllers
                        acceptedItems.Contains(T(codArt));
             }
 
-            // Set de artículos que tienen descuento CLIENTE en XXORA para este cliente.
-            // El tipo se identifica exclusivamente por RULE_DISCOUNT_NAME; END_DATE ya no distingue FIJO/PROMOCION.
+            // =========================================================
+            // El descuento CLIENTE previo solamente es obligatorio
+            // cuando la solicitud es PROMOCIONAL.
+            //
+            // Para solicitudes FIJAS no debe exigirse que el descuento
+            // ya exista, porque precisamente se está creando/actualizando.
+            // =========================================================
+            bool esPromocional = string.Equals(
+                T(solicitud.TIPODESCUENTO),
+                "Descuento Promocional",
+                StringComparison.OrdinalIgnoreCase
+            );
+
             var fixedItems = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var chunk in Chunk(candidateItems.ToList(), 900))
+            // Consultar descuentos CLIENTE previos únicamente para promociones.
+            if (esPromocional)
             {
-                var rows = await _OracleContext.XXORA_DISCOUNT_LISTs
-                    .AsNoTracking()
-                    .Where(x =>
-                        x.BU_NAME == buNombre &&
-                        x.PARTY_NUMBER == codCliente &&
-                        x.ITEM_NUMBER != null &&
-                        x.RULE_DISCOUNT_NAME != null &&
-                        chunk.Contains(x.ITEM_NUMBER) &&
-                        x.RULE_DISCOUNT_NAME.Trim().ToUpper().Contains("CLIENT")
-                    )
-                    .Select(x => x.ITEM_NUMBER)
-                    .Distinct()
-                    .ToListAsync();
+                foreach (var chunk in Chunk(candidateItems.ToList(), 900))
+                {
+                    var rows = await _OracleContext.XXORA_DISCOUNT_LISTs
+                        .AsNoTracking()
+                        .Where(x =>
+                            x.BU_NAME == buNombre &&
+                            x.PARTY_NUMBER == codCliente &&
+                            x.ITEM_NUMBER != null &&
+                            x.RULE_DISCOUNT_NAME != null &&
+                            chunk.Contains(x.ITEM_NUMBER) &&
+                            x.RULE_DISCOUNT_NAME.Trim().ToUpper().Contains("CLIENT")
+                        )
+                        .Select(x => x.ITEM_NUMBER)
+                        .Distinct()
+                        .ToListAsync();
 
-                foreach (var it in rows)
-                    if (!string.IsNullOrWhiteSpace(it))
-                        fixedItems.Add(T(it));
+                    foreach (var item in rows)
+                    {
+                        if (!string.IsNullOrWhiteSpace(item))
+                            fixedItems.Add(T(item));
+                    }
+                }
+            }
+
+            bool TieneFijoEnXxora(string codArt)
+            {
+                return !string.IsNullOrWhiteSpace(codArt) &&
+                       fixedItems.Contains(T(codArt));
             }
 
             bool PuedeGenerarEnMaster(string codArt)
             {
                 var item = T(codArt);
 
-                return !string.IsNullOrWhiteSpace(item) &&
-                       !noPromoActivos.Contains(item) &&
-                       AceptaDescuento(item) &&
-                       TieneFijoEnXxora(item);
-            }
+                if (string.IsNullOrWhiteSpace(item))
+                    return false;
 
-            // helper: true si el artículo tiene fijo
-            bool TieneFijoEnXxora(string codArt)
-                => !string.IsNullOrWhiteSpace(codArt) && fixedItems.Contains(T(codArt));
+                // Aplica tanto a FIJO como a PROMOCIONAL.
+                if (noPromoActivos.Contains(item))
+                    return false;
+
+                // Aplica tanto a FIJO como a PROMOCIONAL.
+                if (!AceptaDescuento(item))
+                    return false;
+
+                // Solamente las promociones requieren descuento CLIENTE previo.
+                if (esPromocional && !TieneFijoEnXxora(item))
+                    return false;
+
+                return true;
+            }
 
 
 
