@@ -3451,6 +3451,9 @@ namespace SolicitudesDescuentos.Controllers
                    TRIM(UPPER({bu}))
                AND X.FECHA_RECIBO >= {fechaDesde}
                AND X.FECHA_RECIBO < {fechaHastaExclusiva}
+               -- Un movimiento sin SITIO no tiene relación válida con
+               -- XXORA_CUSTOMER_MASTER.PARTY_SITE_NUMBER.
+               AND TRIM(X.SITIO) IS NOT NULL
                AND X.VENDEDOR IS NOT NULL
                AND X.NUM_TRX_APLICADA IS NOT NULL
                AND X.MONEDA_FACTURA IS NOT NULL
