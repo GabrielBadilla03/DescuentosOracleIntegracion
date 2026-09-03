@@ -5,7 +5,6 @@
 @{
     ViewData["Title"] = "Administrar impulsadores";
 
-    var cultura = CultureInfo.GetCultureInfo("es-CR");
     var culturaInvariante = CultureInfo.InvariantCulture;
 
     string clienteDesde = ViewBag.ClienteDesde as string ?? "";
@@ -18,9 +17,11 @@
     string empleadoHastaNombre = ViewBag.EmpleadoHastaNombre as string ?? "";
     string agenteVenta = ViewBag.AgenteVenta as string ?? "";
     string agenteVentaNombre = ViewBag.AgenteVentaNombre as string ?? "";
+
     var agentesPorCliente =
         ViewBag.AgentesPorCliente as Dictionary<string, string>
         ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
     string porcentajeTexto = ViewBag.PorcentajeTexto as string ?? "";
 }
 
@@ -138,9 +139,7 @@
                     </div>
 
                     <div class="col-12 col-sm-6 col-lg-2">
-                        <label for="Porcentaje" class="form-label">
-                            Porcentaje
-                        </label>
+                        <label for="Porcentaje" class="form-label">Porcentaje</label>
 
                         <div class="input-group">
                             <input id="Porcentaje"
@@ -153,15 +152,12 @@
                                    value="@porcentajeTexto"
                                    class="form-control"
                                    required />
-
                             <span class="input-group-text">%</span>
                         </div>
                     </div>
 
                     <div class="col-12 d-flex justify-content-end">
-                        <button type="submit" class="btn btn-primary">
-                            Agregar
-                        </button>
+                        <button type="submit" class="btn btn-primary">Agregar</button>
                     </div>
                 </div>
             </form>
@@ -175,12 +171,8 @@
                   method="get"
                   class="row g-3 align-items-end">
 
-
-
                 <div class="col-12 col-md-6 col-xl-3">
-                    <label for="clienteDesde" class="form-label">
-                        Cliente desde
-                    </label>
+                    <label for="clienteDesde" class="form-label">Cliente desde</label>
 
                     <div class="input-group">
                         <input type="text"
@@ -219,9 +211,7 @@
                 </div>
 
                 <div class="col-12 col-md-6 col-xl-3">
-                    <label for="clienteHasta" class="form-label">
-                        Cliente hasta
-                    </label>
+                    <label for="clienteHasta" class="form-label">Cliente hasta</label>
 
                     <div class="input-group">
                         <input type="text"
@@ -260,9 +250,7 @@
                 </div>
 
                 <div class="col-12 col-md-6 col-xl-3">
-                    <label for="empleadoDesde" class="form-label">
-                        Empleado desde
-                    </label>
+                    <label for="empleadoDesde" class="form-label">Empleado desde</label>
 
                     <div class="input-group">
                         <input type="text"
@@ -301,9 +289,7 @@
                 </div>
 
                 <div class="col-12 col-md-6 col-xl-3">
-                    <label for="empleadoHasta" class="form-label">
-                        Empleado hasta
-                    </label>
+                    <label for="empleadoHasta" class="form-label">Empleado hasta</label>
 
                     <div class="input-group">
                         <input type="text"
@@ -340,10 +326,9 @@
                            tabindex="-1"
                            placeholder="Nombre del empleado seleccionado" />
                 </div>
+
                 <div class="col-12 col-md-6 col-xl-3">
-                    <label for="agenteVenta" class="form-label">
-                        Agente de venta
-                    </label>
+                    <label for="agenteVenta" class="form-label">Agente de venta</label>
 
                     <div class="input-group">
                         <input type="text"
@@ -387,9 +372,7 @@
                         Limpiar filtros
                     </a>
 
-                    <button type="submit" class="btn btn-outline-primary">
-                        Filtrar
-                    </button>
+                    <button type="submit" class="btn btn-outline-primary">Filtrar</button>
                 </div>
             </form>
         </div>
@@ -413,8 +396,7 @@
                         @if (!Model.Registros.Any())
                         {
                             <tr id="filaSinRegistros">
-                                <td colspan="7"
-                                    class="text-center text-muted py-4">
+                                <td colspan="7" class="text-center text-muted py-4">
                                     No hay registros para mostrar.
                                 </td>
                             </tr>
@@ -423,9 +405,7 @@
                         {
                             @foreach (var fila in Model.Registros)
                             {
-                                var valorPorcentaje = fila.Porcentaje.ToString(
-                                    "0.00",
-                                    culturaInvariante);
+                                var valorPorcentaje = fila.Porcentaje.ToString("0.00", culturaInvariante);
 
                                 agentesPorCliente.TryGetValue(
                                     (fila.Cliente ?? "").Trim().ToUpperInvariant(),
@@ -433,14 +413,10 @@
 
                                 <tr data-cliente="@fila.Cliente"
                                     data-empleado="@fila.Empleado">
-                                    <td>
-                                        <strong>@fila.Cliente</strong>
-                                    </td>
+                                    <td><strong>@fila.Cliente</strong></td>
                                     <td>@fila.NombreCliente</td>
                                     <td><strong>@(agenteFila ?? "")</strong></td>
-                                    <td>
-                                        <strong>@fila.Empleado</strong>
-                                    </td>
+                                    <td><strong>@fila.Empleado</strong></td>
                                     <td>@fila.NombreEmpleado</td>
                                     <td>
                                         <div class="input-group input-group-sm">
@@ -489,9 +465,7 @@
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="modalClientesLabel">
-                    Seleccionar cliente
-                </h5>
+                <h5 class="modal-title" id="modalClientesLabel">Seleccionar cliente</h5>
                 <button type="button"
                         class="btn-close"
                         data-bs-dismiss="modal"
@@ -517,9 +491,7 @@
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="modalAgentesLabel">
-                    Seleccionar agente de venta
-                </h5>
+                <h5 class="modal-title" id="modalAgentesLabel">Seleccionar agente de venta</h5>
                 <button type="button"
                         class="btn-close"
                         data-bs-dismiss="modal"
@@ -545,9 +517,7 @@
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="modalEmpleadosLabel">
-                    Seleccionar empleado
-                </h5>
+                <h5 class="modal-title" id="modalEmpleadosLabel">Seleccionar empleado</h5>
                 <button type="button"
                         class="btn-close"
                         data-bs-dismiss="modal"
@@ -570,61 +540,37 @@
 
     <script>
         (() => {
-            const urlClientes =
-                '@Url.Action("BuscarClientes", "ImpulsadoresOracle")';
-
-            const urlEmpleados =
-                '@Url.Action("BuscarEmpleados", "ImpulsadoresOracle")';
-
-            const urlAgentes =
-                '@Url.Action("BuscarAgentes", "ImpulsadoresOracle")';
-
-            const urlActualizar =
-                '@Url.Action("ActualizarPorcentaje", "ImpulsadoresOracle")';
-
-            const urlEliminar =
-                '@Url.Action("EliminarAjax", "ImpulsadoresOracle")';
+            const urlClientes = '@Url.Action("BuscarClientes", "ImpulsadoresOracle")';
+            const urlEmpleados = '@Url.Action("BuscarEmpleados", "ImpulsadoresOracle")';
+            const urlAgentes = '@Url.Action("BuscarAgentes", "ImpulsadoresOracle")';
+            const urlActualizar = '@Url.Action("ActualizarPorcentaje", "ImpulsadoresOracle")';
+            const urlEliminar = '@Url.Action("EliminarAjax", "ImpulsadoresOracle")';
 
             const token = document.querySelector(
                 '#formToken input[name="__RequestVerificationToken"]')?.value || '';
 
-            const modalClientes = new bootstrap.Modal(
-                document.getElementById('modalClientes'));
+            const modalClientes = new bootstrap.Modal(document.getElementById('modalClientes'));
+            const modalEmpleados = new bootstrap.Modal(document.getElementById('modalEmpleados'));
+            const modalAgentes = new bootstrap.Modal(document.getElementById('modalAgentes'));
 
-            const modalEmpleados = new bootstrap.Modal(
-                document.getElementById('modalEmpleados'));
-
-            const modalAgentes = new bootstrap.Modal(
-                document.getElementById('modalAgentes'));
-
-            const modalClientesLabel =
-                document.getElementById('modalClientesLabel');
-
-            const modalEmpleadosLabel =
-                document.getElementById('modalEmpleadosLabel');
+            const modalClientesLabel = document.getElementById('modalClientesLabel');
+            const modalEmpleadosLabel = document.getElementById('modalEmpleadosLabel');
 
             let clienteCodigoDestino = null;
             let clienteNombreDestino = null;
             let empleadoCodigoDestino = null;
             let empleadoNombreDestino = null;
-
             let agenteCodigoDestino = null;
             let agenteNombreDestino = null;
-
-            const clienteInput = document.getElementById('Cliente');
-            const nombreClienteInput =
-                document.getElementById('NombreCliente');
-
-            const empleadoInput = document.getElementById('Empleado');
-            const nombreEmpleadoInput =
-                document.getElementById('NombreEmpleado');
 
             const filtroCliente = document.getElementById('filtroCliente');
             const filtroEmpleado = document.getElementById('filtroEmpleado');
             const filtroAgente = document.getElementById('filtroAgente');
+
             const resultadoClientes = document.getElementById('resultadoClientes');
             const resultadoEmpleados = document.getElementById('resultadoEmpleados');
             const resultadoAgentes = document.getElementById('resultadoAgentes');
+
             const mensajeAjax = document.getElementById('mensajeAjax');
             const cantidadRegistros = document.getElementById('cantidadRegistros');
             const cuerpoTabla = document.querySelector('#tablaImpulsadores tbody');
@@ -705,6 +651,7 @@
                         html += `
                             <tr>
                                 <td><strong>${escapeHtml(x.codigo)}</strong></td>
+                                <td>${escapeHtml(x.nombre)}</td>
                                 <td class="text-end">
                                     <button type="button"
                                             class="btn btn-sm btn-primary seleccionar-cliente"
@@ -759,6 +706,7 @@
                         html += `
                             <tr>
                                 <td><strong>${escapeHtml(x.codigo)}</strong></td>
+                                <td>${escapeHtml(x.nombre)}</td>
                                 <td class="text-end">
                                     <button type="button"
                                             class="btn btn-sm btn-primary seleccionar-empleado"
@@ -844,15 +792,11 @@
                 const valorAnterior = input.dataset.valorOriginal || '0.00';
                 const porcentaje = Number(input.value);
 
-                if (!Number.isFinite(porcentaje) ||
-                    porcentaje < 0 ||
-                    porcentaje > 100) {
+                if (!Number.isFinite(porcentaje) || porcentaje < 0 || porcentaje > 100) {
                     input.value = valorAnterior;
                     estado.textContent = 'Valor inválido';
                     estado.className = 'estado-guardado text-danger';
-                    mostrarMensaje(
-                        'El porcentaje debe estar entre 0 y 100.',
-                        'danger');
+                    mostrarMensaje('El porcentaje debe estar entre 0 y 100.', 'danger');
                     return;
                 }
 
@@ -867,16 +811,11 @@
                             'Content-Type': 'application/json',
                             'RequestVerificationToken': token
                         },
-                        body: JSON.stringify({
-                            cliente,
-                            empleado,
-                            porcentaje
-                        })
+                        body: JSON.stringify({ cliente, empleado, porcentaje })
                     });
 
                     const datos = await leerRespuesta(respuesta);
-                    const valorGuardado =
-                        String(datos.porcentaje ?? porcentaje.toFixed(2));
+                    const valorGuardado = String(datos.porcentaje ?? porcentaje.toFixed(2));
 
                     input.value = valorGuardado;
                     input.dataset.valorOriginal = valorGuardado;
@@ -936,8 +875,7 @@
                     if (cantidadActual === 0) {
                         cuerpoTabla.innerHTML = `
                             <tr id="filaSinRegistros">
-                                <td colspan="7"
-                                    class="text-center text-muted py-4">
+                                <td colspan="7" class="text-center text-muted py-4">
                                     No hay registros para mostrar.
                                 </td>
                             </tr>`;

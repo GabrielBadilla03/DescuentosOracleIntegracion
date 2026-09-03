@@ -651,15 +651,27 @@ namespace SolicitudesDescuentos.Controllers
                                agenteVentaNormalizado,
                                StringComparison.OrdinalIgnoreCase);
                 })
+
+                // 1. Primero ordena alfabéticamente por nombre del cliente
                 .OrderBy(
-                    x => x.NombreEmpleado,
+                    x => x.NombreCliente,
                     StringComparer.OrdinalIgnoreCase)
-                .ThenBy(
-                    x => x.Empleado,
-                    StringComparer.OrdinalIgnoreCase)
+
+                // 2. Si el nombre es igual, ordena por código de cliente
                 .ThenBy(
                     x => x.Cliente,
                     StringComparer.OrdinalIgnoreCase)
+
+                // 3. Dentro de cada cliente, ordena por nombre del empleado
+                .ThenBy(
+                    x => x.NombreEmpleado,
+                    StringComparer.OrdinalIgnoreCase)
+
+                // 4. Desempate por código del empleado
+                .ThenBy(
+                    x => x.Empleado,
+                    StringComparer.OrdinalIgnoreCase)
+
                 .ToList();
 
             nombresClientes.TryGetValue(
