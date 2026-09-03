@@ -2856,7 +2856,8 @@ namespace SolicitudesDescuentos.Controllers
         // - Fuente exclusiva: XXORA_COMISIONES.
         // - Factura: NUM_TRX_APLICADA.
         // - Cobros Dia: MONTO_ORIGINAL_FACTURA, conservando el impuesto.
-        // - Moneda origen: MONEDA_FACTURA; CRC y USD se convierten a la moneda seleccionada.
+        // - Moneda: MONEDA_FACTURA; solo se incluyen movimientos de la moneda seleccionada.
+        //   No se convierten ni se mezclan CRC y USD en este reporte.
         // - Descuentos: DESCUENTO.
         // - Chk Dev.: CHEQUE_DEVUELTO.
         // - Cobro Neto = Cobros Dia - Chk Dev. - Descuentos.
@@ -3407,10 +3408,12 @@ namespace SolicitudesDescuentos.Controllers
              * Este filtro aplica únicamente al reporte
              * Cobros Diarios por Agente.
              *
-             * Se leen facturas CRC y USD. La moneda seleccionada es la
-             * moneda DESTINO del reporte:
-             * - CRC: los CRC quedan igual y los USD se multiplican por tipo de cambio.
-             * - USD: los USD quedan igual y los CRC se dividen por tipo de cambio.
+             * La moneda seleccionada funciona como FILTRO, no como moneda destino:
+             * - CRC: se incluyen únicamente movimientos con MONEDA_FACTURA = CRC.
+             * - USD: se incluyen únicamente movimientos con MONEDA_FACTURA = USD.
+             *
+             * En este reporte NO se convierten ni se mezclan monedas mediante
+             * el tipo de cambio. Los importes se muestran en su moneda original.
              */
             var monedaReporte =
                 string.Equals(
@@ -3457,7 +3460,11 @@ namespace SolicitudesDescuentos.Controllers
                AND X.VENDEDOR IS NOT NULL
                AND X.NUM_TRX_APLICADA IS NOT NULL
                AND X.MONEDA_FACTURA IS NOT NULL
-               AND TRIM(UPPER(X.MONEDA_FACTURA)) IN ('CRC', 'USD')
+
+               -- En Cobros Diarios por Agente la moneda seleccionada es un filtro.
+               -- No se convierten ni se mezclan CRC y USD.
+               AND TRIM(UPPER(X.MONEDA_FACTURA)) =
+                   TRIM(UPPER({monedaReporte}))
 
                -- Excluye las facturas registradas como mano de obra.
                AND NOT EXISTS
@@ -3698,32 +3705,20 @@ namespace SolicitudesDescuentos.Controllers
                             Math.Abs(montoCheque));
                 }
 
-                var montoFacturaConvertido = ConvertirMonedaReporte(
-                    montoFactura,
-                    factura.Key.MonedaOrigen,
-                    monedaReporte,
-                    filtro.TipoCambio);
-
-                var descuentoConvertido = ConvertirMonedaReporte(
-                    descuento,
-                    factura.Key.MonedaOrigen,
-                    monedaReporte,
-                    filtro.TipoCambio);
-
-                var chequeDevueltoConvertido = ConvertirMonedaReporte(
-                    chequeDevuelto,
-                    factura.Key.MonedaOrigen,
-                    monedaReporte,
-                    filtro.TipoCambio);
-
+                /*
+                 * IMPORTANTE: este reporte no hace conversión de moneda.
+                 * Los movimientos ya fueron filtrados por MONEDA_FACTURA
+                 * según la moneda seleccionada (CRC o USD), por lo que se
+                 * acumulan sus importes originales directamente.
+                 */
                 trabajo.Periodo.Cobros +=
-                    montoFacturaConvertido;
+                    montoFactura;
 
                 trabajo.Periodo.Descuentos +=
-                    descuentoConvertido;
+                    descuento;
 
                 trabajo.Periodo.ChequesDevueltos +=
-                    chequeDevueltoConvertido;
+                    chequeDevuelto;
             }
 
             return trabajos.Values
