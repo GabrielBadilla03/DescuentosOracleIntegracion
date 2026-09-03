@@ -565,21 +565,26 @@ namespace SolicitudesDescuentos.Controllers
             // (por ejemplo, por sitio). Se consultan los registros sin porcentaje
             // y luego se muestra una sola fila por IDCLIENTE en la advertencia.
             var registros = await _context.XXORA_CUSTOMER_MASTERs
-                .AsNoTracking()
-                .Where(x =>
-                    x.BU_NOMBRE != null &&
-                    x.BU_NOMBRE.Trim().ToUpper() == bu &&
-                    x.IDCLIENTE != null &&
-                    x.IDCLIENTE.Trim() != "" &&
-                    (x.PORCIENTO_VENDEDOR == null ||
-                     x.PORCIENTO_VENDEDOR.Trim() == ""))
-                .Select(x => new
-                {
-                    IdCliente = x.IDCLIENTE!,
-                    NombreCliente = x.NOMBRE_CLIENTE,
-                    Vendedor = x.IDVENDEDOR ?? x.VENDEDOR
-                })
-                .ToListAsync();
+                 .AsNoTracking()
+                 .Where(c =>
+                     c.BU_NOMBRE != null &&
+                     c.BU_NOMBRE.Trim().ToUpper() == bu &&
+                     c.IDCLIENTE != null &&
+                     c.IDCLIENTE.Trim() != "" &&
+                     c.PARTY_SITE_NUMBER != null &&
+                     c.PORCIENTO_VENDEDOR == null &&
+                     _context.XXORA_COMISIONEs.Any(x =>
+                         x.SITIO != null &&
+                         x.SITIO.Trim() == c.PARTY_SITE_NUMBER.Trim()
+                     ))
+                 .Select(c => new
+                 {
+                     IdCliente = c.IDCLIENTE!,
+                     NombreCliente = c.NOMBRE_CLIENTE,
+                     Vendedor = c.IDVENDEDOR ?? c.VENDEDOR,
+                     PartySiteNumber = c.PARTY_SITE_NUMBER
+                 })
+                 .ToListAsync();
 
             return registros
                 .Select(x => new ClienteSinPorcentajeVendedorVm
