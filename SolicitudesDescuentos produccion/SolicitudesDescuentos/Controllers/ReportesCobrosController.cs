@@ -1517,22 +1517,6 @@ namespace SolicitudesDescuentos.Controllers
 
                 foreach (var grupo in grupos)
                 {
-                    row++;
-
-                    ws.Cell(row, 1).Value = "Grupo";
-                    ws.Cell(row, 2).Value =
-                        grupo.Key.GrupoCodigo;
-                    ws.Cell(row, 3).Value =
-                        grupo.Key.GrupoDescripcion;
-
-                    ws.Range(row, 1, row, 5)
-                        .Style.Font.Bold = true;
-
-                    ws.Range(row, 1, row, 5)
-                        .Style.Fill.BackgroundColor =
-                            XLColor.FromHtml("#E9ECEF");
-
-                    row++;
 
                     foreach (var agente in grupo
                         .OrderBy(x => x.CodVendedor))
@@ -1595,7 +1579,6 @@ namespace SolicitudesDescuentos.Controllers
                         row += 2;
                     }
 
-                    ws.Cell(row, 2).Value = "TOTAL GRUPO";
                     ws.Cell(row, 3).Value =
                         grupo.Sum(x => x.Monto);
                     ws.Cell(row, 4).Value =
@@ -1859,31 +1842,7 @@ namespace SolicitudesDescuentos.Controllers
 
                             foreach (var grupo in grupos)
                             {
-                                table.Cell()
-                                    .ColumnSpan(5)
-                                    .PaddingTop(8)
-                                    .PaddingBottom(2)
-                                    .Text(text =>
-                                    {
-                                        text.Span("GRUPO ")
-                                            .Bold()
-                                            .FontSize(8);
-
-                                        text.Span(
-                                                grupo.Key.GrupoCodigo)
-                                            .Bold()
-                                            .FontSize(8);
-
-                                        text.Span("  ")
-                                            .FontSize(8);
-
-                                        text.Span(
-                                                grupo.Key
-                                                    .GrupoDescripcion)
-                                            .Bold()
-                                            .FontSize(8);
-                                    });
-
+                                
                                 foreach (var agente in grupo
                                     .OrderBy(
                                         x => x.CodVendedor))
@@ -2003,49 +1962,6 @@ namespace SolicitudesDescuentos.Controllers
                                         .FontSize(7)
                                         .Bold();
                                 }
-
-                                table.Cell()
-                                    .Element(BodyStyleResumen)
-                                    .Text("");
-
-                                table.Cell()
-                                    .Element(BodyStyleResumen)
-                                    .AlignRight()
-                                    .Text("TOTAL GRUPO")
-                                    .FontSize(7)
-                                    .Bold();
-
-                                table.Cell()
-                                    .Element(BodyStyleResumen)
-                                    .AlignRight()
-                                    .Text(
-                                        FormatoMonto(
-                                            grupo.Sum(
-                                                x => x.Monto)))
-                                    .FontSize(7)
-                                    .Bold();
-
-                                table.Cell()
-                                    .Element(BodyStyleResumen)
-                                    .AlignRight()
-                                    .Text(
-                                        FormatoMonto(
-                                            grupo.Sum(
-                                                x =>
-                                                    x.MontoFacturaSinImpuesto)))
-                                    .FontSize(7)
-                                    .Bold();
-
-                                table.Cell()
-                                    .Element(BodyStyleResumen)
-                                    .AlignRight()
-                                    .Text(
-                                        FormatoMonto(
-                                            grupo.Sum(
-                                                x =>
-                                                    x.MontoComision)))
-                                    .FontSize(7)
-                                    .Bold();
                             }
 
                             table.Cell()
