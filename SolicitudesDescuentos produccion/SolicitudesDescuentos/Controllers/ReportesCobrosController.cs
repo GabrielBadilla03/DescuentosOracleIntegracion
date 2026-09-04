@@ -740,8 +740,59 @@ namespace SolicitudesDescuentos.Controllers
             ParametrosCalculoComisionVm parametros,
             int? idPeriodoPlanilla)
         {
+            /*
+             * El input HTML type=number envía el decimal utilizando punto:
+             *
+             *     454.44
+             *
+             * En un POST, dependiendo de la cultura del servidor,
+             * el model binder puede interpretar ese punto como separador
+             * de miles y convertir:
+             *
+             *     454.44 -> 45444
+             *
+             * Por eso para la actualización de Navius se vuelve a leer
+             * el valor original del formulario y se convierte expresamente
+             * con InvariantCulture.
+             */
+            var tipoCambioRaw =
+                Request.Form["TipoCambio"].ToString().Trim();
+
+            if (!decimal.TryParse(
+                    tipoCambioRaw,
+                    NumberStyles.Number,
+                    CultureInfo.InvariantCulture,
+                    out var tipoCambioCorrecto) ||
+                tipoCambioCorrecto <= 0)
+            {
+                TempData["NaviusError"] =
+                    $"El tipo de cambio '{tipoCambioRaw}' no es válido.";
+
+                return RedirigirActualizacionNavius(
+                    filtro,
+                    parametros,
+                    idPeriodoPlanilla);
+            }
+
+            /*
+             * Sobrescribir el valor que pudo haber interpretado
+             * incorrectamente el model binder.
+             */
+            filtro.TipoCambio = tipoCambioCorrecto;
+
             PrepararFiltro(filtro);
             PrepararParametrosCalculo(filtro, parametros);
+
+            if (filtro.TipoCambio <= 0)
+            {
+                TempData["NaviusError"] =
+                    "El tipo de cambio debe ser mayor que cero.";
+
+                return RedirigirActualizacionNavius(
+                    filtro,
+                    parametros,
+                    idPeriodoPlanilla);
+            }
 
             var bu = string.IsNullOrWhiteSpace(filtro.BuNombre)
                 ? "LANCO_CR"
