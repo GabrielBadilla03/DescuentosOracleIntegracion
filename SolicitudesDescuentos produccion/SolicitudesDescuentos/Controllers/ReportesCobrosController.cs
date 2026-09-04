@@ -723,16 +723,15 @@ namespace SolicitudesDescuentos.Controllers
         // ---------------------------------------------------------------------
         // Actualización Navius / planilla.
         //
-        // - NO borra información histórica de Navius.
-        // - Solo agrega registros nuevos a:
+        // - Antes de copiar datos se recalculan agentes e impulsadores en CRC.
+        // - Para el año/período del REPORTE se reconstruyen desde cero:
         //      NUEVO.CXC_AGE_COBRO
         //      NUEVO.CXC_EMPLEADO_COBRO
-        // - No utiliza CXC_DETAGE_COBRO ni CXC_CLIENTE_COBRO.
+        // - Solamente se elimina el año/período que se está actualizando; los
+        //   demás períodos históricos de Navius permanecen intactos.
+        // - No utiliza CXC_DETAGE_COBRO ni CXC_CLIENTE_COBRO para la copia.
         // - AnoFiscal / Periodo = período del REPORTE.
         // - IdPeriodoPlanilla = período de PLANILLA digitado por el usuario.
-        //
-        // Si una fila ya existe por su llave en Navius, se conserva tal cual
-        // y no vuelve a insertarse.
         // ---------------------------------------------------------------------
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -901,13 +900,23 @@ namespace SolicitudesDescuentos.Controllers
                         transaction.GetDbTransaction();
 
                     /*
-                     * IMPORTANTE:
-                     * No se ejecuta ningún DELETE.
+                     * El período seleccionado se sincroniza como una fotografía
+                     * completa del cálculo recién generado en CRC.
                      *
-                     * Los MERGE de abajo únicamente hacen INSERT cuando la
-                     * llave todavía no existe. La información histórica de
-                     * Navius queda intacta.
+                     * Se eliminan primero los datos anteriores de ese mismo
+                     * año/período en Navius y después se reinsertan desde cero.
+                     * Los demás períodos históricos no se modifican.
+                     *
+                     * Todo se ejecuta dentro de esta misma transacción: si falla
+                     * un INSERT o el paquete de planilla, el ROLLBACK restaura
+                     * también los registros eliminados.
                      */
+                    await LimpiarPeriodoNaviusAsync(
+                        connection,
+                        dbTransaction,
+                        parametros.AnoFiscal,
+                        parametros.Periodo);
+
                     var agentesInsertados =
                         await InsertarAgentesNaviusAsync(
                             connection,
@@ -921,13 +930,35 @@ namespace SolicitudesDescuentos.Controllers
                             empleados);
 
                     /*
+                     * Al haberse limpiado previamente el período, cada fila de
+                     * BG_INTUSER debe insertarse nuevamente. Si no coincide la
+                     * cantidad, se aborta antes de tocar PLAPAGOPLANILLA.
+                     */
+                    if (agentesInsertados != agentes.Count)
+                    {
+                        throw new InvalidOperationException(
+                            $"La sincronización de CXC_AGE_COBRO quedó incompleta. " +
+                            $"Esperados: {agentes.Count:N0}; " +
+                            $"insertados: {agentesInsertados:N0}.");
+                    }
+
+                    if (empleadosInsertados != empleados.Count)
+                    {
+                        throw new InvalidOperationException(
+                            $"La sincronización de CXC_EMPLEADO_COBRO quedó incompleta. " +
+                            $"Esperados: {empleados.Count:N0}; " +
+                            $"insertados: {empleadosInsertados:N0}.");
+                    }
+
+                    /*
                      * El paquete mantiene ACTUALIZAR_PLANILLA recibiendo
                      * solamente el ID de planilla.
                      *
                      * CONFIGURAR_PERIODO_REPORTE guarda para esta misma sesión
                      * Oracle el año/período del reporte que se debe usar.
-                     * Esto es necesario porque ahora las tablas CXC conservan
-                     * información de períodos anteriores.
+                     * Para este punto NUEVO.CXC_AGE_COBRO y
+                     * NUEVO.CXC_EMPLEADO_COBRO ya representan exactamente el
+                     * cálculo CRC actual del período.
                      */
                     await EjecutarPaquetePlanillaAsync(
                         connection,
@@ -941,12 +972,13 @@ namespace SolicitudesDescuentos.Controllers
                     TempData["NaviusOk"] =
                         $"Navius y la planilla {idPeriodoPlanilla.Value} " +
                         $"se actualizaron correctamente. " +
-                        $"CXC_AGE_COBRO nuevos: {agentesInsertados:N0} " +
-                        $"de {agentes.Count:N0}; " +
-                        $"CXC_EMPLEADO_COBRO nuevos: " +
-                        $"{empleadosInsertados:N0} de {empleados.Count:N0}. " +
-                        $"El cálculo se ejecutó en CRC antes de cargar Navius. " +
-                        $"Los registros que ya existían se conservaron.";
+                        $"El cálculo se ejecutó nuevamente en CRC. " +
+                        $"CXC_AGE_COBRO reiniciado e insertado: " +
+                        $"{agentesInsertados:N0} registros. " +
+                        $"CXC_EMPLEADO_COBRO reiniciado e insertado: " +
+                        $"{empleadosInsertados:N0} registros. " +
+                        $"Año {parametros.AnoFiscal}, " +
+                        $"período {parametros.Periodo}.";
                 }
                 catch
                 {
@@ -1068,6 +1100,52 @@ namespace SolicitudesDescuentos.Controllers
             await command.ExecuteNonQueryAsync();
         }
 
+        private static async Task LimpiarPeriodoNaviusAsync(
+            DbConnection connection,
+            DbTransaction transaction,
+            int anoFiscal,
+            int periodoReporte)
+        {
+            /*
+             * Se reconstruye únicamente el período que se está enviando.
+             * Primero se eliminan empleados y luego agentes para respetar
+             * cualquier posible relación referencial entre ambas tablas.
+             */
+            const string sql = @"
+                BEGIN
+                    DELETE FROM NUEVO.CXC_EMPLEADO_COBRO
+                     WHERE TRIM(COD_CIA) = '001'
+                       AND ANO_FISCAL = :P_ANO_FISCAL
+                       AND PER_PROCESO = :P_PER_PROCESO;
+
+                    DELETE FROM NUEVO.CXC_AGE_COBRO
+                     WHERE TRIM(COD_CIA) = '001'
+                       AND TRIM(SUCURSAL) = '001'
+                       AND ANO_FISCAL = :P_ANO_FISCAL
+                       AND PER_PROCESO = :P_PER_PROCESO;
+                END;";
+
+            await using var command =
+                CrearComandoNavius(
+                    connection,
+                    transaction,
+                    sql);
+
+            CrearParametroNavius(
+                command,
+                "P_ANO_FISCAL",
+                DbType.Int32,
+                anoFiscal);
+
+            CrearParametroNavius(
+                command,
+                "P_PER_PROCESO",
+                DbType.Int32,
+                periodoReporte);
+
+            await command.ExecuteNonQueryAsync();
+        }
+
         private static async Task<int>
             InsertarAgentesNaviusAsync(
                 DbConnection connection,
@@ -1075,74 +1153,43 @@ namespace SolicitudesDescuentos.Controllers
                 IReadOnlyCollection<CXC_AGE_COBRO> filas)
         {
             /*
-             * Llave de NUEVO.CXC_AGE_COBRO:
-             * COD_CIA, SUCURSAL, COD_AGENTE,
-             * ANO_FISCAL, PER_PROCESO, COD_COMISION.
-             *
-             * Si ya existe, NO se actualiza ni se borra.
+             * El período ya fue eliminado por LimpiarPeriodoNaviusAsync.
+             * Por eso aquí se hace INSERT directo: cada fila calculada en
+             * BG_INTUSER debe quedar nuevamente en NUEVO.CXC_AGE_COBRO.
              */
             const string sql = @"
-                MERGE INTO NUEVO.CXC_AGE_COBRO D
-                USING
+                INSERT INTO NUEVO.CXC_AGE_COBRO
                 (
-                    SELECT
-                        '001' AS COD_CIA,
-                        '001' AS SUCURSAL,
-                        :P_COD_AGENTE AS COD_AGENTE,
-                        :P_ANO_FISCAL AS ANO_FISCAL,
-                        :P_PER_PROCESO AS PER_PROCESO,
-                        :P_COD_COMISION AS COD_COMISION,
-                        :P_MON_COBRADO AS MON_COBRADO,
-                        :P_MON_COMISION AS MON_COMISION,
-                        :P_LOCAL1 AS LOCAL1,
-                        :P_REPLICA1 AS REPLICA1,
-                        :P_COBROBRUTO AS COBROBRUTO
-                    FROM DUAL
-                ) S
-                ON
-                (
-                    D.COD_CIA = S.COD_CIA
-                    AND D.SUCURSAL = S.SUCURSAL
-                    AND TRIM(D.COD_AGENTE) =
-                        TRIM(S.COD_AGENTE)
-                    AND D.ANO_FISCAL = S.ANO_FISCAL
-                    AND D.PER_PROCESO = S.PER_PROCESO
-                    AND TRIM(D.COD_COMISION) =
-                        TRIM(S.COD_COMISION)
+                    COD_CIA,
+                    SUCURSAL,
+                    COD_AGENTE,
+                    ANO_FISCAL,
+                    PER_PROCESO,
+                    COD_COMISION,
+                    MON_COBRADO,
+                    MON_COMISION,
+                    POSFECOBMES,
+                    POSFENOCOB,
+                    LOCAL1,
+                    REPLICA1,
+                    COBROBRUTO
                 )
-                WHEN NOT MATCHED THEN
-                    INSERT
-                    (
-                        COD_CIA,
-                        SUCURSAL,
-                        COD_AGENTE,
-                        ANO_FISCAL,
-                        PER_PROCESO,
-                        COD_COMISION,
-                        MON_COBRADO,
-                        MON_COMISION,
-                        POSFECOBMES,
-                        POSFENOCOB,
-                        LOCAL1,
-                        REPLICA1,
-                        COBROBRUTO
-                    )
-                    VALUES
-                    (
-                        S.COD_CIA,
-                        S.SUCURSAL,
-                        S.COD_AGENTE,
-                        S.ANO_FISCAL,
-                        S.PER_PROCESO,
-                        S.COD_COMISION,
-                        S.MON_COBRADO,
-                        S.MON_COMISION,
-                        NULL,
-                        NULL,
-                        S.LOCAL1,
-                        S.REPLICA1,
-                        S.COBROBRUTO
-                    )";
+                VALUES
+                (
+                    '001',
+                    '001',
+                    :P_COD_AGENTE,
+                    :P_ANO_FISCAL,
+                    :P_PER_PROCESO,
+                    :P_COD_COMISION,
+                    :P_MON_COBRADO,
+                    :P_MON_COMISION,
+                    NULL,
+                    NULL,
+                    :P_LOCAL1,
+                    :P_REPLICA1,
+                    :P_COBROBRUTO
+                )";
 
             await using var command =
                 CrearComandoNavius(
@@ -1240,66 +1287,37 @@ namespace SolicitudesDescuentos.Controllers
                 IReadOnlyCollection<CXC_EMPLEADO_COBRO> filas)
         {
             /*
-             * La llave configurada en Navius para CXC_EMPLEADO_COBRO es:
-             * COD_CIA, COD_CLIENTE, EMPLEADO,
-             * ANO_FISCAL, PER_PROCESO.
-             *
-             * Si la llave ya existe, la fila se conserva sin modificar.
+             * El período ya fue eliminado por LimpiarPeriodoNaviusAsync.
+             * Se reinserta exactamente el detalle de impulsadores recién
+             * calculado en CRC, incluyendo porcentajes y comisiones actuales.
              */
             const string sql = @"
-                MERGE INTO NUEVO.CXC_EMPLEADO_COBRO D
-                USING
+                INSERT INTO NUEVO.CXC_EMPLEADO_COBRO
                 (
-                    SELECT
-                        '001' AS COD_CIA,
-                        :P_COD_AGENTE AS COD_AGENTE,
-                        :P_COD_CLIENTE AS COD_CLIENTE,
-                        :P_EMPLEADO AS EMPLEADO,
-                        :P_ANO_FISCAL AS ANO_FISCAL,
-                        :P_PER_PROCESO AS PER_PROCESO,
-                        :P_PORCENTAJE AS PORCENTAJE,
-                        :P_COBROBRUTO AS COBROBRUTO,
-                        :P_MON_COBRADO AS MON_COBRADO,
-                        :P_MON_COMISION AS MON_COMISION
-                    FROM DUAL
-                ) S
-                ON
-                (
-                    D.COD_CIA = S.COD_CIA
-                    AND TRIM(D.COD_CLIENTE) =
-                        TRIM(S.COD_CLIENTE)
-                    AND TRIM(D.EMPLEADO) =
-                        TRIM(S.EMPLEADO)
-                    AND D.ANO_FISCAL = S.ANO_FISCAL
-                    AND D.PER_PROCESO = S.PER_PROCESO
+                    COD_CIA,
+                    COD_AGENTE,
+                    COD_CLIENTE,
+                    EMPLEADO,
+                    ANO_FISCAL,
+                    PER_PROCESO,
+                    PORCENTAJE,
+                    COBROBRUTO,
+                    MON_COBRADO,
+                    MON_COMISION
                 )
-                WHEN NOT MATCHED THEN
-                    INSERT
-                    (
-                        COD_CIA,
-                        COD_AGENTE,
-                        COD_CLIENTE,
-                        EMPLEADO,
-                        ANO_FISCAL,
-                        PER_PROCESO,
-                        PORCENTAJE,
-                        COBROBRUTO,
-                        MON_COBRADO,
-                        MON_COMISION
-                    )
-                    VALUES
-                    (
-                        S.COD_CIA,
-                        S.COD_AGENTE,
-                        S.COD_CLIENTE,
-                        S.EMPLEADO,
-                        S.ANO_FISCAL,
-                        S.PER_PROCESO,
-                        S.PORCENTAJE,
-                        S.COBROBRUTO,
-                        S.MON_COBRADO,
-                        S.MON_COMISION
-                    )";
+                VALUES
+                (
+                    '001',
+                    :P_COD_AGENTE,
+                    :P_COD_CLIENTE,
+                    :P_EMPLEADO,
+                    :P_ANO_FISCAL,
+                    :P_PER_PROCESO,
+                    :P_PORCENTAJE,
+                    :P_COBROBRUTO,
+                    :P_MON_COBRADO,
+                    :P_MON_COMISION
+                )";
 
             await using var command =
                 CrearComandoNavius(
@@ -1842,7 +1860,7 @@ namespace SolicitudesDescuentos.Controllers
 
                             foreach (var grupo in grupos)
                             {
-                                
+
                                 foreach (var agente in grupo
                                     .OrderBy(
                                         x => x.CodVendedor))
