@@ -2859,13 +2859,18 @@ namespace SolicitudesDescuentos.Controllers
                 return RedirectToAction(nameof(Index));
             }
 
-            if (!string.Equals(
-                (origen.ESTADO ?? "").Trim(),
-                "Aprobado",
-                StringComparison.OrdinalIgnoreCase))
+            var estadoOrigen = (origen.ESTADO ?? "").Trim();
+
+            var puedeCopiarOrigen =
+                estadoOrigen.Equals("Aprobado", StringComparison.OrdinalIgnoreCase) ||
+                estadoOrigen.Equals("Reversado", StringComparison.OrdinalIgnoreCase) ||
+                estadoOrigen.Equals("R", StringComparison.OrdinalIgnoreCase);
+
+            if (!puedeCopiarOrigen)
             {
                 TempData["ErrorMessage"] =
-                    "Solo se pueden copiar descuentos desde una solicitud aprobada.";
+                    "Solo se pueden copiar descuentos desde una solicitud aprobada o reversada.";
+
                 return RedirectToAction(nameof(Index));
             }
 

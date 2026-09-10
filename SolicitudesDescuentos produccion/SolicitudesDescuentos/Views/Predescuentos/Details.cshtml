@@ -19,8 +19,17 @@
 
     @{
         var estado = (Model.ESTADO ?? "").Trim();
-        var esPendienteAprob = estado.Equals("Pendiente Aprobacion", StringComparison.OrdinalIgnoreCase);
-        var esAprobado = estado.Equals("Aprobado", StringComparison.OrdinalIgnoreCase);
+        var esPendienteAprob = estado.Equals(
+            "Pendiente Aprobacion",
+            StringComparison.OrdinalIgnoreCase);
+
+        var esAprobado = estado.Equals(
+            "Aprobado",
+            StringComparison.OrdinalIgnoreCase);
+
+        var esReversado =
+            estado.Equals("Reversado", StringComparison.OrdinalIgnoreCase) ||
+            estado.Equals("R", StringComparison.OrdinalIgnoreCase);
     }
 
     @if (User.IsInRole("PRICE_EDITOR"))
@@ -44,9 +53,11 @@
 
             </div>
         }
-        else if (esAprobado)
+        else if (esAprobado || esReversado)
         {
             <div class="d-flex gap-2">
+
+                @* Tanto APROBADO como REVERSADO pueden servir como origen *@
                 <a asp-controller="Predescuentos"
                    asp-action="Create"
                    asp-route-copiarDeConsecutivo="@Model.CONSECUTIVO"
@@ -55,18 +66,30 @@
                     Copiar descuentos
                 </a>
 
-                <form asp-controller="Predescuentos"
-                      asp-action="ReversarSolicitud"
-                      method="post"
-                      onsubmit="return confirm('¿Está seguro de reversar esta solicitud?');">
-                    @Html.AntiForgeryToken()
-                    <input type="hidden" name="CodCia" value="@Model.BU_NOMBRE" />
-                    <input type="hidden" name="Consecutivo" value="@Model.CONSECUTIVO" />
+                @* Solo una solicitud APROBADA puede reversarse *@
+                @if (esAprobado)
+                {
+                    <form asp-controller="Predescuentos"
+                          asp-action="ReversarSolicitud"
+                          method="post"
+                          onsubmit="return confirm('¿Está seguro de reversar esta solicitud?');">
+                        @Html.AntiForgeryToken()
 
-                    <button type="submit" class="btn btn-danger btn-sm">
-                        Reversar Solicitud
-                    </button>
-                </form>
+                        <input type="hidden"
+                               name="CodCia"
+                               value="@Model.BU_NOMBRE" />
+
+                        <input type="hidden"
+                               name="Consecutivo"
+                               value="@Model.CONSECUTIVO" />
+
+                        <button type="submit"
+                                class="btn btn-danger btn-sm">
+                            Reversar Solicitud
+                        </button>
+                    </form>
+                }
+
             </div>
         }
     }
