@@ -404,11 +404,28 @@ public class ArchivosDescuentosService : IArchivosDescuentosService
 
         var exportRows = new List<(string BU, string PartyCode, string ItemNumber, string Uom, decimal Valor, DateTime? Start, DateTime? End, DateTime? PricingTermEnd)>();
 
+        /*
+         * PREDESCUENTOS_MASTER es la fuente autoritativa de los artículos que
+         * pertenecen a una solicitud aprobada. La expansión artículo / clase /
+         * línea y las reglas de elegibilidad ya se resolvieron al aprobar la
+         * solicitud en GenerarDescuentosMasterAsync.
+         *
+         * Este generador NO vuelve a expandir PREDETDESCUENTO con INV_ARTICULO.
+         * Así el ZIP no puede reincorporar un artículo que MASTER excluyó.
+         *
+         * PREDESCUENTO continúa siendo la fuente de contexto de la solicitud:
+         * cliente, tipo y fechas. INV_ARTICULO se usa únicamente como fallback
+         * de UOM para un artículo que YA existe en MASTER; nunca para ampliar el
+         * conjunto de artículos.
+         */
         foreach (var h in headers)
         {
             var bu = T(h.BU_NOMBRE);
             var party = T(h.COD_CLIENTE);
-            if (bu == "" || party == "") continue;
+            var consecutivo = T(h.CONSECUTIVO);
+
+            if (bu == "" || party == "" || consecutivo == "")
+                continue;
 
             var start = tipo == "promocional"
                 ? (h.FECHAINICIO ?? h.FECHASOLICITUD)
@@ -422,7 +439,7 @@ public class ArchivosDescuentosService : IArchivosDescuentosService
 
             if (!pricingTermEnd.HasValue)
                 return ArchivoProcesoResult.Fallo(
-                    $"La solicitud {T(h.CONSECUTIVO)} no tiene FECHASOLICITUD. " +
+                    $"La solicitud {consecutivo} no tiene FECHASOLICITUD. " +
                     "No se puede calcular END_DATE de PricingTermsInterface.");
 
             DateTime? end;
@@ -445,117 +462,275 @@ public class ArchivosDescuentosService : IArchivosDescuentosService
             if (!end.HasValue)
             {
                 return ArchivoProcesoResult.Fallo(
-                    $"La solicitud {T(h.CONSECUTIVO)} no tiene una fecha fin válida para {bucketName}. " +
+                    $"La solicitud {consecutivo} no tiene una fecha fin válida para {bucketName}. " +
                     "No se permite generar MatrixRulesInterface con END_DATE vacío.");
             }
 
-            var detalles = await _OracleContext.PREDETDESCUENTOs
+            var buKey = N(bu);
+            var partyKey = N(party);
+            var consecutivoKey = N(consecutivo);
+            const string organizationMaster = "CR_3";
+
+            var masterDb = await _OracleContext.PREDESCUENTOS_MASTERs
                 .AsNoTracking()
-                .Where(d => d.BU_NOMBRE == bu && d.COD_CLIENTE == party && d.CONSECUTIVO == h.CONSECUTIVO)
+                .Where(m =>
+                    m.BU_NOMBRE != null &&
+                    m.ORGANIZATION_CODE != null &&
+                    m.COD_CLIENTE != null &&
+                    m.CONSECUTIVO != null &&
+                    m.COD_ARTICULO != null &&
+                    m.BU_NOMBRE.Trim().ToUpper() == buKey &&
+                    m.ORGANIZATION_CODE.Trim().ToUpper() == organizationMaster &&
+                    m.COD_CLIENTE.Trim().ToUpper() == partyKey &&
+                    m.CONSECUTIVO.Trim().ToUpper() == consecutivoKey)
+                .Select(m => new
+                {
+                    m.COD_ARTICULO,
+                    m.MEDIDA,
+                    m.PORCENTAJE
+                })
                 .ToListAsync(ct);
 
-            if (detalles.Count == 0) continue;
-
-            var byArticulo = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
-            var byLineaClase = new Dictionary<(string Linea, string Clase), decimal>();
-            var byLinea = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var d in detalles)
+            if (masterDb.Count == 0)
             {
-                var codArt = T(d.COD_ARTICULO);
-                var codLin = T(d.COD_LINEA);
-                var codCla = T(d.COD_CLASE);
-
-                if (Eq(codArt, "NULL")) codArt = "";
-                if (Eq(codCla, "NULL")) codCla = "";
-
-                var val = d.VALOR;
-
-                if (!string.IsNullOrWhiteSpace(codArt))
-                {
-                    byArticulo[codArt] = val;
-                    continue;
-                }
-
-                if (!string.IsNullOrWhiteSpace(codLin) && !string.IsNullOrWhiteSpace(codCla))
-                {
-                    byLineaClase[(codLin, codCla)] = val;
-                    continue;
-                }
-
-                if (!string.IsNullOrWhiteSpace(codLin))
-                    byLinea[codLin] = val;
+                return ArchivoProcesoResult.Fallo(
+                    $"La solicitud {consecutivo} no tiene artículos en PREDESCUENTOS_MASTER. " +
+                    "No se generó el ZIP para evitar reconstruir la solicitud desde PREDETDESCUENTO.");
             }
 
-            var lineasNeeded = byLinea.Keys
-                .Concat(byLineaClase.Keys.Select(x => x.Linea))
+            var masterValidos = masterDb
+                .Select(m => new
+                {
+                    Item = T(m.COD_ARTICULO),
+                    Uom = T(m.MEDIDA),
+                    Valor = m.PORCENTAJE
+                })
+                .Where(m => !string.IsNullOrWhiteSpace(m.Item))
+                .ToList();
+
+            if (masterValidos.Count == 0)
+            {
+                return ArchivoProcesoResult.Fallo(
+                    $"PREDESCUENTOS_MASTER no contiene ITEM_NUMBER válido para la solicitud {consecutivo}.");
+            }
+
+            // Una solicitud resuelta debe tener un único porcentaje por artículo.
+            // Si MASTER contiene valores distintos para el mismo item se aborta en
+            // vez de escoger uno silenciosamente.
+            var porcentajesAmbiguos = masterValidos
+                .GroupBy(x => x.Item, StringComparer.OrdinalIgnoreCase)
+                .Where(g => g
+                    .Select(x => decimal.Round(x.Valor, 6))
+                    .Distinct()
+                    .Count() > 1)
+                .Select(g => g.Key)
+                .OrderBy(x => x)
+                .ToList();
+
+            if (porcentajesAmbiguos.Count > 0)
+            {
+                return ArchivoProcesoResult.Fallo(
+                    $"PREDESCUENTOS_MASTER tiene más de un porcentaje para el mismo artículo " +
+                    $"en la solicitud {consecutivo}: {string.Join(", ", porcentajesAmbiguos)}.");
+            }
+
+            var masterItems = masterValidos
+                .GroupBy(x => x.Item, StringComparer.OrdinalIgnoreCase)
+                .Select(g =>
+                {
+                    var primero = g.First();
+                    var uom = g
+                        .Select(x => T(x.Uom))
+                        .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "";
+
+                    return (
+                        Item: T(primero.Item),
+                        Uom: uom,
+                        Valor: primero.Valor
+                    );
+                })
+                .ToList();
+
+            // Compatibilidad: si una fila histórica de MASTER no tiene MEDIDA,
+            // se obtiene la UOM por COD_ARTICULO. Esto NO expande línea ni clase.
+            var itemsSinUom = masterItems
+                .Where(x => string.IsNullOrWhiteSpace(x.Uom))
+                .Select(x => N(x.Item))
+                .Where(x => x != "")
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
-            var invItems = new List<(string CodArticulo, string Medida, string CodLinea, string CodClase)>();
-
-            var artsExplicit = byArticulo.Keys.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-            if (artsExplicit.Count > 0)
+            if (itemsSinUom.Count > 0)
             {
-                foreach (var chunk in ChunkList(artsExplicit, 900))
+                var uomPorItem = new Dictionary<string, string>(
+                    StringComparer.OrdinalIgnoreCase);
+
+                foreach (var chunk in ChunkList(itemsSinUom, 900))
                 {
-                    var items = await _OracleContext.INV_ARTICULOs
+                    var uoms = await _OracleContext.INV_ARTICULOs
                         .AsNoTracking()
-                        .Where(i => i.COD_ARTICULO != null && chunk.Contains(i.COD_ARTICULO))
-                        .Select(i => new { i.COD_ARTICULO, i.MEDIDA, i.COD_LINEA, COD_CLASE = i.COD_CLASE })
+                        .Where(i =>
+                            i.COD_ARTICULO != null &&
+                            chunk.Contains(i.COD_ARTICULO.Trim().ToUpper()))
+                        .Select(i => new
+                        {
+                            i.COD_ARTICULO,
+                            i.MEDIDA
+                        })
                         .ToListAsync(ct);
 
-                    invItems.AddRange(items.Select(x => (T(x.COD_ARTICULO), T(x.MEDIDA), T(x.COD_LINEA), T(x.COD_CLASE))));
+                    foreach (var u in uoms)
+                    {
+                        var itemKey = N(u.COD_ARTICULO);
+                        var uom = T(u.MEDIDA);
+
+                        if (itemKey != "" &&
+                            uom != "" &&
+                            !uomPorItem.ContainsKey(itemKey))
+                        {
+                            uomPorItem[itemKey] = uom;
+                        }
+                    }
                 }
+
+                masterItems = masterItems
+                    .Select(x =>
+                    {
+                        var uom = T(x.Uom);
+
+                        if (uom == "" &&
+                            uomPorItem.TryGetValue(N(x.Item), out var fallbackUom))
+                        {
+                            uom = fallbackUom;
+                        }
+
+                        return (
+                            Item: x.Item,
+                            Uom: uom,
+                            Valor: x.Valor
+                        );
+                    })
+                    .ToList();
             }
 
-            if (lineasNeeded.Count > 0)
-            {
-                foreach (var chunk in ChunkList(lineasNeeded, 200))
-                {
-                    var items = await _OracleContext.INV_ARTICULOs
-                        .AsNoTracking()
-                        .Where(i => i.COD_LINEA != null && chunk.Contains(i.COD_LINEA))
-                        .Select(i => new { i.COD_ARTICULO, i.MEDIDA, i.COD_LINEA, COD_CLASE = i.COD_CLASE })
-                        .ToListAsync(ct);
-
-                    invItems.AddRange(items.Select(x => (T(x.COD_ARTICULO), T(x.MEDIDA), T(x.COD_LINEA), T(x.COD_CLASE))));
-                }
-            }
-
-            var invByArt = invItems
-                .Where(x => x.CodArticulo != "")
-                .GroupBy(x => x.CodArticulo, StringComparer.OrdinalIgnoreCase)
-                .Select(g => g.First())
+            var sinUom = masterItems
+                .Where(x => string.IsNullOrWhiteSpace(x.Uom))
+                .Select(x => x.Item)
+                .OrderBy(x => x)
                 .ToList();
 
-            foreach (var it in invByArt)
+            if (sinUom.Count > 0)
             {
-                var item = it.CodArticulo;
-                var uom = it.Medida;
-                var lin = it.CodLinea;
-                var cla = it.CodClase;
+                return ArchivoProcesoResult.Fallo(
+                    $"No se encontró UOM para artículos de PREDESCUENTOS_MASTER en la solicitud " +
+                    $"{consecutivo}: {string.Join(", ", sinUom)}.");
+            }
 
-                if (item == "" || uom == "")
-                    continue;
+            /*
+             * Defensa final para generación NORMAL:
+             * - ACCEPTADESCUENTO debe seguir siendo S en XXORA_ITEM_MASTER/LCR_3.
+             * - ART_NO_PROMO/CR_3 no puede estar Activo.
+             *
+             * MASTER sigue definiendo la pertenencia y el porcentaje. Estas dos
+             * consultas solamente tienen poder de veto ante un cambio ocurrido
+             * después de la aprobación.
+             *
+             * En REVERSA no se aplica el veto: la reversa debe poder cerrar los
+             * artículos originalmente aprobados aunque hoy estén bloqueados.
+             */
+            if (!esReversa)
+            {
+                const string organizationItemMaster = "LCR_3";
+                const string organizationNoPromo = "CR_3";
 
-                decimal? valorAplicable = null;
+                var itemKeys = masterItems
+                    .Select(x => N(x.Item))
+                    .Where(x => x != "")
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
 
-                if (byArticulo.TryGetValue(item, out var vArt))
-                    valorAplicable = vArt;
-                else if (lin != "" && cla != "" && byLineaClase.TryGetValue((lin, cla), out var vLC))
-                    valorAplicable = vLC;
-                else if (lin != "" && byLinea.TryGetValue(lin, out var vL))
-                    valorAplicable = vL;
+                var aceptados = new HashSet<string>(
+                    StringComparer.OrdinalIgnoreCase);
+                var noPromoActivos = new HashSet<string>(
+                    StringComparer.OrdinalIgnoreCase);
 
-                if (!valorAplicable.HasValue) continue;
+                foreach (var chunk in ChunkList(itemKeys, 900))
+                {
+                    var itemsAceptados = await _OracleContext.XXORA_ITEM_MASTERs
+                        .AsNoTracking()
+                        .Where(x =>
+                            x.BU_NAME != null &&
+                            x.ORGANIZATION_CODE != null &&
+                            x.ITEM_NUMBER != null &&
+                            x.ACCEPTADESCUENTO != null &&
+                            x.BU_NAME.Trim().ToUpper() == buKey &&
+                            x.ORGANIZATION_CODE.Trim().ToUpper() == organizationItemMaster &&
+                            x.ACCEPTADESCUENTO.Trim().ToUpper() == "S" &&
+                            chunk.Contains(x.ITEM_NUMBER.Trim().ToUpper()))
+                        .Select(x => x.ITEM_NUMBER)
+                        .Distinct()
+                        .ToListAsync(ct);
 
-                exportRows.Add((bu, party, item, uom, valorAplicable.Value, start, end, pricingTermEnd));
+                    foreach (var item in itemsAceptados)
+                    {
+                        var key = N(item);
+                        if (key != "")
+                            aceptados.Add(key);
+                    }
+
+                    var itemsNoPromo = await _OracleContext.ART_NO_PROMOs
+                        .AsNoTracking()
+                        .Where(x =>
+                            x.BU_NAME != null &&
+                            x.ORGANIZATION_CODE != null &&
+                            x.ITEM_NUMBER != null &&
+                            x.ESTADO != null &&
+                            x.BU_NAME.Trim().ToUpper() == buKey &&
+                            x.ORGANIZATION_CODE.Trim().ToUpper() == organizationNoPromo &&
+                            x.ESTADO.Trim().ToUpper() == "ACTIVO" &&
+                            chunk.Contains(x.ITEM_NUMBER.Trim().ToUpper()))
+                        .Select(x => x.ITEM_NUMBER)
+                        .Distinct()
+                        .ToListAsync(ct);
+
+                    foreach (var item in itemsNoPromo)
+                    {
+                        var key = N(item);
+                        if (key != "")
+                            noPromoActivos.Add(key);
+                    }
+                }
+
+                masterItems = masterItems
+                    .Where(x =>
+                        aceptados.Contains(N(x.Item)) &&
+                        !noPromoActivos.Contains(N(x.Item)))
+                    .ToList();
+
+                if (masterItems.Count == 0)
+                {
+                    return ArchivoProcesoResult.Fallo(
+                        $"Todos los artículos de PREDESCUENTOS_MASTER para la solicitud {consecutivo} " +
+                        "fueron excluidos por la validación final de ACCEPTADESCUENTO o ART_NO_PROMO Activo.");
+                }
+            }
+
+            foreach (var master in masterItems)
+            {
+                exportRows.Add((
+                    bu,
+                    party,
+                    T(master.Item),
+                    T(master.Uom),
+                    master.Valor,
+                    start,
+                    end,
+                    pricingTermEnd));
             }
         }
 
         if (exportRows.Count == 0)
-            return ArchivoProcesoResult.Fallo("No se pudieron generar filas exportables (sin detalles o sin artículos coincidentes).");
+            return ArchivoProcesoResult.Fallo("No se pudieron generar filas exportables desde PREDESCUENTOS_MASTER.");
 
         if (exportRows.Any(r => !r.End.HasValue))
         {
@@ -663,9 +838,16 @@ public class ArchivosDescuentosService : IArchivosDescuentosService
                     if (chunk.Count == 0)
                         continue;
 
-                    var predetQuery =
+                    /*
+                     * Las solicitudes ya procesadas también se comparan contra
+                     * PREDESCUENTOS_MASTER. Así se contemplan los artículos que
+                     * originalmente provinieron de una clase o una línea completa;
+                     * PREDETDESCUENTO solo contiene COD_ARTICULO en los detalles
+                     * explícitos y no representa el conjunto final resuelto.
+                     */
+                    var masterProcesadoQuery =
                         from h in _OracleContext.PREDESCUENTOs.AsNoTracking()
-                        join d in _OracleContext.PREDETDESCUENTOs.AsNoTracking()
+                        join m in _OracleContext.PREDESCUENTOS_MASTERs.AsNoTracking()
                             on new
                             {
                                 BU = h.BU_NOMBRE,
@@ -674,48 +856,48 @@ public class ArchivosDescuentosService : IArchivosDescuentosService
                             }
                             equals new
                             {
-                                BU = d.BU_NOMBRE,
-                                Cliente = d.COD_CLIENTE,
-                                Consecutivo = d.CONSECUTIVO
+                                BU = m.BU_NOMBRE,
+                                Cliente = m.COD_CLIENTE,
+                                Consecutivo = m.CONSECUTIVO
                             }
                         where h.BU_NOMBRE != null
                            && h.TIPODESCUENTO != null
                            && h.GENERADO != null
                            && h.ESTADO != null
                            && h.CONSECUTIVO != null
-                           && d.COD_ARTICULO != null
+                           && m.COD_ARTICULO != null
                            && h.BU_NOMBRE.Trim().ToUpper() == bu
                            && h.GENERADO.Trim().ToUpper() == "S"
                            && h.ESTADO.Trim().ToUpper() == "APROBADO"
                            && !consecSet.Contains(h.CONSECUTIVO)
-                           && chunk.Contains(d.COD_ARTICULO.Trim().ToUpper())
+                           && chunk.Contains(m.COD_ARTICULO.Trim().ToUpper())
                         select new
                         {
                             h.BU_NOMBRE,
                             h.TIPODESCUENTO,
-                            d.COD_ARTICULO
+                            m.COD_ARTICULO
                         };
 
                     if (tipo == "promocional")
                     {
                         // Si la solicitud actual es PROMOCION, solo valida promociones aprobadas/generadas.
-                        predetQuery = predetQuery.Where(x =>
+                        masterProcesadoQuery = masterProcesadoQuery.Where(x =>
                             x.TIPODESCUENTO.Trim().ToUpper().Contains("PROMO"));
                     }
                     else
                     {
                         // Si la solicitud actual es CLIENTE/FIJO, solo valida cliente/fijo aprobadas/generadas.
-                        predetQuery = predetQuery.Where(x =>
+                        masterProcesadoQuery = masterProcesadoQuery.Where(x =>
                             x.TIPODESCUENTO.Trim().ToUpper().Contains("CLIENT") ||
                             x.TIPODESCUENTO.Trim().ToUpper().Contains("FIJO") ||
                             x.TIPODESCUENTO.Trim().ToUpper().Contains("ACTIVO"));
                     }
 
-                    var rowsPredet = await predetQuery
+                    var rowsMasterProcesado = await masterProcesadoQuery
                         .Distinct()
                         .ToListAsync(ct);
 
-                    foreach (var r in rowsPredet)
+                    foreach (var r in rowsMasterProcesado)
                     {
                         var item = N(r.COD_ARTICULO);
 

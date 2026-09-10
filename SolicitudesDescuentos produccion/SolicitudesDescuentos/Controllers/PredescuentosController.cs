@@ -4434,39 +4434,51 @@ namespace SolicitudesDescuentos.Controllers
                 StringComparison.OrdinalIgnoreCase
             );
 
-            var fixedItems = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            // =========================================================
+            // PROMOCIONAL:
+            // el artículo debe tener un descuento CLIENTE realmente
+            // vigente para este mismo cliente.
+            //
+            // Se utiliza la misma validación global que ya se usa
+            // al crear/editar solicitudes:
+            //
+            //   BU_NAME            = BU de la solicitud
+            //   PARTY_NUMBER       = cliente de la solicitud
+            //   ITEM_NUMBER        = artículo
+            //   RULE_DISCOUNT_NAME = CLIENTE
+            //   START_DATE         <= hoy
+            //   END_DATE           >= hoy o NULL
+            //
+            // Para FIJO esta condición NO aplica.
+            // =========================================================
+            var sinFijoVigente = new HashSet<string>(
+                StringComparer.OrdinalIgnoreCase
+            );
 
-            // Consultar descuentos CLIENTE previos únicamente para promociones.
             if (esPromocional)
             {
-                foreach (var chunk in Chunk(candidateItems.ToList(), 900))
-                {
-                    var rows = await _OracleContext.XXORA_DISCOUNT_LISTs
-                        .AsNoTracking()
-                        .Where(x =>
-                            x.BU_NAME == buNombre &&
-                            x.PARTY_NUMBER == codCliente &&
-                            x.ITEM_NUMBER != null &&
-                            x.RULE_DISCOUNT_NAME != null &&
-                            chunk.Contains(x.ITEM_NUMBER) &&
-                            x.RULE_DISCOUNT_NAME.Trim().ToUpper().Contains("CLIENT")
-                        )
-                        .Select(x => x.ITEM_NUMBER)
-                        .Distinct()
-                        .ToListAsync();
-
-                    foreach (var item in rows)
-                    {
-                        if (!string.IsNullOrWhiteSpace(item))
-                            fixedItems.Add(T(item));
-                    }
-                }
+                sinFijoVigente =
+                    await ObtenerArticulosSinDescuentoClienteVigenteAsync(
+                        candidateItems,
+                        codCliente,
+                        buNombre,
+                        HttpContext.RequestAborted);
             }
 
             bool TieneFijoEnXxora(string codArt)
             {
-                return !string.IsNullOrWhiteSpace(codArt) &&
-                       fixedItems.Contains(T(codArt));
+                var item = T(codArt);
+
+                if (string.IsNullOrWhiteSpace(item))
+                    return false;
+
+                // Para FIJO no se exige descuento CLIENTE previo.
+                if (!esPromocional)
+                    return true;
+
+                // Para PROMOCIONAL solamente pasa si NO está dentro
+                // de los artículos que carecen de CLIENTE vigente.
+                return !sinFijoVigente.Contains(item);
             }
 
             bool PuedeGenerarEnMaster(string codArt)
