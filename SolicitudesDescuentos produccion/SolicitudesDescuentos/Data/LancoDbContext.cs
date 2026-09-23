@@ -24,8 +24,10 @@ namespace SolicitudesDescuentos.Data
         public virtual DbSet<CXC_CLIENTE_COBRO> CXC_CLIENTE_COBROs { get; set; } = null!;
         public virtual DbSet<CXC_DETAGE_COBRO> CXC_DETAGE_COBROs { get; set; } = null!;
         public virtual DbSet<CXC_EMPLEADO_COBRO> CXC_EMPLEADO_COBROs { get; set; } = null!;
+        public virtual DbSet<FE_TIPODOC> FE_TIPODOCs { get; set; } = null!;
         public virtual DbSet<LOG_ENVIO_PDF_ORACLE> LOG_ENVIO_PDF_ORACLEs { get; set; } = null!;
         public virtual DbSet<PLAEMPLEADO> PLAEMPLEADOs { get; set; } = null!;
+        public virtual DbSet<PLAENCPAGO> PLAENCPAGOs { get; set; } = null!;
         public virtual DbSet<VENDOCENCFED> VENDOCENCFEDs { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -418,6 +420,23 @@ namespace SolicitudesDescuentos.Data
                 entity.Property(e => e.PORCENTAJE).HasColumnType("NUMBER(5,2)");
             });
 
+            modelBuilder.Entity<FE_TIPODOC>(entity =>
+            {
+                entity.HasKey(e => e.CODIGO)
+                    .HasName("FE_TIPODOC_PK");
+
+                entity.ToTable("FE_TIPODOC");
+
+                entity.Property(e => e.CODIGO)
+                    .HasMaxLength(2)
+                    .IsUnicode(false)
+                    .IsFixedLength();
+
+                entity.Property(e => e.DESCRIPCION)
+                    .HasMaxLength(70)
+                    .IsUnicode(false);
+            });
+
             modelBuilder.Entity<LOG_ENVIO_PDF_ORACLE>(entity =>
             {
                 entity.HasKey(e => e.ID_LOG);
@@ -500,6 +519,10 @@ namespace SolicitudesDescuentos.Data
                     .HasColumnType("NUMBER(14,2)")
                     .HasDefaultValueSql("0 ");
 
+                entity.Property(e => e.AREA_DE_TRABAJO)
+                    .HasMaxLength(100)
+                    .IsUnicode(false);
+
                 entity.Property(e => e.ASOCIACION)
                     .HasMaxLength(1)
                     .IsUnicode(false)
@@ -520,6 +543,14 @@ namespace SolicitudesDescuentos.Data
 
                 entity.Property(e => e.CEDULANUEVA)
                     .HasMaxLength(15)
+                    .IsUnicode(false);
+
+                entity.Property(e => e.CENTRO_COSTO)
+                    .HasMaxLength(100)
+                    .IsUnicode(false);
+
+                entity.Property(e => e.CENTRO_DE_TRABAJO)
+                    .HasMaxLength(100)
                     .IsUnicode(false);
 
                 entity.Property(e => e.CLAVE)
@@ -713,6 +744,54 @@ namespace SolicitudesDescuentos.Data
                 entity.Property(e => e.USUARIO)
                     .HasMaxLength(30)
                     .IsUnicode(false);
+
+                entity.Property(e => e.VENDEDORORACLE)
+                    .HasMaxLength(3)
+                    .IsUnicode(false)
+                    .IsFixedLength();
+            });
+
+            modelBuilder.Entity<PLAENCPAGO>(entity =>
+            {
+                entity.HasKey(e => new { e.CIA, e.PLANILLA, e.PERIODO, e.INDPLANILLA })
+                    .HasName("PLAENCPAGO_PK");
+
+                entity.ToTable("PLAENCPAGO");
+
+                entity.Property(e => e.CIA)
+                    .HasMaxLength(3)
+                    .IsUnicode(false)
+                    .IsFixedLength();
+
+                entity.Property(e => e.PLANILLA)
+                    .HasMaxLength(2)
+                    .IsUnicode(false)
+                    .IsFixedLength();
+
+                entity.Property(e => e.PERIODO).HasPrecision(6);
+
+                entity.Property(e => e.INDPLANILLA)
+                    .HasMaxLength(1)
+                    .IsUnicode(false)
+                    .IsFixedLength();
+
+                entity.Property(e => e.ASIENTO)
+                    .HasMaxLength(15)
+                    .IsUnicode(false);
+
+                entity.Property(e => e.ESTADO)
+                    .HasMaxLength(1)
+                    .IsUnicode(false)
+                    .HasDefaultValueSql("'P' ")
+                    .IsFixedLength();
+
+                entity.Property(e => e.FECHAPAGO).HasColumnType("DATE");
+
+                entity.Property(e => e.FINDEMES)
+                    .HasMaxLength(1)
+                    .IsUnicode(false)
+                    .HasDefaultValueSql("'N' ")
+                    .IsFixedLength();
             });
 
             modelBuilder.Entity<VENDOCENCFED>(entity =>
@@ -946,7 +1025,7 @@ namespace SolicitudesDescuentos.Data
                 entity.Property(e => e.MENSAJE_HACIENDA).IsUnicode(false);
 
                 entity.Property(e => e.MOTIVO_NC)
-                    .HasMaxLength(255)
+                    .HasMaxLength(500)
                     .IsUnicode(false);
 
                 entity.Property(e => e.NOMBRE_VENDEDOR)

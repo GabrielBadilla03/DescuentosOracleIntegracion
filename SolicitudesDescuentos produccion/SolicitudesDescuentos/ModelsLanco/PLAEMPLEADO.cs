@@ -62,5 +62,9 @@ namespace SolicitudesDescuentos.Modelslanco
         public string ACTUALIZA { get; set; } = null!;
         public string? ACTUALIZACLAVE { get; set; }
         public string? ID_ORACLE { get; set; }
+        public string? VENDEDORORACLE { get; set; }
+        public string? CENTRO_COSTO { get; set; }
+        public string? AREA_DE_TRABAJO { get; set; }
+        public string? CENTRO_DE_TRABAJO { get; set; }
     }
 }
