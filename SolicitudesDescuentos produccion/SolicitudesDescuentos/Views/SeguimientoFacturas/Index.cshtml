@@ -97,9 +97,16 @@
                                 </select>
                             </div>
 
-                            <button type="button" id="btnBuscarPistoleadas" class="btn btn-sm btn-outline-primary">
-                                Buscar
-                            </button>
+                            <div>
+                                <label for="tipoDocumentoPistoleadas" class="form-label mb-1 small">Tipo documento</label>
+                                <select id="tipoDocumentoPistoleadas" class="form-select form-select-sm">
+                                    <option value="TODOS" selected>Todos los tipos de documento</option>
+                                    @foreach (var tipo in Model.TiposDocumento)
+                                    {
+                                        <option value="@tipo.Codigo">@tipo.Texto</option>
+                                    }
+                                </select>
+                            </div>
 
                             <button type="button" id="btnPdfPistoleadas" class="btn btn-sm btn-outline-danger">
                                 Descargar PDF
@@ -171,7 +178,7 @@
                         <div>
                             <strong>Facturas escaneadas</strong>
                             <div class="small text-muted">
-                                Lista independiente de pistoleadas. El último intento muestra si procesó, dio error o nunca se intentó.
+                                El último intento muestra si procesó, dio error o nunca se intentó.
                             </div>
                         </div>
 
@@ -195,9 +202,16 @@
                                 </select>
                             </div>
 
-                            <button type="button" id="btnBuscarEscaneadas" class="btn btn-sm btn-outline-primary">
-                                Buscar
-                            </button>
+                            <div>
+                                <label for="tipoDocumentoEscaneadas" class="form-label mb-1 small">Tipo documento</label>
+                                <select id="tipoDocumentoEscaneadas" class="form-select form-select-sm">
+                                    <option value="TODOS" selected>Todos los tipos de documento</option>
+                                    @foreach (var tipo in Model.TiposDocumento)
+                                    {
+                                        <option value="@tipo.Codigo">@tipo.Texto</option>
+                                    }
+                                </select>
+                            </div>
 
                             <button type="button" id="btnPdfEscaneadas" class="btn btn-sm btn-outline-danger">
                                 Descargar PDF
@@ -286,8 +300,11 @@
 
             const estadoPistoleadas = document.getElementById('estadoPistoleadas');
             const tipoPersonaPistoleadas = document.getElementById('tipoPersonaPistoleadas');
+            const tipoDocumentoPistoleadas = document.getElementById('tipoDocumentoPistoleadas');
+
             const estadoEscaneadas = document.getElementById('estadoEscaneadas');
             const resultadoEscaneadas = document.getElementById('resultadoEscaneadas');
+            const tipoDocumentoEscaneadas = document.getElementById('tipoDocumentoEscaneadas');
 
             const tbodyPistoleadas = document.getElementById('tbodyPistoleadas');
             const tbodyEscaneadas = document.getElementById('tbodyEscaneadas');
@@ -382,14 +399,17 @@
                 document.getElementById('pistTotal').textContent = data.total ?? 0;
                 document.getElementById('pistProcesadas').textContent = data.totalProcesadas ?? 0;
                 document.getElementById('pistPendientes').textContent = data.totalPendientes ?? 0;
-                document.getElementById('pistMostradas').textContent = data.totalMostradas ?? data.items?.length ?? 0;
+                document.getElementById('pistMostradas').textContent =
+                    data.totalMostradas ?? data.items?.length ?? 0;
 
                 tbodyPistoleadas.replaceChildren();
 
                 const items = data.items ?? [];
                 if (items.length === 0) {
                     const tr = document.createElement('tr');
-                    const td = crearCelda('No hay facturas para los filtros seleccionados.', 'text-center text-muted py-4');
+                    const td = crearCelda(
+                        'No hay facturas para los filtros seleccionados.',
+                        'text-center text-muted py-4');
                     td.colSpan = 9;
                     tr.appendChild(td);
                     tbodyPistoleadas.appendChild(tr);
@@ -403,7 +423,9 @@
                     tdEstado.appendChild(
                         crearBadge(
                             item.estadoPistoleo,
-                            item.pistoleadaProcesada ? 'bg-success' : 'bg-warning text-dark'));
+                            item.pistoleadaProcesada
+                                ? 'bg-success'
+                                : 'bg-warning text-dark'));
                     tr.appendChild(tdEstado);
 
                     tr.appendChild(crearCelda(item.origenPistoleo));
@@ -413,7 +435,10 @@
                     tr.appendChild(crearCelda(item.codigoCliente));
                     tr.appendChild(crearCelda(item.nombreCliente));
                     tr.appendChild(crearCelda(item.ruta));
-                    tr.appendChild(crearCelda(monto(item.totalComprobante), 'text-end text-nowrap'));
+                    tr.appendChild(
+                        crearCelda(
+                            monto(item.totalComprobante),
+                            'text-end text-nowrap'));
 
                     tbodyPistoleadas.appendChild(tr);
                 }
@@ -425,14 +450,17 @@
                 document.getElementById('escPendientes').textContent = data.totalPendientes ?? 0;
                 document.getElementById('escErrores').textContent = data.totalLogError ?? 0;
                 document.getElementById('escSinIntento').textContent = data.totalSinIntento ?? 0;
-                document.getElementById('escMostradas').textContent = data.totalMostradas ?? data.items?.length ?? 0;
+                document.getElementById('escMostradas').textContent =
+                    data.totalMostradas ?? data.items?.length ?? 0;
 
                 tbodyEscaneadas.replaceChildren();
 
                 const items = data.items ?? [];
                 if (items.length === 0) {
                     const tr = document.createElement('tr');
-                    const td = crearCelda('No hay facturas para los filtros seleccionados.', 'text-center text-muted py-4');
+                    const td = crearCelda(
+                        'No hay facturas para los filtros seleccionados.',
+                        'text-center text-muted py-4');
                     td.colSpan = 11;
                     tr.appendChild(td);
                     tbodyEscaneadas.appendChild(tr);
@@ -446,14 +474,23 @@
                     tdEstado.appendChild(
                         crearBadge(
                             item.estadoEscaneo,
-                            item.escaneadaProcesada ? 'bg-success' : 'bg-warning text-dark'));
+                            item.escaneadaProcesada
+                                ? 'bg-success'
+                                : 'bg-warning text-dark'));
                     tr.appendChild(tdEstado);
 
                     const tdResultado = document.createElement('td');
                     let claseResultado = 'bg-secondary';
-                    if (item.resultadoEscaneo === 'PROCESADO') claseResultado = 'bg-success';
-                    if (item.resultadoEscaneo === 'ERROR') claseResultado = 'bg-danger';
-                    tdResultado.appendChild(crearBadge(item.resultadoEscaneo, claseResultado));
+
+                    if (item.resultadoEscaneo === 'PROCESADO')
+                        claseResultado = 'bg-success';
+                    else if (item.resultadoEscaneo === 'ERROR')
+                        claseResultado = 'bg-danger';
+
+                    tdResultado.appendChild(
+                        crearBadge(
+                            item.resultadoEscaneo,
+                            claseResultado));
                     tr.appendChild(tdResultado);
 
                     const tdError = document.createElement('td');
@@ -484,17 +521,22 @@
 
                 try {
                     const base = parametrosBase();
-                    const data = await obtenerJson(crearUrl(urlPistoleadas, {
-                        ...base,
-                        estado: estadoPistoleadas.value,
-                        tipoPersona: tipoPersonaPistoleadas.value
-                    }));
+
+                    const data = await obtenerJson(
+                        crearUrl(urlPistoleadas, {
+                            ...base,
+                            estado: estadoPistoleadas.value,
+                            tipoPersona: tipoPersonaPistoleadas.value,
+                            tipoDocumento: tipoDocumentoPistoleadas.value
+                        }));
 
                     pintarPistoleadas(data);
                     mostrarAlerta('alertaPistoleadas', '');
                     cargadasPistoleadas = true;
                 } catch (error) {
-                    mostrarAlerta('alertaPistoleadas', error.message || 'Error al consultar pistoleadas.');
+                    mostrarAlerta(
+                        'alertaPistoleadas',
+                        error.message || 'Error al consultar pistoleadas.');
                 }
             }
 
@@ -503,17 +545,22 @@
 
                 try {
                     const base = parametrosBase();
-                    const data = await obtenerJson(crearUrl(urlEscaneadas, {
-                        ...base,
-                        estado: estadoEscaneadas.value,
-                        resultado: resultadoEscaneadas.value
-                    }));
+
+                    const data = await obtenerJson(
+                        crearUrl(urlEscaneadas, {
+                            ...base,
+                            estado: estadoEscaneadas.value,
+                            resultado: resultadoEscaneadas.value,
+                            tipoDocumento: tipoDocumentoEscaneadas.value
+                        }));
 
                     pintarEscaneadas(data);
                     mostrarAlerta('alertaEscaneadas', '');
                     cargadasEscaneadas = true;
                 } catch (error) {
-                    mostrarAlerta('alertaEscaneadas', error.message || 'Error al consultar escaneadas.');
+                    mostrarAlerta(
+                        'alertaEscaneadas',
+                        error.message || 'Error al consultar escaneadas.');
                 }
             }
 
@@ -528,25 +575,26 @@
                 if (!base.fechaInicio || !base.fechaFin) {
                     mostrarAlerta(
                         alertaId,
-                        'Debe indicar la fecha inicial y la fecha final.'
-                    );
+                        'Debe indicar la fecha inicial y la fecha final.');
                     return;
                 }
 
                 if (base.fechaInicio > base.fechaFin) {
                     mostrarAlerta(
                         alertaId,
-                        'La fecha inicial no puede ser mayor que la fecha final.'
-                    );
+                        'La fecha inicial no puede ser mayor que la fecha final.');
                     return;
                 }
 
                 const parametros = {
                     ...base,
-                    tipo: tipo,
+                    tipo,
                     estado: esEscaneadas
                         ? estadoEscaneadas.value
-                        : estadoPistoleadas.value
+                        : estadoPistoleadas.value,
+                    tipoDocumento: esEscaneadas
+                        ? tipoDocumentoEscaneadas.value
+                        : tipoDocumentoPistoleadas.value
                 };
 
                 if (esEscaneadas)
@@ -573,15 +621,12 @@
                             const error = await response.json();
                             mensaje = error.mensaje || mensaje;
                         } catch {
-                            // Si el servidor no devolvió JSON, se conserva
-                            // el mensaje genérico.
                         }
 
                         throw new Error(mensaje);
                     }
 
                     const blob = await response.blob();
-
                     const objectUrl = URL.createObjectURL(blob);
                     const link = document.createElement('a');
 
@@ -600,20 +645,21 @@
                     mostrarAlerta(
                         alertaId,
                         'PDF generado correctamente.',
-                        'success'
-                    );
+                        'success');
                 } catch (error) {
                     mostrarAlerta(
                         alertaId,
-                        error.message || 'Error al generar el PDF.'
-                    );
+                        error.message || 'Error al generar el PDF.');
                 }
             }
 
             function pantallaActiva() {
-                return document.getElementById('tab-escaneadas').classList.contains('active')
-                    ? 'ESCANEADAS'
-                    : 'PISTOLEADAS';
+                return document
+                    .getElementById('tab-escaneadas')
+                    .classList
+                    .contains('active')
+                        ? 'ESCANEADAS'
+                        : 'PISTOLEADAS';
             }
 
             function cargarPantallaActual() {
@@ -623,17 +669,17 @@
                 return cargarPistoleadas();
             }
 
-            document.getElementById('btnBuscarPistoleadas').addEventListener('click', cargarPistoleadas);
-            document.getElementById('btnBuscarEscaneadas').addEventListener('click', cargarEscaneadas);
-            document.getElementById('btnPdfPistoleadas').addEventListener('click', () => descargarPdf('PISTOLEADAS'));
-            document.getElementById('btnPdfEscaneadas').addEventListener('click', () => descargarPdf('ESCANEADAS'));
-            document.getElementById('btnActualizarActual').addEventListener('click', cargarPantallaActual);
-
+            // Los filtros de cada pestaña actualizan inmediatamente.
             estadoPistoleadas.addEventListener('change', cargarPistoleadas);
             tipoPersonaPistoleadas.addEventListener('change', cargarPistoleadas);
+            tipoDocumentoPistoleadas.addEventListener('change', cargarPistoleadas);
+
             estadoEscaneadas.addEventListener('change', cargarEscaneadas);
             resultadoEscaneadas.addEventListener('change', cargarEscaneadas);
+            tipoDocumentoEscaneadas.addEventListener('change', cargarEscaneadas);
 
+            // Las fechas NO actualizan automáticamente.
+            // Se conservan con el botón "Actualizar pantalla actual".
             fechaInicio.addEventListener('change', () => {
                 cargadasPistoleadas = false;
                 cargadasEscaneadas = false;
@@ -644,13 +690,31 @@
                 cargadasEscaneadas = false;
             });
 
-            document.getElementById('tab-pistoleadas').addEventListener('shown.bs.tab', () => {
-                if (!cargadasPistoleadas) cargarPistoleadas();
-            });
+            document
+                .getElementById('btnActualizarActual')
+                .addEventListener('click', cargarPantallaActual);
 
-            document.getElementById('tab-escaneadas').addEventListener('shown.bs.tab', () => {
-                if (!cargadasEscaneadas) cargarEscaneadas();
-            });
+            document
+                .getElementById('btnPdfPistoleadas')
+                .addEventListener('click', () => descargarPdf('PISTOLEADAS'));
+
+            document
+                .getElementById('btnPdfEscaneadas')
+                .addEventListener('click', () => descargarPdf('ESCANEADAS'));
+
+            document
+                .getElementById('tab-pistoleadas')
+                .addEventListener('shown.bs.tab', () => {
+                    if (!cargadasPistoleadas)
+                        cargarPistoleadas();
+                });
+
+            document
+                .getElementById('tab-escaneadas')
+                .addEventListener('shown.bs.tab', () => {
+                    if (!cargadasEscaneadas)
+                        cargarEscaneadas();
+                });
 
             cargarPistoleadas();
         })();

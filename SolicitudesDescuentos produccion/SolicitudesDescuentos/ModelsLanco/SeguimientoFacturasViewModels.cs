@@ -8,6 +8,19 @@ namespace SolicitudesDescuentos.ModelsLanco
     {
         public DateTime FechaInicio { get; set; }
         public DateTime FechaFin { get; set; }
+
+        public List<TipoDocumentoFiltroViewModel> TiposDocumento { get; set; } = new();
+    }
+
+    public sealed class TipoDocumentoFiltroViewModel
+    {
+        public string Codigo { get; set; } = string.Empty;
+        public string Descripcion { get; set; } = string.Empty;
+
+        public string Texto =>
+            string.IsNullOrWhiteSpace(Descripcion)
+                ? Codigo
+                : $"{Codigo} - {Descripcion}";
     }
 
     public sealed class SeguimientoFacturaItemViewModel
@@ -17,8 +30,6 @@ namespace SolicitudesDescuentos.ModelsLanco
         public string? Documento { get; set; }
         public string Clave { get; set; } = string.Empty;
 
-        // Se usa únicamente durante la proyección desde VENDOCENCFED.
-        // FECHAEMISION está modelada como string en el DbContext.
         public string? FechaEmisionTexto { get; set; }
 
         public DateTime FechaEmision
@@ -95,7 +106,6 @@ namespace SolicitudesDescuentos.ModelsLanco
         public bool Ok { get; set; }
         public string? Mensaje { get; set; }
 
-        // Totales del rango completo, antes de aplicar los filtros de pantalla.
         public int Total { get; set; }
         public int TotalProcesadas { get; set; }
         public int TotalPendientes { get; set; }

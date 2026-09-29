@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
@@ -26,6 +27,7 @@ public sealed class SeguimientoFacturasController : Controller
     private const string ResultadoError = "ERROR";
     private const string ResultadoSinIntento = "SIN_INTENTO";
 
+    private const string TipoDocTodos = "TODOS";
     private const string TipoDocNotaCredito = "03";
 
     private const string TipoPersonaTodos = "TODOS";
@@ -40,39 +42,27 @@ public sealed class SeguimientoFacturasController : Controller
     }
 
     [HttpGet]
-    public IActionResult Index()
+    public async Task<IActionResult> Index(CancellationToken cancellationToken)
     {
         var hoy = DateTime.Today;
 
-        return View(new SeguimientoFacturasIndexViewModel
+        var vm = new SeguimientoFacturasIndexViewModel
         {
             FechaInicio = hoy.AddDays(-15),
-            FechaFin = hoy
-        });
+            FechaFin = hoy,
+            TiposDocumento = await ObtenerTiposDocumentoAsync(cancellationToken)
+        };
+
+        return View(vm);
     }
 
-    /// <summary>
-    /// Pantalla de pistoleadas.
-    ///
-    /// Solo participan TIPODOC 01, 04 y 09.
-    /// El TIPODOC 03 NO se toma en cuenta para pistoleadas/no pistoleadas.
-    ///
-    /// Procesada: la CLAVE existe en CXCDETFACREC o CXCDETFACRECBIT y el
-    /// encabezado CXCENCFACREC relacionado está activo.
-    ///
-    /// Pendiente: no existe en ninguna de las dos relaciones activas.
-    ///
-    /// tipoPersona:
-    /// - TODOS: no filtra por persona.
-    /// - A: solo facturas pistoleadas relacionadas con CXCENCFACREC.TIPOPERSONA = A.
-    /// - T: solo facturas pistoleadas relacionadas con CXCENCFACREC.TIPOPERSONA = T.
-    /// </summary>
     [HttpGet]
     public async Task<IActionResult> BuscarPistoleadas(
         DateTime fechaInicio,
         DateTime fechaFin,
         string? estado,
         string? tipoPersona,
+        string? tipoDocumento,
         CancellationToken cancellationToken)
     {
         var validacion = ValidarFechasYEstado(fechaInicio, fechaFin, estado);
@@ -87,46 +77,35 @@ public sealed class SeguimientoFacturasController : Controller
         fechaFin = fechaFin.Date;
         estado = validacion.Estado;
         tipoPersona = validacionTipoPersona.TipoPersona;
+        tipoDocumento = NormalizarTipoDocumento(tipoDocumento);
 
         try
         {
-            // Para pistoleo NO se obtiene TIPODOC 03.
             var facturasBase = await ObtenerFacturasAsync(
                 fechaInicio,
                 fechaFin,
-                incluirTipo03: false,
-                cancellationToken: cancellationToken);
-
-            var facturas = facturasBase
-                .Select(x => x.Factura)
-                .ToList();
-
-            var items = await CompletarPistoleoAsync(
-                facturas,
+                tipoDocumento,
                 cancellationToken);
 
-            // Primero se aplica el filtro normal de estado.
-            var itemsFiltrados = FiltrarPistoleadas(
-                items,
-                estado);
+            var items = await CompletarPistoleoAsync(
+                facturasBase.Select(x => x.Factura).ToList(),
+                cancellationToken);
 
-            // Si seleccionó A o T, se conservan únicamente las facturas
-            // que tengan relación activa con CXCENCFACREC de ese TIPOPERSONA.
+            var itemsFiltrados = FiltrarPistoleadas(items, estado);
+
             itemsFiltrados = await FiltrarPistoleadasPorTipoPersonaAsync(
                 itemsFiltrados,
                 tipoPersona,
                 cancellationToken);
 
-            var respuesta = new SeguimientoFacturasRespuestaViewModel
+            return Json(new SeguimientoFacturasRespuestaViewModel
             {
                 Ok = true,
                 Total = items.Count,
                 TotalProcesadas = items.Count(x => x.PistoleadaProcesada),
                 TotalPendientes = items.Count(x => !x.PistoleadaProcesada),
                 Items = itemsFiltrados
-            };
-
-            return Json(respuesta);
+            });
         }
         catch (OperationCanceledException)
         {
@@ -142,27 +121,13 @@ public sealed class SeguimientoFacturasController : Controller
         }
     }
 
-    /// <summary>
-    /// Pantalla de escaneadas.
-    ///
-    /// Para escaneo participan TIPODOC 01, 03, 04 y 09.
-    ///
-    /// Regla previa:
-    /// - TIPODOC 03 entra al seguimiento de escaneo sin validar pistoleo.
-    /// - TIPODOC 01, 04 y 09 solo entran si ya están pistoleados.
-    ///
-    /// Una vez obtenidas las facturas elegibles:
-    /// - Procesada: el último intento en LOG_ENVIO_PDF_ORACLE terminó PROCESADO.
-    /// - Pendiente: no tiene intento o el último intento no terminó PROCESADO.
-    /// - Si el último intento terminó ERROR, se mantiene PENDIENTE y se muestra
-    ///   el error, la fecha, el archivo y el mensaje del log.
-    /// </summary>
     [HttpGet]
     public async Task<IActionResult> BuscarEscaneadas(
         DateTime fechaInicio,
         DateTime fechaFin,
         string? estado,
         string? resultado,
+        string? tipoDocumento,
         CancellationToken cancellationToken)
     {
         var validacion = ValidarFechasYEstado(fechaInicio, fechaFin, estado);
@@ -173,6 +138,7 @@ public sealed class SeguimientoFacturasController : Controller
         fechaFin = fechaFin.Date;
         estado = validacion.Estado;
         resultado = Normalizar(resultado);
+        tipoDocumento = NormalizarTipoDocumento(tipoDocumento);
 
         if (string.IsNullOrEmpty(resultado))
             resultado = EstadoTodos;
@@ -188,20 +154,14 @@ public sealed class SeguimientoFacturasController : Controller
 
         try
         {
-            // Para escaneo sí se obtiene el TIPODOC 03.
             var facturasBase = await ObtenerFacturasAsync(
                 fechaInicio,
                 fechaFin,
-                incluirTipo03: true,
-                cancellationToken: cancellationToken);
+                tipoDocumento,
+                cancellationToken);
 
-            /*
-             * Los tipos 01, 04 y 09 deben estar pistoleados antes de poder
-             * aparecer en la pantalla de escaneo.
-             *
-             * El tipo 03 es la única excepción: entra directamente y NO se
-             * valida contra CXCDETFACREC / CXCDETFACRECBIT.
-             */
+            // La nota de crédito 03 entra directamente al seguimiento de escaneo.
+            // Los demás tipos deben haber sido pistoleados.
             var facturasQueRequierenPistoleo = facturasBase
                 .Where(x => Normalizar(x.TipoDoc) != TipoDocNotaCredito)
                 .Select(x => x.Factura)
@@ -222,7 +182,7 @@ public sealed class SeguimientoFacturasController : Controller
                 facturasElegiblesParaEscaneo,
                 cancellationToken);
 
-            var respuesta = new SeguimientoFacturasRespuestaViewModel
+            return Json(new SeguimientoFacturasRespuestaViewModel
             {
                 Ok = true,
                 Total = items.Count,
@@ -236,9 +196,7 @@ public sealed class SeguimientoFacturasController : Controller
                 TotalLogError = items.Count(x => x.EscaneadaConError),
                 TotalSinIntento = items.Count(x => x.IdLog is null),
                 Items = FiltrarEscaneadas(items, estado, resultado)
-            };
-
-            return Json(respuesta);
+            });
         }
         catch (OperationCanceledException)
         {
@@ -254,16 +212,6 @@ public sealed class SeguimientoFacturasController : Controller
         }
     }
 
-    /// <summary>
-    /// Descarga en PDF las facturas que cumplen exactamente los filtros
-    /// seleccionados en la pantalla actual.
-    ///
-    /// tipo = PISTOLEADAS:
-    ///     aplica fechaInicio, fechaFin, estado y tipoPersona.
-    ///
-    /// tipo = ESCANEADAS:
-    ///     aplica fechaInicio, fechaFin, estado y resultado.
-    /// </summary>
     [HttpGet]
     public async Task<IActionResult> DescargarPdf(
         string tipo,
@@ -272,6 +220,7 @@ public sealed class SeguimientoFacturasController : Controller
         string? estado,
         string? resultado,
         string? tipoPersona,
+        string? tipoDocumento,
         CancellationToken cancellationToken)
     {
         var validacion = ValidarFechasYEstado(fechaInicio, fechaFin, estado);
@@ -282,6 +231,7 @@ public sealed class SeguimientoFacturasController : Controller
         fechaFin = fechaFin.Date;
         estado = validacion.Estado;
         tipo = Normalizar(tipo);
+        tipoDocumento = NormalizarTipoDocumento(tipoDocumento);
 
         if (tipo is not ("PISTOLEADAS" or "ESCANEADAS"))
         {
@@ -292,8 +242,6 @@ public sealed class SeguimientoFacturasController : Controller
             });
         }
 
-        // El filtro de tipo de persona solamente corresponde a la pantalla
-        // de pistoleadas. Para escaneadas se ignora.
         if (tipo == "PISTOLEADAS")
         {
             var validacionTipoPersona = ValidarTipoPersona(tipoPersona);
@@ -312,23 +260,18 @@ public sealed class SeguimientoFacturasController : Controller
             List<SeguimientoFacturaItemViewModel> items;
             string titulo;
             string resultadoPdf = string.Empty;
-            bool esEscaneadas = tipo == "ESCANEADAS";
+            var esEscaneadas = tipo == "ESCANEADAS";
+
+            var facturasBase = await ObtenerFacturasAsync(
+                fechaInicio,
+                fechaFin,
+                tipoDocumento,
+                cancellationToken);
 
             if (!esEscaneadas)
             {
-                // Misma lógica de BuscarPistoleadas.
-                var facturasBase = await ObtenerFacturasAsync(
-                    fechaInicio,
-                    fechaFin,
-                    incluirTipo03: false,
-                    cancellationToken: cancellationToken);
-
-                var facturas = facturasBase
-                    .Select(x => x.Factura)
-                    .ToList();
-
                 items = await CompletarPistoleoAsync(
-                    facturas,
+                    facturasBase.Select(x => x.Factura).ToList(),
                     cancellationToken);
 
                 items = FiltrarPistoleadas(items, estado);
@@ -342,7 +285,6 @@ public sealed class SeguimientoFacturasController : Controller
             }
             else
             {
-                // Misma validación de BuscarEscaneadas.
                 resultado = Normalizar(resultado);
 
                 if (string.IsNullOrEmpty(resultado))
@@ -361,15 +303,6 @@ public sealed class SeguimientoFacturasController : Controller
                     });
                 }
 
-                // Para escaneo sí participa el TIPODOC 03.
-                var facturasBase = await ObtenerFacturasAsync(
-                    fechaInicio,
-                    fechaFin,
-                    incluirTipo03: true,
-                    cancellationToken: cancellationToken);
-
-                // 01, 04 y 09 deben estar pistoleadas.
-                // 03 entra directamente.
                 var facturasQueRequierenPistoleo = facturasBase
                     .Where(x => Normalizar(x.TipoDoc) != TipoDocNotaCredito)
                     .Select(x => x.Factura)
@@ -390,10 +323,7 @@ public sealed class SeguimientoFacturasController : Controller
                     facturasElegiblesParaEscaneo,
                     cancellationToken);
 
-                items = FiltrarEscaneadas(
-                    items,
-                    estado,
-                    resultado);
+                items = FiltrarEscaneadas(items, estado, resultado);
 
                 titulo = "Seguimiento de facturas escaneadas";
                 resultadoPdf = resultado;
@@ -406,16 +336,14 @@ public sealed class SeguimientoFacturasController : Controller
                 fechaFin,
                 estado,
                 resultadoPdf,
-                tipoPersona,
+                tipoPersona!,
+                tipoDocumento,
                 esEscaneadas);
 
             var nombreArchivo =
                 $"Facturas_{tipo}_{fechaInicio:yyyyMMdd}_{fechaFin:yyyyMMdd}.pdf";
 
-            return File(
-                pdf,
-                "application/pdf",
-                nombreArchivo);
+            return File(pdf, "application/pdf", nombreArchivo);
         }
         catch (OperationCanceledException)
         {
@@ -435,9 +363,6 @@ public sealed class SeguimientoFacturasController : Controller
         }
     }
 
-    /// <summary>
-    /// Genera el reporte PDF con las mismas columnas principales de la pantalla.
-    /// </summary>
     private static byte[] GenerarPdfFacturas(
         string titulo,
         IReadOnlyList<SeguimientoFacturaItemViewModel> items,
@@ -446,47 +371,24 @@ public sealed class SeguimientoFacturasController : Controller
         string estado,
         string resultado,
         string tipoPersona,
+        string tipoDocumento,
         bool esEscaneadas)
     {
-        static string T(string? valor) =>
-            (valor ?? string.Empty).Trim();
+        static string T(string? valor) => (valor ?? string.Empty).Trim();
 
         static string FechaDesdeTexto(string? valor)
         {
             var texto = T(valor);
-
-            if (texto.Length >= 10)
-                return texto[..10];
-
-            return texto;
+            return texto.Length >= 10 ? texto[..10] : texto;
         }
 
-        static string FechaHora(object? valor)
-        {
-            if (valor is DateTime fecha)
-                return fecha.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture);
+        static string FechaHora(DateTime? valor) =>
+            valor.HasValue
+                ? valor.Value.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture)
+                : string.Empty;
 
-            return string.Empty;
-        }
-
-        static string Monto(object? valor)
-        {
-            if (valor is null)
-                return "0,00";
-
-            try
-            {
-                var numero = Convert.ToDecimal(valor, CultureInfo.InvariantCulture);
-
-                return numero.ToString(
-                    "N2",
-                    CultureInfo.GetCultureInfo("es-CR"));
-            }
-            catch
-            {
-                return valor.ToString() ?? string.Empty;
-            }
-        }
+        static string Monto(decimal valor) =>
+            valor.ToString("N2", CultureInfo.GetCultureInfo("es-CR"));
 
         static IContainer CeldaEncabezado(IContainer container) =>
             container
@@ -529,6 +431,11 @@ public sealed class SeguimientoFacturasController : Controller
                                 $"Hasta: {fechaFin:dd/MM/yyyy}   " +
                                 $"Estado: {estado}");
 
+                        column.Item()
+                            .Text(
+                                $"Tipo documento: " +
+                                $"{(tipoDocumento == TipoDocTodos ? "Todos" : tipoDocumento)}");
+
                         if (!esEscaneadas)
                         {
                             var tipoPersonaTexto = tipoPersona switch
@@ -541,8 +448,7 @@ public sealed class SeguimientoFacturasController : Controller
                             column.Item()
                                 .Text($"Tipo persona: {tipoPersonaTexto}");
                         }
-
-                        if (esEscaneadas)
+                        else
                         {
                             column.Item()
                                 .Text(
@@ -550,125 +456,122 @@ public sealed class SeguimientoFacturasController : Controller
                                     $"{(string.IsNullOrWhiteSpace(resultado) ? EstadoTodos : resultado)}");
                         }
 
-                        column.Item()
-                            .Text($"Facturas mostradas: {items.Count}");
+                        column.Item().Text($"Facturas mostradas: {items.Count}");
                     });
 
-                page.Content()
-                    .Element(content =>
+                page.Content().Element(content =>
+                {
+                    if (items.Count == 0)
                     {
-                        if (items.Count == 0)
-                        {
-                            content
-                                .PaddingTop(30)
-                                .AlignCenter()
-                                .Text("No hay facturas para los filtros seleccionados.")
-                                .FontSize(11);
+                        content
+                            .PaddingTop(30)
+                            .AlignCenter()
+                            .Text("No hay facturas para los filtros seleccionados.")
+                            .FontSize(11);
+                        return;
+                    }
 
-                            return;
-                        }
-
-                        if (!esEscaneadas)
+                    if (!esEscaneadas)
+                    {
+                        content.Table(table =>
                         {
-                            content.Table(table =>
+                            table.ColumnsDefinition(columns =>
                             {
-                                table.ColumnsDefinition(columns =>
-                                {
-                                    columns.ConstantColumn(58); // Estado
-                                    columns.ConstantColumn(58); // Origen
-                                    columns.ConstantColumn(58); // Fecha
-                                    columns.ConstantColumn(70); // Documento
-                                    columns.ConstantColumn(95); // Consecutivo
-                                    columns.ConstantColumn(65); // Cliente
-                                    columns.RelativeColumn(1.7f); // Nombre
-                                    columns.ConstantColumn(48); // Ruta
-                                    columns.ConstantColumn(70); // Total
-                                });
-
-                                table.Header(header =>
-                                {
-                                    header.Cell().Element(CeldaEncabezado).Text("Estado").SemiBold();
-                                    header.Cell().Element(CeldaEncabezado).Text("Origen").SemiBold();
-                                    header.Cell().Element(CeldaEncabezado).Text("Fecha").SemiBold();
-                                    header.Cell().Element(CeldaEncabezado).Text("Documento").SemiBold();
-                                    header.Cell().Element(CeldaEncabezado).Text("Consecutivo").SemiBold();
-                                    header.Cell().Element(CeldaEncabezado).Text("Cliente").SemiBold();
-                                    header.Cell().Element(CeldaEncabezado).Text("Nombre").SemiBold();
-                                    header.Cell().Element(CeldaEncabezado).Text("Ruta").SemiBold();
-                                    header.Cell().Element(CeldaEncabezado).AlignRight().Text("Total").SemiBold();
-                                });
-
-                                foreach (var item in items)
-                                {
-                                    table.Cell().Element(Celda).Text(T(item.EstadoPistoleo));
-                                    table.Cell().Element(Celda).Text(T(item.OrigenPistoleo));
-                                    table.Cell().Element(Celda).Text(FechaDesdeTexto(item.FechaEmisionTexto));
-                                    table.Cell().Element(Celda).Text(T(item.Documento));
-                                    table.Cell().Element(Celda).Text(T(item.NumeroConsecutivo));
-                                    table.Cell().Element(Celda).Text(T(item.CodigoCliente));
-                                    table.Cell().Element(Celda).Text(T(item.NombreCliente));
-                                    table.Cell().Element(Celda).Text(T(item.Ruta));
-                                    table.Cell().Element(Celda).AlignRight().Text(Monto(item.TotalComprobante));
-                                }
+                                columns.ConstantColumn(58);
+                                columns.ConstantColumn(58);
+                                columns.ConstantColumn(58);
+                                columns.ConstantColumn(70);
+                                columns.ConstantColumn(95);
+                                columns.ConstantColumn(65);
+                                columns.RelativeColumn(1.7f);
+                                columns.ConstantColumn(48);
+                                columns.ConstantColumn(70);
                             });
-                        }
-                        else
-                        {
-                            content.Table(table =>
+
+                            table.Header(header =>
                             {
-                                table.ColumnsDefinition(columns =>
-                                {
-                                    columns.ConstantColumn(52); // Estado
-                                    columns.ConstantColumn(62); // Resultado
-                                    columns.ConstantColumn(48); // Error
-                                    columns.ConstantColumn(55); // Fecha
-                                    columns.ConstantColumn(65); // Documento
-                                    columns.ConstantColumn(82); // Consecutivo
-                                    columns.ConstantColumn(58); // Cliente
-                                    columns.RelativeColumn(1.15f); // Nombre
-                                    columns.ConstantColumn(78); // Fecha intento
-                                    columns.RelativeColumn(0.85f); // Archivo
-                                    columns.RelativeColumn(1.35f); // Mensaje
-                                });
-
-                                table.Header(header =>
-                                {
-                                    header.Cell().Element(CeldaEncabezado).Text("Estado").SemiBold();
-                                    header.Cell().Element(CeldaEncabezado).Text("Último intento").SemiBold();
-                                    header.Cell().Element(CeldaEncabezado).Text("Error").SemiBold();
-                                    header.Cell().Element(CeldaEncabezado).Text("Fecha").SemiBold();
-                                    header.Cell().Element(CeldaEncabezado).Text("Documento").SemiBold();
-                                    header.Cell().Element(CeldaEncabezado).Text("Consecutivo").SemiBold();
-                                    header.Cell().Element(CeldaEncabezado).Text("Cliente").SemiBold();
-                                    header.Cell().Element(CeldaEncabezado).Text("Nombre").SemiBold();
-                                    header.Cell().Element(CeldaEncabezado).Text("Fecha intento").SemiBold();
-                                    header.Cell().Element(CeldaEncabezado).Text("Archivo").SemiBold();
-                                    header.Cell().Element(CeldaEncabezado).Text("Mensaje").SemiBold();
-                                });
-
-                                foreach (var item in items)
-                                {
-                                    var error = item.EscaneadaConError
-                                        ? "SÍ"
-                                        : item.IdLog is null
-                                            ? "SIN INTENTO"
-                                            : "NO";
-
-                                    table.Cell().Element(Celda).Text(T(item.EstadoEscaneo));
-                                    table.Cell().Element(Celda).Text(T(item.ResultadoEscaneo));
-                                    table.Cell().Element(Celda).Text(error);
-                                    table.Cell().Element(Celda).Text(FechaDesdeTexto(item.FechaEmisionTexto));
-                                    table.Cell().Element(Celda).Text(T(item.Documento));
-                                    table.Cell().Element(Celda).Text(T(item.NumeroConsecutivo));
-                                    table.Cell().Element(Celda).Text(T(item.CodigoCliente));
-                                    table.Cell().Element(Celda).Text(T(item.NombreCliente));
-                                    table.Cell().Element(Celda).Text(FechaHora(item.FechaIntento));
-                                    table.Cell().Element(Celda).Text(T(item.NombreArchivo));
-                                    table.Cell().Element(Celda).Text(T(item.MensajeLog));
-                                }
+                                header.Cell().Element(CeldaEncabezado).Text("Estado").SemiBold();
+                                header.Cell().Element(CeldaEncabezado).Text("Origen").SemiBold();
+                                header.Cell().Element(CeldaEncabezado).Text("Fecha").SemiBold();
+                                header.Cell().Element(CeldaEncabezado).Text("Documento").SemiBold();
+                                header.Cell().Element(CeldaEncabezado).Text("Consecutivo").SemiBold();
+                                header.Cell().Element(CeldaEncabezado).Text("Cliente").SemiBold();
+                                header.Cell().Element(CeldaEncabezado).Text("Nombre").SemiBold();
+                                header.Cell().Element(CeldaEncabezado).Text("Ruta").SemiBold();
+                                header.Cell().Element(CeldaEncabezado).AlignRight().Text("Total").SemiBold();
                             });
-                        }
-                    });
+
+                            foreach (var item in items)
+                            {
+                                table.Cell().Element(Celda).Text(T(item.EstadoPistoleo));
+                                table.Cell().Element(Celda).Text(T(item.OrigenPistoleo));
+                                table.Cell().Element(Celda).Text(FechaDesdeTexto(item.FechaEmisionTexto));
+                                table.Cell().Element(Celda).Text(T(item.Documento));
+                                table.Cell().Element(Celda).Text(T(item.NumeroConsecutivo));
+                                table.Cell().Element(Celda).Text(T(item.CodigoCliente));
+                                table.Cell().Element(Celda).Text(T(item.NombreCliente));
+                                table.Cell().Element(Celda).Text(T(item.Ruta));
+                                table.Cell().Element(Celda).AlignRight().Text(Monto(item.TotalComprobante));
+                            }
+                        });
+                    }
+                    else
+                    {
+                        content.Table(table =>
+                        {
+                            table.ColumnsDefinition(columns =>
+                            {
+                                columns.ConstantColumn(52);
+                                columns.ConstantColumn(62);
+                                columns.ConstantColumn(48);
+                                columns.ConstantColumn(55);
+                                columns.ConstantColumn(65);
+                                columns.ConstantColumn(82);
+                                columns.ConstantColumn(58);
+                                columns.RelativeColumn(1.15f);
+                                columns.ConstantColumn(78);
+                                columns.RelativeColumn(0.85f);
+                                columns.RelativeColumn(1.35f);
+                            });
+
+                            table.Header(header =>
+                            {
+                                header.Cell().Element(CeldaEncabezado).Text("Estado").SemiBold();
+                                header.Cell().Element(CeldaEncabezado).Text("Último intento").SemiBold();
+                                header.Cell().Element(CeldaEncabezado).Text("Error").SemiBold();
+                                header.Cell().Element(CeldaEncabezado).Text("Fecha").SemiBold();
+                                header.Cell().Element(CeldaEncabezado).Text("Documento").SemiBold();
+                                header.Cell().Element(CeldaEncabezado).Text("Consecutivo").SemiBold();
+                                header.Cell().Element(CeldaEncabezado).Text("Cliente").SemiBold();
+                                header.Cell().Element(CeldaEncabezado).Text("Nombre").SemiBold();
+                                header.Cell().Element(CeldaEncabezado).Text("Fecha intento").SemiBold();
+                                header.Cell().Element(CeldaEncabezado).Text("Archivo").SemiBold();
+                                header.Cell().Element(CeldaEncabezado).Text("Mensaje").SemiBold();
+                            });
+
+                            foreach (var item in items)
+                            {
+                                var error = item.EscaneadaConError
+                                    ? "SÍ"
+                                    : item.IdLog is null
+                                        ? "SIN INTENTO"
+                                        : "NO";
+
+                                table.Cell().Element(Celda).Text(T(item.EstadoEscaneo));
+                                table.Cell().Element(Celda).Text(T(item.ResultadoEscaneo));
+                                table.Cell().Element(Celda).Text(error);
+                                table.Cell().Element(Celda).Text(FechaDesdeTexto(item.FechaEmisionTexto));
+                                table.Cell().Element(Celda).Text(T(item.Documento));
+                                table.Cell().Element(Celda).Text(T(item.NumeroConsecutivo));
+                                table.Cell().Element(Celda).Text(T(item.CodigoCliente));
+                                table.Cell().Element(Celda).Text(T(item.NombreCliente));
+                                table.Cell().Element(Celda).Text(FechaHora(item.FechaIntento));
+                                table.Cell().Element(Celda).Text(T(item.NombreArchivo));
+                                table.Cell().Element(Celda).Text(T(item.MensajeLog));
+                            }
+                        });
+                    }
+                });
 
                 page.Footer()
                     .PaddingTop(8)
@@ -686,28 +589,12 @@ public sealed class SeguimientoFacturasController : Controller
         return documento.GeneratePdf();
     }
 
-    /// <summary>
-    /// Obtiene las facturas base desde VENDOCENCFED.
-    ///
-    /// incluirTipo03 = false:
-    ///     obtiene únicamente TIPODOC 01, 04 y 09.
-    ///
-    /// incluirTipo03 = true:
-    ///     obtiene TIPODOC 01, 03, 04 y 09.
-    ///
-    /// Se conserva TIPODOC únicamente de forma interna para poder aplicar
-    /// la regla especial del tipo 03 sin tener que modificar el ViewModel.
-    /// </summary>
     private async Task<List<FacturaSeguimientoDto>> ObtenerFacturasAsync(
         DateTime fechaInicio,
         DateTime fechaFin,
-        bool incluirTipo03,
+        string tipoDocumento,
         CancellationToken cancellationToken)
     {
-        // FECHAEMISION está modelada como string y viene en formato ISO.
-        // Para mantener la consulta 100% sobre el DbContext y evitar SQL manual,
-        // se filtra por el prefijo yyyy-MM-dd. Los bloques de 900 evitan superar
-        // el límite de 1000 expresiones de un IN de Oracle.
         var fechas = new List<string>();
 
         for (var fecha = fechaInicio.Date;
@@ -732,27 +619,13 @@ public sealed class SeguimientoFacturasController : Controller
                     x.FECHAEMISION.Length >= 10 &&
                     fechasConsulta.Contains(x.FECHAEMISION.Substring(0, 10)));
 
-            if (incluirTipo03)
+            if (tipoDocumento != TipoDocTodos)
             {
                 consulta = consulta.Where(x =>
-                    x.TIPODOC == "01" ||
-                    x.TIPODOC == "03" ||
-                    x.TIPODOC == "04" ||
-                    x.TIPODOC == "09");
-            }
-            else
-            {
-                consulta = consulta.Where(x =>
-                    x.TIPODOC == "01" ||
-                    x.TIPODOC == "04" ||
-                    x.TIPODOC == "09");
+                    x.TIPODOC != null &&
+                    x.TIPODOC.Trim().ToUpper() == tipoDocumento);
             }
 
-            /*
-             * Primero se proyectan valores simples desde EF.
-             * Luego se construye el ViewModel en memoria para conservar TIPODOC
-             * en FacturaSeguimientoDto sin tener que agregarlo al ViewModel.
-             */
             var bloque = await consulta
                 .Select(x => new
                 {
@@ -790,8 +663,6 @@ public sealed class SeguimientoFacturasController : Controller
                 }));
         }
 
-        // Evita duplicados en caso de que la misma factura aparezca más de una vez
-        // en VENDOCENCFED por la combinación utilizada para seguimiento.
         return resultado
             .GroupBy(x => new
             {
@@ -805,16 +676,6 @@ public sealed class SeguimientoFacturasController : Controller
             .ToList();
     }
 
-    /// <summary>
-    /// Marca como pistoleadas las facturas cuya CIA + CLAVE exista en
-    /// CXCDETFACREC o CXCDETFACRECBIT y cuyo encabezado CXCENCFACREC
-    /// relacionado esté activo.
-    ///
-    /// Este método no decide qué TIPODOC participa. Esa decisión se toma antes
-    /// de llamarlo:
-    /// - Pantalla de pistoleo: solo 01, 04 y 09.
-    /// - Pantalla de escaneo: solo se llama para 01, 04 y 09.
-    /// </summary>
     private async Task<List<SeguimientoFacturaItemViewModel>> CompletarPistoleoAsync(
         List<SeguimientoFacturaItemViewModel> facturas,
         CancellationToken cancellationToken)
@@ -886,17 +747,6 @@ public sealed class SeguimientoFacturasController : Controller
         return facturas;
     }
 
-    /// <summary>
-    /// Filtra facturas pistoleadas por el tipo de persona del encabezado
-    /// CXCENCFACREC relacionado con CXCDETFACREC o CXCDETFACRECBIT.
-    ///
-    /// A = Agente.
-    /// T = Transportista.
-    /// TODOS = no aplica filtro adicional.
-    ///
-    /// Si se selecciona A o T, una factura pendiente no puede aparecer porque
-    /// todavía no tiene una relación activa de pistoleo con CXCENCFACREC.
-    /// </summary>
     private async Task<List<SeguimientoFacturaItemViewModel>> FiltrarPistoleadasPorTipoPersonaAsync(
         IEnumerable<SeguimientoFacturaItemViewModel> items,
         string tipoPersona,
@@ -973,15 +823,6 @@ public sealed class SeguimientoFacturasController : Controller
             .ToList();
     }
 
-    /// <summary>
-    /// Completa el estado de escaneo usando únicamente las facturas que ya
-    /// pasaron la regla previa de elegibilidad:
-    /// - 03: siempre elegible.
-    /// - 01, 04, 09: únicamente si están pistoleadas.
-    ///
-    /// Para cada DOCUMENTO se toma el último LOG_ENVIO_PDF_ORACLE según
-    /// FECHA_INTENTO DESC e ID_LOG DESC.
-    /// </summary>
     private async Task<List<SeguimientoFacturaItemViewModel>> CompletarEscaneoAsync(
         List<SeguimientoFacturaItemViewModel> facturas,
         CancellationToken cancellationToken)
@@ -1058,7 +899,7 @@ public sealed class SeguimientoFacturasController : Controller
         IEnumerable<SeguimientoFacturaItemViewModel> items,
         string estado)
     {
-        var consulta = items;
+        var consulta = items.AsEnumerable();
 
         if (estado == EstadoProcesadas)
             consulta = consulta.Where(x => x.PistoleadaProcesada);
@@ -1076,33 +917,160 @@ public sealed class SeguimientoFacturasController : Controller
         string estado,
         string resultado)
     {
-        var consulta = items;
+        var consulta = items.AsEnumerable();
 
         if (estado == EstadoProcesadas)
             consulta = consulta.Where(x => x.EscaneadaProcesada);
         else if (estado == EstadoPendientes)
             consulta = consulta.Where(x => !x.EscaneadaProcesada);
 
-        consulta = resultado switch
+        if (resultado == ResultadoProcesado)
         {
-            ResultadoProcesado => consulta.Where(x =>
+            consulta = consulta.Where(x =>
                 string.Equals(
                     x.EstadoLog,
                     ResultadoProcesado,
-                    StringComparison.OrdinalIgnoreCase)),
-
-            ResultadoError => consulta.Where(x =>
-                x.EscaneadaConError),
-
-            ResultadoSinIntento => consulta.Where(x =>
-                x.IdLog is null),
-
-            _ => consulta
-        };
+                    StringComparison.OrdinalIgnoreCase));
+        }
+        else if (resultado == ResultadoError)
+        {
+            consulta = consulta.Where(x => x.EscaneadaConError);
+        }
+        else if (resultado == ResultadoSinIntento)
+        {
+            consulta = consulta.Where(x => x.IdLog is null);
+        }
 
         return consulta
             .OrderByDescending(x => x.FechaEmision)
             .ThenByDescending(x => x.Documento)
+            .ToList();
+    }
+
+    private async Task<List<TipoDocumentoFiltroViewModel>> ObtenerTiposDocumentoAsync(
+        CancellationToken cancellationToken)
+    {
+        var conexion = _context.Database.GetDbConnection();
+        var cerrarConexion = conexion.State != ConnectionState.Open;
+
+        if (cerrarConexion)
+            await conexion.OpenAsync(cancellationToken);
+
+        try
+        {
+            // Primero intenta con el esquema usado por LancoDbContext.
+            // Si existe un sinónimo o la conexión ya apunta al esquema, se usa el fallback.
+            try
+            {
+                return await LeerTiposDocumentoDesdeTablaAsync(
+                    conexion,
+                    "SELECT * FROM NUEVO.FE_TIPODOC",
+                    cancellationToken);
+            }
+            catch
+            {
+                return await LeerTiposDocumentoDesdeTablaAsync(
+                    conexion,
+                    "SELECT * FROM FE_TIPODOC",
+                    cancellationToken);
+            }
+        }
+        finally
+        {
+            if (cerrarConexion && conexion.State == ConnectionState.Open)
+                conexion.Close();
+        }
+    }
+
+    private static async Task<List<TipoDocumentoFiltroViewModel>> LeerTiposDocumentoDesdeTablaAsync(
+        System.Data.Common.DbConnection conexion,
+        string sql,
+        CancellationToken cancellationToken)
+    {
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = sql;
+
+        await using var reader = await comando.ExecuteReaderAsync(cancellationToken);
+
+        var nombres = Enumerable.Range(0, reader.FieldCount)
+            .Select(i => new
+            {
+                Indice = i,
+                Nombre = Normalizar(reader.GetName(i))
+            })
+            .ToList();
+
+        var nombresCodigo = new[]
+        {
+            "CODIGO",
+            "COD_TIPODOC",
+            "COD_TIPO_DOC",
+            "TIPODOC",
+            "TIPO_DOC",
+            "CODIGO_TIPODOC",
+            "CODIGO_TIPO_DOC",
+            "CODE"
+        };
+
+        var nombresDescripcion = new[]
+        {
+            "DESCRIPCION",
+            "DESCRIP",
+            "NOMBRE",
+            "DETALLE",
+            "DESCRIPCION_TIPODOC",
+            "DESCRIPCION_TIPO_DOC",
+            "NAME"
+        };
+
+        var indiceCodigo = nombres
+            .Where(x => nombresCodigo.Contains(x.Nombre))
+            .Select(x => x.Indice)
+            .DefaultIfEmpty(0)
+            .First();
+
+        var indiceDescripcion = nombres
+            .Where(x =>
+                x.Indice != indiceCodigo &&
+                nombresDescripcion.Contains(x.Nombre))
+            .Select(x => x.Indice)
+            .DefaultIfEmpty(-1)
+            .First();
+
+        if (indiceDescripcion < 0 && reader.FieldCount > 1)
+            indiceDescripcion = indiceCodigo == 0 ? 1 : 0;
+
+        var tipos = new List<TipoDocumentoFiltroViewModel>();
+
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var codigo = reader.IsDBNull(indiceCodigo)
+                ? string.Empty
+                : Convert.ToString(
+                    reader.GetValue(indiceCodigo),
+                    CultureInfo.InvariantCulture)?.Trim() ?? string.Empty;
+
+            if (string.IsNullOrWhiteSpace(codigo))
+                continue;
+
+            var descripcion =
+                indiceDescripcion >= 0 && !reader.IsDBNull(indiceDescripcion)
+                    ? Convert.ToString(
+                        reader.GetValue(indiceDescripcion),
+                        CultureInfo.InvariantCulture)?.Trim() ?? string.Empty
+                    : string.Empty;
+
+            tipos.Add(new TipoDocumentoFiltroViewModel
+            {
+                Codigo = codigo,
+                Descripcion = descripcion
+            });
+        }
+
+        return tipos
+            .GroupBy(x => Normalizar(x.Codigo))
+            .Select(g => g.First())
+            .OrderBy(x => x.Codigo)
             .ToList();
     }
 
@@ -1112,31 +1080,20 @@ public sealed class SeguimientoFacturasController : Controller
         string? estado)
     {
         if (fechaInicio == default || fechaFin == default)
-        {
-            return (
-                EstadoTodos,
-                "Debe indicar la fecha inicial y la fecha final.");
-        }
+            return (string.Empty, "Debe indicar la fecha inicial y la fecha final.");
 
         if (fechaInicio.Date > fechaFin.Date)
-        {
-            return (
-                EstadoTodos,
-                "La fecha inicial no puede ser mayor que la fecha final.");
-        }
+            return (string.Empty, "La fecha inicial no puede ser mayor que la fecha final.");
 
         var estadoNormalizado = Normalizar(estado);
 
         if (string.IsNullOrEmpty(estadoNormalizado))
             estadoNormalizado = EstadoTodos;
 
-        if (estadoNormalizado is not (
-            EstadoTodos or
-            EstadoPendientes or
-            EstadoProcesadas))
+        if (estadoNormalizado is not (EstadoTodos or EstadoPendientes or EstadoProcesadas))
         {
             return (
-                EstadoTodos,
+                string.Empty,
                 "El estado debe ser TODOS, PENDIENTES o PROCESADAS.");
         }
 
@@ -1157,65 +1114,51 @@ public sealed class SeguimientoFacturasController : Controller
             TipoPersonaTransportista))
         {
             return (
-                TipoPersonaTodos,
-                "El tipo de persona debe ser TODOS, A (Agente) o T (Transportista).");
+                string.Empty,
+                "El tipo de persona debe ser TODOS, A o T.");
         }
 
         return (tipoPersonaNormalizado, null);
     }
 
+    private static string NormalizarTipoDocumento(string? tipoDocumento)
+    {
+        var valor = Normalizar(tipoDocumento);
+        return string.IsNullOrWhiteSpace(valor) ? TipoDocTodos : valor;
+    }
+
+    private static string Normalizar(string? valor) =>
+        (valor ?? string.Empty).Trim().ToUpperInvariant();
+
+    private static string CrearLlave(string? cia, string? clave) =>
+        $"{Normalizar(cia)}|{Normalizar(clave)}";
+
     private static IEnumerable<List<T>> Partir<T>(
-        IReadOnlyList<T> datos,
+        IReadOnlyList<T> elementos,
         int tamano)
     {
-        for (var i = 0; i < datos.Count; i += tamano)
+        for (var i = 0; i < elementos.Count; i += tamano)
         {
-            var cantidad = Math.Min(
-                tamano,
-                datos.Count - i);
-
-            var bloque = new List<T>(cantidad);
-
-            for (var j = 0; j < cantidad; j++)
-                bloque.Add(datos[i + j]);
-
-            yield return bloque;
+            yield return elementos
+                .Skip(i)
+                .Take(tamano)
+                .ToList();
         }
     }
 
-    private static string CrearLlave(
-        string? cia,
-        string? clave) =>
-        $"{Normalizar(cia)}|{Normalizar(clave)}";
-
-    private static string Normalizar(string? valor) =>
-        (valor ?? string.Empty)
-            .Trim()
-            .ToUpperInvariant();
-
-    /// <summary>
-    /// DTO interno utilizado únicamente para conservar TIPODOC junto con el
-    /// ViewModel sin requerir cambios en SeguimientoFacturaItemViewModel.
-    /// </summary>
     private sealed class FacturaSeguimientoDto
     {
         public string TipoDoc { get; set; } = string.Empty;
-
         public SeguimientoFacturaItemViewModel Factura { get; set; } = null!;
     }
 
     private sealed class LogSeguimientoDto
     {
         public decimal IdLog { get; set; }
-
-        public string Documento { get; set; } = string.Empty;
-
+        public string? Documento { get; set; }
         public string? NombreArchivo { get; set; }
-
-        public DateTime FechaIntento { get; set; }
-
-        public string Estado { get; set; } = string.Empty;
-
+        public DateTime? FechaIntento { get; set; }
+        public string? Estado { get; set; }
         public string? Mensaje { get; set; }
     }
 }
