@@ -2714,15 +2714,25 @@ namespace SolicitudesDescuentos.Controllers
             ResumenCobrosAgenteFiltroVm filtro,
             ParametrosCalculoComisionVm parametros)
         {
+            /*
+             * La firma contiene únicamente parámetros que realmente modifican
+             * los resultados generados por CALCULA_COMISIONES y COBROSCLIENTE.
+             *
+             * Los filtros de visualización se aplican al consultar las tablas
+             * ya calculadas y NO deben provocar un recálculo completo:
+             * - GrupoAgente
+             * - ClienteDesde / ClienteHasta
+             * - VendedorDesde / VendedorHasta
+             * - ChequeDevuelto
+             *
+             * FechaDesde / FechaHasta tampoco forman parte de la firma porque
+             * PrepararParametrosCalculo las deriva siempre de AnoFiscal + Periodo.
+             *
+             * Cuando esta firma cambia, se mantienen ejecutándose juntos:
+             * CALCULA_COMISIONES + COBROSCLIENTE.
+             */
             static string Texto(string? valor) =>
                 Normalizar(valor);
-
-            static string Fecha(DateTime? valor) =>
-                valor.HasValue
-                    ? valor.Value.ToString(
-                        "yyyyMMdd",
-                        CultureInfo.InvariantCulture)
-                    : "";
 
             static string Numero(decimal valor) =>
                 valor.ToString(
@@ -2732,16 +2742,8 @@ namespace SolicitudesDescuentos.Controllers
             return string.Join(
                 "|",
                 Texto(filtro.BuNombre),
-                Fecha(filtro.FechaDesde),
-                Fecha(filtro.FechaHasta),
                 Texto(filtro.Moneda),
                 Numero(filtro.TipoCambio),
-                Texto(filtro.ChequeDevuelto),
-                Texto(filtro.GrupoAgente),
-                Texto(filtro.ClienteDesde),
-                Texto(filtro.ClienteHasta),
-                Texto(filtro.VendedorDesde),
-                Texto(filtro.VendedorHasta),
                 parametros.AnoFiscal.ToString(
                     CultureInfo.InvariantCulture),
                 parametros.Periodo.ToString(
