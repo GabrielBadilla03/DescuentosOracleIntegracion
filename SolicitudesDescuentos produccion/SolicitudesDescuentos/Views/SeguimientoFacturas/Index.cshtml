@@ -108,6 +108,10 @@
                                 </select>
                             </div>
 
+                            <button type="button" id="btnBuscarPistoleadas" class="btn btn-sm btn-outline-primary">
+                                Buscar
+                            </button>
+
                             <button type="button" id="btnPdfPistoleadas" class="btn btn-sm btn-outline-danger">
                                 Descargar PDF
                             </button>
@@ -213,6 +217,10 @@
                                 </select>
                             </div>
 
+                            <button type="button" id="btnBuscarEscaneadas" class="btn btn-sm btn-outline-primary">
+                                Buscar
+                            </button>
+
                             <button type="button" id="btnPdfEscaneadas" class="btn btn-sm btn-outline-danger">
                                 Descargar PDF
                             </button>
@@ -308,9 +316,6 @@
 
             const tbodyPistoleadas = document.getElementById('tbodyPistoleadas');
             const tbodyEscaneadas = document.getElementById('tbodyEscaneadas');
-
-            let cargadasPistoleadas = false;
-            let cargadasEscaneadas = false;
 
             function parametrosBase() {
                 return {
@@ -532,7 +537,6 @@
 
                     pintarPistoleadas(data);
                     mostrarAlerta('alertaPistoleadas', '');
-                    cargadasPistoleadas = true;
                 } catch (error) {
                     mostrarAlerta(
                         'alertaPistoleadas',
@@ -556,7 +560,6 @@
 
                     pintarEscaneadas(data);
                     mostrarAlerta('alertaEscaneadas', '');
-                    cargadasEscaneadas = true;
                 } catch (error) {
                     mostrarAlerta(
                         'alertaEscaneadas',
@@ -669,27 +672,17 @@
                 return cargarPistoleadas();
             }
 
-            // Los filtros de cada pestaña actualizan inmediatamente.
-            estadoPistoleadas.addEventListener('change', cargarPistoleadas);
-            tipoPersonaPistoleadas.addEventListener('change', cargarPistoleadas);
-            tipoDocumentoPistoleadas.addEventListener('change', cargarPistoleadas);
+            // Los filtros NO consultan automáticamente.
+            // El usuario selecciona los filtros y ejecuta una sola consulta.
+            document
+                .getElementById('btnBuscarPistoleadas')
+                .addEventListener('click', cargarPistoleadas);
 
-            estadoEscaneadas.addEventListener('change', cargarEscaneadas);
-            resultadoEscaneadas.addEventListener('change', cargarEscaneadas);
-            tipoDocumentoEscaneadas.addEventListener('change', cargarEscaneadas);
+            document
+                .getElementById('btnBuscarEscaneadas')
+                .addEventListener('click', cargarEscaneadas);
 
-            // Las fechas NO actualizan automáticamente.
-            // Se conservan con el botón "Actualizar pantalla actual".
-            fechaInicio.addEventListener('change', () => {
-                cargadasPistoleadas = false;
-                cargadasEscaneadas = false;
-            });
-
-            fechaFin.addEventListener('change', () => {
-                cargadasPistoleadas = false;
-                cargadasEscaneadas = false;
-            });
-
+            // Las fechas se aplican manualmente a la pestaña actual.
             document
                 .getElementById('btnActualizarActual')
                 .addEventListener('click', cargarPantallaActual);
@@ -701,22 +694,6 @@
             document
                 .getElementById('btnPdfEscaneadas')
                 .addEventListener('click', () => descargarPdf('ESCANEADAS'));
-
-            document
-                .getElementById('tab-pistoleadas')
-                .addEventListener('shown.bs.tab', () => {
-                    if (!cargadasPistoleadas)
-                        cargarPistoleadas();
-                });
-
-            document
-                .getElementById('tab-escaneadas')
-                .addEventListener('shown.bs.tab', () => {
-                    if (!cargadasEscaneadas)
-                        cargarEscaneadas();
-                });
-
-            cargarPistoleadas();
         })();
     </script>
 }

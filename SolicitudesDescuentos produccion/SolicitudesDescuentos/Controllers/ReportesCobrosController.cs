@@ -1648,22 +1648,6 @@ namespace SolicitudesDescuentos.Controllers
                         row += 2;
                     }
 
-                    ws.Cell(row, 3).Value =
-                        grupo.Sum(x => x.Monto);
-                    ws.Cell(row, 4).Value =
-                        grupo.Sum(
-                            x => x.MontoFacturaSinImpuesto);
-                    ws.Cell(row, 5).Value =
-                        grupo.Sum(x => x.MontoComision);
-
-                    ws.Range(row, 2, row, 5)
-                        .Style.Font.Bold = true;
-
-                    ws.Range(row, 2, row, 5)
-                        .Style.Border.TopBorder =
-                            XLBorderStyleValues.Medium;
-
-                    row++;
                 }
 
                 row++;

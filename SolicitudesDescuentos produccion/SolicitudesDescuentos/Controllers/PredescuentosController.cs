@@ -3709,6 +3709,7 @@ namespace SolicitudesDescuentos.Controllers
                     return NotFound();
                 }
 
+
                 predescuentoDb.FECHASOLICITUD = model.FECHASOLICITUD;
                 predescuentoDb.TIPODESCUENTO = model.TIPODESCUENTO;
                 predescuentoDb.FECHAINICIO = model.FECHAINICIO;
@@ -3717,10 +3718,21 @@ namespace SolicitudesDescuentos.Controllers
                 predescuentoDb.ESTADO = model.ESTADO;
                 predescuentoDb.AUTORIZADO_POR = model.AUTORIZADO_POR;
                 predescuentoDb.FECHAREGISTRO = DateTime.Now;
-                predescuentoDb.INGRESADO_POR = User.Identity?.Name ?? string.Empty;
+
+                // INGRESADO_POR identifica al usuario que creó la solicitud.
+                // Debe permanecer inmutable durante toda la vida de la solicitud,
+                // incluso si un PRICE_EDITOR la edita mientras está en
+                // "Pendiente Aprobacion".
                 predescuentoDb.FECHA_APLICACION = model.FECHA_APLICACION;
 
                 _OracleContext.PREDESCUENTOs.Update(predescuentoDb);
+
+                // Protección adicional: Edit nunca debe generar un UPDATE
+                // de la columna INGRESADO_POR.
+                _OracleContext.Entry(predescuentoDb)
+                    .Property(p => p.INGRESADO_POR)
+                    .IsModified = false;
+
 
                 // Traer detalles actuales en BD
                 var detallesExistentes = await _OracleContext.PREDETDESCUENTOs
