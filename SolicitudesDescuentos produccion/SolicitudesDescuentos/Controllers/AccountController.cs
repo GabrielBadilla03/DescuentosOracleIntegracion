@@ -90,13 +90,28 @@ public class AccountController : Controller
                 : loginResponse.Username.Trim();
 
             var canEditPrice = loginResponse.CanEditPrice;
+            var assignId = loginResponse.AssignId?.Trim();
+
+            /*
+             * AssignId es obligatorio para controlar el acceso a los reportes:
+             * - "All" permite consultar todos los agentes.
+             * - cualquier otro valor limita al usuario a ese vendedor.
+             */
+            if (string.IsNullOrWhiteSpace(assignId))
+            {
+                ModelState.AddModelError(
+                    "",
+                    "El usuario no tiene un assign_id configurado para acceder al sistema.");
+                return View(model);
+            }
 
             var claims = new List<Claim>
             {
                 new Claim(ClaimTypes.NameIdentifier, usernameFinal),
                 new Claim(ClaimTypes.Name, usernameFinal),
                 new Claim("Username", usernameFinal),
-                new Claim("CanEditPrice", canEditPrice.ToString().ToLower())
+                new Claim("CanEditPrice", canEditPrice.ToString().ToLower()),
+                new Claim("AssignId", assignId)
             };
 
             claims.Add(new Claim(ClaimTypes.Role, "USER"));
@@ -166,5 +181,8 @@ public class AccountController : Controller
 
         [JsonPropertyName("can_edit_price")]
         public bool CanEditPrice { get; set; }
+
+        [JsonPropertyName("assign_id")]
+        public string? AssignId { get; set; }
     }
 }

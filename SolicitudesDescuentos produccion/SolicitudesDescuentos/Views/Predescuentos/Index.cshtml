@@ -62,14 +62,14 @@
             </button>
         </div>
 
-    
+    }
         <div class="col-auto">
-            <button type="button" class="btn btn-dark"
+        <button type="button" class="btn btn-danger"
                     data-bs-toggle="modal" data-bs-target="#reportesModal">
                 Reportes
             </button>
         </div>
-    }
+    
     <div class="col-auto">
         <button type="button" class="btn btn-danger"
                 data-bs-toggle="modal" data-bs-target="#crearModal">
@@ -266,11 +266,15 @@
                        class="btn btn-danger">
                         Cobros por Agente
                     </a>
-                    <a asp-controller="SeguimientoFacturas"
-                       asp-action="Index"
-                       class="btn btn-danger">
-                        InfoRouter
-                    </a>
+                    @if (User.IsInRole("PRICE_EDITOR"))
+                         {
+
+                        <a asp-controller="SeguimientoFacturas"
+                           asp-action="Index"
+                           class="btn btn-danger">
+                            InfoRouter
+                        </a>
+                    }
                 </div>
             </div>
         </div>

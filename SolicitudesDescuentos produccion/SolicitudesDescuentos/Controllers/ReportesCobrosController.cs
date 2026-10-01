@@ -9,6 +9,7 @@
 
 using ClosedXML.Excel;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using QuestPDF.Fluent;
@@ -169,6 +170,74 @@ namespace SolicitudesDescuentos.Controllers
             _lancoContext = lancoContext;
             _cache = cache;
             _configuration = configuration;
+        }
+
+        private string? ObtenerAssignIdUsuario()
+        {
+            return User.FindFirst("AssignId")?.Value?.Trim();
+        }
+
+        private static bool AssignIdPermiteTodos(string? assignId)
+        {
+            return string.Equals(
+                assignId?.Trim(),
+                "All",
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void AplicarRestriccionVendedorUsuario(
+            ResumenCobrosAgenteFiltroVm filtro)
+        {
+            var assignId = ObtenerAssignIdUsuario();
+
+            // Una sesión sin AssignId no debe heredar acceso global.
+            // OnActionExecuting bloquea esa sesión antes de llegar a la acción.
+            if (string.IsNullOrWhiteSpace(assignId) ||
+                AssignIdPermiteTodos(assignId))
+            {
+                return;
+            }
+
+            /*
+             * Seguridad de servidor:
+             * aunque VendedorDesde/VendedorHasta vengan manipulados por URL,
+             * siempre se reemplazan por el vendedor asignado al usuario.
+             */
+            filtro.VendedorDesde = assignId;
+            filtro.VendedorHasta = assignId;
+        }
+
+        public override void OnActionExecuting(
+            ActionExecutingContext context)
+        {
+            base.OnActionExecuting(context);
+
+            var assignId = ObtenerAssignIdUsuario();
+
+            /*
+             * Todos los usuarios que entren a este controller deben haber
+             * iniciado sesión con el nuevo claim AssignId.
+             *
+             * Esto también evita que un cookie creado antes del cambio de login
+             * pueda entrar sin restricción de vendedor.
+             */
+            if (string.IsNullOrWhiteSpace(assignId))
+            {
+                context.Result = Forbid();
+                return;
+            }
+
+            /*
+             * Toda acción de reportes que recibe "filtro" queda protegida
+             * automáticamente. Esto incluye PDF, Excel y la pantalla principal.
+             */
+            if (context.ActionArguments.TryGetValue(
+                    "filtro",
+                    out var filtroArgumento) &&
+                filtroArgumento is ResumenCobrosAgenteFiltroVm filtro)
+            {
+                AplicarRestriccionVendedorUsuario(filtro);
+            }
         }
 
         private sealed class CatalogosReporte
@@ -627,8 +696,24 @@ namespace SolicitudesDescuentos.Controllers
         [HttpGet]
         public async Task<IActionResult> BuscarVendedores(string? filtro, string? buNombre)
         {
-            var bu = string.IsNullOrWhiteSpace(buNombre) ? "LANCO_CR" : buNombre.Trim();
-            var q = Normalizar(filtro);
+            var assignId = ObtenerAssignIdUsuario();
+
+            if (string.IsNullOrWhiteSpace(assignId))
+                return Forbid();
+
+            var puedeVerTodos = AssignIdPermiteTodos(assignId);
+
+            var bu = string.IsNullOrWhiteSpace(buNombre)
+                ? "LANCO_CR"
+                : buNombre.Trim();
+
+            /*
+             * Un usuario con AssignId específico solamente puede encontrar
+             * su propio vendedor. El texto enviado por el navegador se ignora.
+             */
+            var q = puedeVerTodos
+                ? Normalizar(filtro)
+                : Normalizar(assignId);
 
             var vendedores = await _context.GEN_VENDEDORs
                 .AsNoTracking()
@@ -651,6 +736,9 @@ namespace SolicitudesDescuentos.Controllers
                     categoria = (x.CATEGORIA ?? "").Trim()
                 })
                 .Where(x => !string.IsNullOrWhiteSpace(x.codigo))
+                .Where(x =>
+                    puedeVerTodos ||
+                    Normalizar(x.codigo) == Normalizar(assignId))
                 .GroupBy(x => x.codigo)
                 .Select(g => g.First())
                 .ToList();
@@ -663,6 +751,9 @@ namespace SolicitudesDescuentos.Controllers
     string? filtro,
     string? buNombre)
         {
+            if (string.IsNullOrWhiteSpace(ObtenerAssignIdUsuario()))
+                return Forbid();
+
             var bu = string.IsNullOrWhiteSpace(buNombre)
                 ? "LANCO_CR"
                 : buNombre.Trim().ToUpperInvariant();
