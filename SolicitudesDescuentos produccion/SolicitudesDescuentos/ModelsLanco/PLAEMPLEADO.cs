@@ -66,5 +66,6 @@ namespace SolicitudesDescuentos.Modelslanco
         public string? CENTRO_COSTO { get; set; }
         public string? AREA_DE_TRABAJO { get; set; }
         public string? CENTRO_DE_TRABAJO { get; set; }
+        public string? NOMBRE_CLIENTE { get; set; }
     }
 }
