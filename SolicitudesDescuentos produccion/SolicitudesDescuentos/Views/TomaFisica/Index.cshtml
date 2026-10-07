@@ -4,124 +4,245 @@
 
 <style>
     .toma-page {
-        max-width: 980px;
-        margin: 0 auto 32px auto;
-        padding: 0 8px;
+        width: 100%;
+        max-width: 1100px;
+        margin: 0 auto 24px auto;
+        padding: 0 4px;
     }
 
     .toma-card {
         border: 1px solid #dee2e6;
-        border-radius: 14px;
-        box-shadow: 0 3px 12px rgba(0, 0, 0, .08);
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, .06);
         overflow: hidden;
     }
 
-    .toma-card .card-body {
-        padding: 18px;
-    }
+        .toma-card .card-body {
+            padding: 10px;
+        }
 
     .toma-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        gap: 12px;
-        margin-bottom: 16px;
+        gap: 8px;
+        margin-bottom: 10px;
     }
 
-    .toma-header h2 {
-        margin: 0;
-        font-size: 1.35rem;
+        .toma-header h2 {
+            margin: 0;
+            font-size: 1.15rem;
+        }
+
+    .instruccion {
+        font-size: .78rem;
+        line-height: 1.25;
     }
 
     .contador {
-        min-width: 110px;
+        min-width: 95px;
         text-align: center;
+        font-size: .75rem;
         font-weight: 700;
+        white-space: nowrap;
+    }
+
+    /*
+         * Primera línea de cada registro:
+         * Código artículo | Código de barras
+         */
+    .captura-encabezado,
+    .captura-grid-principal {
+        display: grid;
+        grid-template-columns: minmax(105px, 1fr) minmax(145px, 1.35fr);
+        gap: 2px;
+        width: 100%;
+        align-items: center;
+    }
+
+    .captura-encabezado {
+        padding: 0 2px 4px 2px;
+        color: #495057;
+        font-size: .69rem;
+        font-weight: 700;
+    }
+
+        .captura-encabezado > div {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+    #contenedorFilas {
+        width: 100%;
     }
 
     .captura-fila {
-        border: 1px solid #dee2e6;
-        border-radius: 12px;
-        padding: 12px;
-        margin-bottom: 12px;
+        padding: 4px 2px;
+        margin: 0;
+        border-top: 1px solid #e5e7eb;
         background: #fff;
-        transition: background-color .15s ease-in-out,
-                    border-color .15s ease-in-out;
+        transition: background-color .12s ease-in-out;
     }
 
-    .captura-fila.guardada {
-        border-color: #198754;
-        background: #f2fbf6;
+        .captura-fila:last-child {
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .captura-fila.guardada {
+            background: #f0faf4;
+        }
+
+    .captura-grid-principal > div {
+        min-width: 0;
     }
 
-    .captura-grid {
-        display: grid;
-        grid-template-columns: 1fr 1.8fr 1.2fr;
-        gap: 10px;
-        align-items: end;
-    }
-
-    .captura-fila .form-label {
-        margin-bottom: 5px;
-        font-size: .82rem;
-        font-weight: 700;
+    /*
+         * Segunda línea:
+         * descripción a todo lo ancho.
+         */
+    .captura-descripcion {
+        width: 100%;
+        margin-top: 2px;
     }
 
     .captura-fila .form-control {
-        min-height: 46px;
+        width: 100%;
+        min-width: 0;
+        height: 38px;
+        min-height: 38px;
+        padding: 4px 5px;
+        border-radius: 3px;
         font-size: 16px;
+        line-height: 1.1;
+    }
+
+    .codigo-articulo {
+        text-transform: uppercase;
     }
 
     .descripcion-articulo {
+        width: 100% !important;
         background-color: #f8f9fa !important;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .codigo-barras {
+        padding-left: 4px !important;
+        padding-right: 4px !important;
     }
 
     .mensaje-fila {
-        min-height: 21px;
-        margin-top: 7px;
-        font-size: .85rem;
+        min-height: 0;
+        margin-top: 2px;
+        padding-left: 2px;
+        font-size: .68rem;
+        line-height: 1.15;
     }
 
-    .mensaje-fila.error {
-        color: #dc3545;
-        font-weight: 600;
-    }
+        .mensaje-fila:empty {
+            display: none;
+        }
 
-    .mensaje-fila.ok {
-        color: #198754;
-        font-weight: 600;
-    }
+        .mensaje-fila.error {
+            display: block;
+            color: #dc3545;
+            font-weight: 600;
+        }
 
-    .instruccion {
-        font-size: .9rem;
-        line-height: 1.45;
-    }
+        .mensaje-fila.ok {
+            display: block;
+            color: #198754;
+            font-weight: 600;
+        }
 
+    /*
+         * En handheld las dos columnas superiores siguen siempre horizontales.
+         * Solo se compactan espacios.
+         */
     @@media (max-width: 767.98px) {
         .toma-page {
-            padding: 0 4px;
+            padding: 0 1px;
+            margin-bottom: 12px;
         }
 
-        .toma-card .card-body {
-            padding: 12px;
+        .toma-card {
+            border-radius: 4px;
         }
+
+            .toma-card .card-body {
+                padding: 5px 3px;
+            }
 
         .toma-header {
-            align-items: stretch;
-            flex-direction: column;
+            margin-bottom: 6px;
+        }
+
+            .toma-header h2 {
+                font-size: .95rem;
+            }
+
+        .instruccion {
+            font-size: .68rem;
         }
 
         .toma-header .btn {
-            width: 100%;
+            padding: 4px 7px;
+            font-size: .72rem;
+            white-space: nowrap;
         }
 
-        .captura-grid {
-            grid-template-columns: 1fr;
-            gap: 8px;
+        .captura-encabezado,
+        .captura-grid-principal {
+            grid-template-columns: minmax(100px, .95fr) minmax(140px, 1.30fr);
+            gap: 1px;
+        }
+
+        .captura-encabezado {
+            padding-left: 1px;
+            padding-right: 1px;
+            font-size: .62rem;
         }
 
         .captura-fila {
-            padding: 11px;
+            padding: 3px 1px;
+        }
+
+            .captura-fila .form-control {
+                height: 37px;
+                min-height: 37px;
+                padding: 3px 4px;
+                border-radius: 2px;
+                font-size: 16px;
+            }
+
+        .captura-descripcion {
+            margin-top: 1px;
+        }
+
+        .mensaje-fila {
+            font-size: .62rem;
+            margin-top: 1px;
+        }
+
+        .contador {
+            min-width: 82px;
+            font-size: .67rem;
+        }
+    }
+
+    @@media (max-width: 390px) {
+        .captura-encabezado,
+        .captura-grid-principal {
+            grid-template-columns: minmax(92px, .9fr) minmax(132px, 1.25fr);
+        }
+
+        .toma-card .card-body {
+            padding-left: 2px;
+            padding-right: 2px;
         }
     }
 </style>
@@ -131,23 +252,23 @@
         <div>
             <h2>Registro de códigos de barras</h2>
             <div class="text-muted instruccion">
-                Artículo → Enter → escanee código de barras → Enter.
+                Artículo → Enter → código de barras → Enter.
             </div>
         </div>
 
         <a asp-controller="ReportesCobros"
            asp-action="ResumenCobrosAgente"
-           class="btn btn-outline-secondary">
-            Volver a reportes
+           class="btn btn-outline-secondary btn-sm">
+            Volver
         </a>
     </div>
 
     <div class="card toma-card">
         <div class="card-body">
 
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <div class="small text-muted">
-                    El registro se guarda automáticamente al leer el código de barras.
+            <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                <div class="small text-muted instruccion">
+                    Se guarda automáticamente al escanear.
                 </div>
 
                 <div id="contadorGuardados"
@@ -159,6 +280,11 @@
             <form id="formAntiforgery" class="d-none">
                 @Html.AntiForgeryToken()
             </form>
+
+            <div class="captura-encabezado">
+                <div>Artículo</div>
+                <div>Código barras</div>
+            </div>
 
             <div id="contenedorFilas"></div>
 
@@ -260,7 +386,7 @@
                 fila.dataset.validando = '1';
                 mostrarMensaje(
                     fila,
-                    'Validando artículo...');
+                    'Validando...');
 
                 try {
                     const respuesta = await fetch(
@@ -285,6 +411,7 @@
                         fila.dataset.articuloValido = '0';
 
                         inputDescripcion.value = '';
+                        inputDescripcion.title = '';
                         inputBarras.value = '';
                         inputBarras.disabled = true;
 
@@ -307,11 +434,14 @@
                     inputDescripcion.value =
                         datos.descripcion ?? '';
 
+                    inputDescripcion.title =
+                        datos.descripcion ?? '';
+
                     inputBarras.disabled = false;
 
                     mostrarMensaje(
                         fila,
-                        'Artículo válido. Escanee el código de barras.',
+                        'Artículo válido.',
                         'ok');
 
                     inputBarras.focus();
@@ -324,7 +454,7 @@
 
                     mostrarMensaje(
                         fila,
-                        'Error de comunicación al validar el artículo.',
+                        'Error al validar.',
                         'error');
 
                     inputArticulo.focus();
@@ -367,7 +497,7 @@
                 if (!codigoBarras) {
                     mostrarMensaje(
                         fila,
-                        'Escanee o digite el código de barras.',
+                        'Escanee el código de barras.',
                         'error');
 
                     inputBarras.focus();
@@ -443,6 +573,9 @@
                         datos.descripcion ??
                         inputDescripcion.value;
 
+                    inputDescripcion.title =
+                        inputDescripcion.value;
+
                     inputBarras.value =
                         datos.codigoBarras ??
                         codigoBarras;
@@ -460,7 +593,7 @@
 
                     mostrarMensaje(
                         fila,
-                        'Error de comunicación al guardar.',
+                        'Error al guardar.',
                         'error');
 
                     inputBarras.focus();
@@ -483,21 +616,18 @@
                 fila.dataset.validando = '0';
                 fila.dataset.guardando = '0';
 
-                const grid =
+                /*
+                 * Primera línea:
+                 * Artículo | Código de barras
+                 */
+                const gridPrincipal =
                     document.createElement('div');
 
-                grid.className = 'captura-grid';
+                gridPrincipal.className =
+                    'captura-grid-principal';
 
-                // Campo 1: código artículo
                 const grupoArticulo =
                     document.createElement('div');
-
-                const labelArticulo =
-                    document.createElement('label');
-
-                labelArticulo.className = 'form-label';
-                labelArticulo.textContent =
-                    `Código artículo #${numeroFila}`;
 
                 const inputArticulo =
                     document.createElement('input');
@@ -511,6 +641,7 @@
                 inputArticulo.autocapitalize = 'characters';
                 inputArticulo.spellcheck = false;
                 inputArticulo.enterKeyHint = 'next';
+                inputArticulo.placeholder = `Art. ${numeroFila}`;
 
                 inputArticulo.addEventListener(
                     'input',
@@ -527,6 +658,7 @@
                             fila.querySelector('.codigo-barras');
 
                         descripcion.value = '';
+                        descripcion.title = '';
                         barras.value = '';
                         barras.disabled = true;
 
@@ -543,46 +675,11 @@
                         await validarArticulo(fila);
                     });
 
-                grupoArticulo.appendChild(labelArticulo);
-                grupoArticulo.appendChild(inputArticulo);
+                grupoArticulo.appendChild(
+                    inputArticulo);
 
-                // Campo 2: descripción
-                const grupoDescripcion =
-                    document.createElement('div');
-
-                const labelDescripcion =
-                    document.createElement('label');
-
-                labelDescripcion.className = 'form-label';
-                labelDescripcion.textContent =
-                    'Nombre del artículo';
-
-                const inputDescripcion =
-                    document.createElement('input');
-
-                inputDescripcion.type = 'text';
-                inputDescripcion.className =
-                    'form-control descripcion-articulo';
-
-                inputDescripcion.readOnly = true;
-                inputDescripcion.tabIndex = -1;
-
-                grupoDescripcion.appendChild(
-                    labelDescripcion);
-
-                grupoDescripcion.appendChild(
-                    inputDescripcion);
-
-                // Campo 3: código de barras
                 const grupoBarras =
                     document.createElement('div');
-
-                const labelBarras =
-                    document.createElement('label');
-
-                labelBarras.className = 'form-label';
-                labelBarras.textContent =
-                    'Código de barras';
 
                 const inputBarras =
                     document.createElement('input');
@@ -607,31 +704,62 @@
                         await guardarCodigoBarras(fila);
                     });
 
-                grupoBarras.appendChild(labelBarras);
-                grupoBarras.appendChild(inputBarras);
+                grupoBarras.appendChild(
+                    inputBarras);
 
-                grid.appendChild(grupoArticulo);
-                grid.appendChild(grupoDescripcion);
-                grid.appendChild(grupoBarras);
+                gridPrincipal.appendChild(
+                    grupoArticulo);
+
+                gridPrincipal.appendChild(
+                    grupoBarras);
+
+                /*
+                 * Segunda línea:
+                 * descripción usando todo el ancho disponible.
+                 */
+                const grupoDescripcion =
+                    document.createElement('div');
+
+                grupoDescripcion.className =
+                    'captura-descripcion';
+
+                const inputDescripcion =
+                    document.createElement('input');
+
+                inputDescripcion.type = 'text';
+                inputDescripcion.className =
+                    'form-control descripcion-articulo';
+
+                inputDescripcion.readOnly = true;
+                inputDescripcion.tabIndex = -1;
+                inputDescripcion.placeholder =
+                    'Nombre del artículo';
+
+                grupoDescripcion.appendChild(
+                    inputDescripcion);
 
                 const mensaje =
                     document.createElement('div');
 
-                mensaje.className = 'mensaje-fila';
+                mensaje.className =
+                    'mensaje-fila';
 
-                fila.appendChild(grid);
-                fila.appendChild(mensaje);
+                fila.appendChild(
+                    gridPrincipal);
 
-                contenedor.appendChild(fila);
+                fila.appendChild(
+                    grupoDescripcion);
 
-                /*
-                 * Después de guardar una fila, se crea inmediatamente
-                 * la siguiente y el cursor vuelve al código de artículo.
-                 */
+                fila.appendChild(
+                    mensaje);
+
+                contenedor.appendChild(
+                    fila);
+
                 requestAnimationFrame(() => {
                     fila.scrollIntoView({
                         behavior: 'smooth',
-                        block: 'center'
+                        block: 'nearest'
                     });
 
                     inputArticulo.focus();
