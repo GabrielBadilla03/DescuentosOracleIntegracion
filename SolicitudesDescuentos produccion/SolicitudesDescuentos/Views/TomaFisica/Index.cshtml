@@ -1,0 +1,644 @@
+﻿@{
+    ViewData["Title"] = "Registro de códigos de barras";
+}
+
+<style>
+    .toma-page {
+        max-width: 980px;
+        margin: 0 auto 32px auto;
+        padding: 0 8px;
+    }
+
+    .toma-card {
+        border: 1px solid #dee2e6;
+        border-radius: 14px;
+        box-shadow: 0 3px 12px rgba(0, 0, 0, .08);
+        overflow: hidden;
+    }
+
+    .toma-card .card-body {
+        padding: 18px;
+    }
+
+    .toma-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .toma-header h2 {
+        margin: 0;
+        font-size: 1.35rem;
+    }
+
+    .contador {
+        min-width: 110px;
+        text-align: center;
+        font-weight: 700;
+    }
+
+    .captura-fila {
+        border: 1px solid #dee2e6;
+        border-radius: 12px;
+        padding: 12px;
+        margin-bottom: 12px;
+        background: #fff;
+        transition: background-color .15s ease-in-out,
+                    border-color .15s ease-in-out;
+    }
+
+    .captura-fila.guardada {
+        border-color: #198754;
+        background: #f2fbf6;
+    }
+
+    .captura-grid {
+        display: grid;
+        grid-template-columns: 1fr 1.8fr 1.2fr;
+        gap: 10px;
+        align-items: end;
+    }
+
+    .captura-fila .form-label {
+        margin-bottom: 5px;
+        font-size: .82rem;
+        font-weight: 700;
+    }
+
+    .captura-fila .form-control {
+        min-height: 46px;
+        font-size: 16px;
+    }
+
+    .descripcion-articulo {
+        background-color: #f8f9fa !important;
+    }
+
+    .mensaje-fila {
+        min-height: 21px;
+        margin-top: 7px;
+        font-size: .85rem;
+    }
+
+    .mensaje-fila.error {
+        color: #dc3545;
+        font-weight: 600;
+    }
+
+    .mensaje-fila.ok {
+        color: #198754;
+        font-weight: 600;
+    }
+
+    .instruccion {
+        font-size: .9rem;
+        line-height: 1.45;
+    }
+
+    @@media (max-width: 767.98px) {
+        .toma-page {
+            padding: 0 4px;
+        }
+
+        .toma-card .card-body {
+            padding: 12px;
+        }
+
+        .toma-header {
+            align-items: stretch;
+            flex-direction: column;
+        }
+
+        .toma-header .btn {
+            width: 100%;
+        }
+
+        .captura-grid {
+            grid-template-columns: 1fr;
+            gap: 8px;
+        }
+
+        .captura-fila {
+            padding: 11px;
+        }
+    }
+</style>
+
+<div class="toma-page">
+    <div class="toma-header">
+        <div>
+            <h2>Registro de códigos de barras</h2>
+            <div class="text-muted instruccion">
+                Artículo → Enter → escanee código de barras → Enter.
+            </div>
+        </div>
+
+        <a asp-controller="ReportesCobros"
+           asp-action="ResumenCobrosAgente"
+           class="btn btn-outline-secondary">
+            Volver a reportes
+        </a>
+    </div>
+
+    <div class="card toma-card">
+        <div class="card-body">
+
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="small text-muted">
+                    El registro se guarda automáticamente al leer el código de barras.
+                </div>
+
+                <div id="contadorGuardados"
+                     class="badge bg-success contador">
+                    Guardados: 0
+                </div>
+            </div>
+
+            <form id="formAntiforgery" class="d-none">
+                @Html.AntiForgeryToken()
+            </form>
+
+            <div id="contenedorFilas"></div>
+
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (() => {
+            const urlValidar =
+                '@Url.Action("ValidarArticulo", "TomaFisica")';
+
+            const urlGuardar =
+                '@Url.Action("GuardarCodigoBarras", "TomaFisica")';
+
+            const token =
+                document.querySelector(
+                    '#formAntiforgery input[name="__RequestVerificationToken"]'
+                )?.value ?? '';
+
+            const contenedor =
+                document.getElementById('contenedorFilas');
+
+            const contador =
+                document.getElementById('contadorGuardados');
+
+            let numeroFila = 0;
+            let totalGuardados = 0;
+
+            function actualizarContador() {
+                contador.textContent =
+                    `Guardados: ${totalGuardados}`;
+            }
+
+            function mostrarMensaje(
+                fila,
+                mensaje,
+                tipo = '') {
+
+                const elemento =
+                    fila.querySelector('.mensaje-fila');
+
+                elemento.textContent = mensaje ?? '';
+                elemento.classList.remove('error', 'ok');
+
+                if (tipo)
+                    elemento.classList.add(tipo);
+            }
+
+            function bloquearFilaGuardada(fila) {
+                const articulo =
+                    fila.querySelector('.codigo-articulo');
+
+                const barras =
+                    fila.querySelector('.codigo-barras');
+
+                articulo.readOnly = true;
+                barras.readOnly = true;
+                barras.disabled = false;
+
+                fila.classList.add('guardada');
+                fila.dataset.guardada = '1';
+
+                mostrarMensaje(
+                    fila,
+                    'Guardado correctamente.',
+                    'ok');
+            }
+
+            async function validarArticulo(fila) {
+                if (fila.dataset.guardada === '1')
+                    return;
+
+                if (fila.dataset.validando === '1')
+                    return;
+
+                const inputArticulo =
+                    fila.querySelector('.codigo-articulo');
+
+                const inputDescripcion =
+                    fila.querySelector('.descripcion-articulo');
+
+                const inputBarras =
+                    fila.querySelector('.codigo-barras');
+
+                const codigo = inputArticulo.value.trim();
+
+                if (!codigo) {
+                    mostrarMensaje(
+                        fila,
+                        'Digite el código del artículo.',
+                        'error');
+
+                    inputArticulo.focus();
+                    return;
+                }
+
+                fila.dataset.validando = '1';
+                mostrarMensaje(
+                    fila,
+                    'Validando artículo...');
+
+                try {
+                    const respuesta = await fetch(
+                        `${urlValidar}?codigo=${encodeURIComponent(codigo)}`,
+                        {
+                            method: 'GET',
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest'
+                            }
+                        });
+
+                    let datos = null;
+
+                    try {
+                        datos = await respuesta.json();
+                    }
+                    catch {
+                        datos = null;
+                    }
+
+                    if (!respuesta.ok || !datos?.ok) {
+                        fila.dataset.articuloValido = '0';
+
+                        inputDescripcion.value = '';
+                        inputBarras.value = '';
+                        inputBarras.disabled = true;
+
+                        mostrarMensaje(
+                            fila,
+                            datos?.mensaje ??
+                                'No fue posible validar el artículo.',
+                            'error');
+
+                        inputArticulo.focus();
+                        inputArticulo.select();
+                        return;
+                    }
+
+                    fila.dataset.articuloValido = '1';
+
+                    inputArticulo.value =
+                        datos.codigo ?? codigo;
+
+                    inputDescripcion.value =
+                        datos.descripcion ?? '';
+
+                    inputBarras.disabled = false;
+
+                    mostrarMensaje(
+                        fila,
+                        'Artículo válido. Escanee el código de barras.',
+                        'ok');
+
+                    inputBarras.focus();
+                    inputBarras.select();
+                }
+                catch {
+                    fila.dataset.articuloValido = '0';
+
+                    inputBarras.disabled = true;
+
+                    mostrarMensaje(
+                        fila,
+                        'Error de comunicación al validar el artículo.',
+                        'error');
+
+                    inputArticulo.focus();
+                    inputArticulo.select();
+                }
+                finally {
+                    fila.dataset.validando = '0';
+                }
+            }
+
+            async function guardarCodigoBarras(fila) {
+                if (fila.dataset.guardada === '1')
+                    return;
+
+                if (fila.dataset.guardando === '1')
+                    return;
+
+                const inputArticulo =
+                    fila.querySelector('.codigo-articulo');
+
+                const inputDescripcion =
+                    fila.querySelector('.descripcion-articulo');
+
+                const inputBarras =
+                    fila.querySelector('.codigo-barras');
+
+                if (fila.dataset.articuloValido !== '1') {
+                    await validarArticulo(fila);
+
+                    if (fila.dataset.articuloValido !== '1')
+                        return;
+                }
+
+                const codigoArticulo =
+                    inputArticulo.value.trim();
+
+                const codigoBarras =
+                    inputBarras.value.trim();
+
+                if (!codigoBarras) {
+                    mostrarMensaje(
+                        fila,
+                        'Escanee o digite el código de barras.',
+                        'error');
+
+                    inputBarras.focus();
+                    return;
+                }
+
+                fila.dataset.guardando = '1';
+
+                inputArticulo.readOnly = true;
+                inputBarras.readOnly = true;
+
+                mostrarMensaje(
+                    fila,
+                    'Guardando...');
+
+                try {
+                    const cuerpo = new URLSearchParams();
+
+                    cuerpo.append(
+                        '__RequestVerificationToken',
+                        token);
+
+                    cuerpo.append(
+                        'codigoArticulo',
+                        codigoArticulo);
+
+                    cuerpo.append(
+                        'codigoBarras',
+                        codigoBarras);
+
+                    const respuesta = await fetch(
+                        urlGuardar,
+                        {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type':
+                                    'application/x-www-form-urlencoded; charset=UTF-8',
+                                'X-Requested-With':
+                                    'XMLHttpRequest'
+                            },
+                            body: cuerpo.toString()
+                        });
+
+                    let datos = null;
+
+                    try {
+                        datos = await respuesta.json();
+                    }
+                    catch {
+                        datos = null;
+                    }
+
+                    if (!respuesta.ok || !datos?.ok) {
+                        inputArticulo.readOnly = false;
+                        inputBarras.readOnly = false;
+
+                        mostrarMensaje(
+                            fila,
+                            datos?.mensaje ??
+                                'No fue posible guardar el código de barras.',
+                            'error');
+
+                        inputBarras.focus();
+                        inputBarras.select();
+                        return;
+                    }
+
+                    inputArticulo.value =
+                        datos.codigoArticulo ??
+                        codigoArticulo;
+
+                    inputDescripcion.value =
+                        datos.descripcion ??
+                        inputDescripcion.value;
+
+                    inputBarras.value =
+                        datos.codigoBarras ??
+                        codigoBarras;
+
+                    bloquearFilaGuardada(fila);
+
+                    totalGuardados++;
+                    actualizarContador();
+
+                    agregarFila();
+                }
+                catch {
+                    inputArticulo.readOnly = false;
+                    inputBarras.readOnly = false;
+
+                    mostrarMensaje(
+                        fila,
+                        'Error de comunicación al guardar.',
+                        'error');
+
+                    inputBarras.focus();
+                    inputBarras.select();
+                }
+                finally {
+                    fila.dataset.guardando = '0';
+                }
+            }
+
+            function agregarFila() {
+                numeroFila++;
+
+                const fila =
+                    document.createElement('div');
+
+                fila.className = 'captura-fila';
+                fila.dataset.articuloValido = '0';
+                fila.dataset.guardada = '0';
+                fila.dataset.validando = '0';
+                fila.dataset.guardando = '0';
+
+                const grid =
+                    document.createElement('div');
+
+                grid.className = 'captura-grid';
+
+                // Campo 1: código artículo
+                const grupoArticulo =
+                    document.createElement('div');
+
+                const labelArticulo =
+                    document.createElement('label');
+
+                labelArticulo.className = 'form-label';
+                labelArticulo.textContent =
+                    `Código artículo #${numeroFila}`;
+
+                const inputArticulo =
+                    document.createElement('input');
+
+                inputArticulo.type = 'text';
+                inputArticulo.className =
+                    'form-control codigo-articulo';
+
+                inputArticulo.maxLength = 20;
+                inputArticulo.autocomplete = 'off';
+                inputArticulo.autocapitalize = 'characters';
+                inputArticulo.spellcheck = false;
+                inputArticulo.enterKeyHint = 'next';
+
+                inputArticulo.addEventListener(
+                    'input',
+                    () => {
+                        if (fila.dataset.guardada === '1')
+                            return;
+
+                        fila.dataset.articuloValido = '0';
+
+                        const descripcion =
+                            fila.querySelector('.descripcion-articulo');
+
+                        const barras =
+                            fila.querySelector('.codigo-barras');
+
+                        descripcion.value = '';
+                        barras.value = '';
+                        barras.disabled = true;
+
+                        mostrarMensaje(fila, '');
+                    });
+
+                inputArticulo.addEventListener(
+                    'keydown',
+                    async event => {
+                        if (event.key !== 'Enter')
+                            return;
+
+                        event.preventDefault();
+                        await validarArticulo(fila);
+                    });
+
+                grupoArticulo.appendChild(labelArticulo);
+                grupoArticulo.appendChild(inputArticulo);
+
+                // Campo 2: descripción
+                const grupoDescripcion =
+                    document.createElement('div');
+
+                const labelDescripcion =
+                    document.createElement('label');
+
+                labelDescripcion.className = 'form-label';
+                labelDescripcion.textContent =
+                    'Nombre del artículo';
+
+                const inputDescripcion =
+                    document.createElement('input');
+
+                inputDescripcion.type = 'text';
+                inputDescripcion.className =
+                    'form-control descripcion-articulo';
+
+                inputDescripcion.readOnly = true;
+                inputDescripcion.tabIndex = -1;
+
+                grupoDescripcion.appendChild(
+                    labelDescripcion);
+
+                grupoDescripcion.appendChild(
+                    inputDescripcion);
+
+                // Campo 3: código de barras
+                const grupoBarras =
+                    document.createElement('div');
+
+                const labelBarras =
+                    document.createElement('label');
+
+                labelBarras.className = 'form-label';
+                labelBarras.textContent =
+                    'Código de barras';
+
+                const inputBarras =
+                    document.createElement('input');
+
+                inputBarras.type = 'text';
+                inputBarras.className =
+                    'form-control codigo-barras';
+
+                inputBarras.maxLength = 25;
+                inputBarras.autocomplete = 'off';
+                inputBarras.spellcheck = false;
+                inputBarras.enterKeyHint = 'done';
+                inputBarras.disabled = true;
+
+                inputBarras.addEventListener(
+                    'keydown',
+                    async event => {
+                        if (event.key !== 'Enter')
+                            return;
+
+                        event.preventDefault();
+                        await guardarCodigoBarras(fila);
+                    });
+
+                grupoBarras.appendChild(labelBarras);
+                grupoBarras.appendChild(inputBarras);
+
+                grid.appendChild(grupoArticulo);
+                grid.appendChild(grupoDescripcion);
+                grid.appendChild(grupoBarras);
+
+                const mensaje =
+                    document.createElement('div');
+
+                mensaje.className = 'mensaje-fila';
+
+                fila.appendChild(grid);
+                fila.appendChild(mensaje);
+
+                contenedor.appendChild(fila);
+
+                /*
+                 * Después de guardar una fila, se crea inmediatamente
+                 * la siguiente y el cursor vuelve al código de artículo.
+                 */
+                requestAnimationFrame(() => {
+                    fila.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'center'
+                    });
+
+                    inputArticulo.focus();
+                });
+            }
+
+            agregarFila();
+        })();
+    </script>
+}
