@@ -10,6 +10,9 @@ Wallet_Location=C:\Users\gabri\Downloads\ConsoleApp2\ConsoleApp2\WALLET_BGATP_TE
 traer las tablas de navius lanco
 Scaffold-DbContext "User Id=NUEVO;Password=LCR2001;Data Source=192.168.179.1:1522/LANCO;" Oracle.EntityFrameworkCore -Context LancoDbContext -OutputDir Modelslanco -Tables LOG_ENVIO_PDF_ORACLE,VENDOCENCFED,CXCENCFACREC,CXCDETFACREC,CXCDETFACRECBIT,PLAEMPLEADO,CXC_AGE_COBRO,CXC_DETAGE_COBRO,CXC_CLIENTE_COBRO,CXC_EMPLEADO_COBRO,PLAENCPAGO,PLAPAGOPANILLA,FE_TIPODOC,INV_ARTIC_CODBAR  -UseDatabaseNames -NoOnConfiguring -Force
 
+traer las tablas de toma fisica
+Scaffold-DbContext "User Id=TOMAFIS;Password=TOMAFIS;Data Source=192.168.179.11:1521/TOMAFIS;" Oracle.EntityFrameworkCore -Context TomaFisDbContext -OutputDir ModelsTomaFis -Tables INV_ARTICULO,INV_ARTIC_CODBAR  -UseDatabaseNames -NoOnConfiguring -Force
+
 traer tablas vieja daysi
 Scaffold-DbContext "User Id=NUEVO;Password=NUEVO;Data Source=192.168.179.143:1521/KAMARLOCAL;" Oracle.EntityFrameworkCore -Context ViejadaysiDbContext -OutputDir ModelsViejadaysi -Tables XXORA_VENDOCENCFED,XXORA_VENDOCDETFED,XXORA_VENDOCDETIMPFED,VENDOCENCFED,VENDOCDETFED,VENDOCDETIMPFED  -UseDatabaseNames -NoOnConfiguring -Force
 
