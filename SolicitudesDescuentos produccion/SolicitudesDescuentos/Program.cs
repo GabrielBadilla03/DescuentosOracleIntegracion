@@ -68,8 +68,14 @@ builder.Services.AddDbContext<LancoTiendasContext>(options =>
  * La cadena ConnectionStrings:TOMAFIS ya existe en appsettings.json.
  */
 builder.Services.AddDbContext<TomaFisDbContext>(options =>
+{
     options.UseOracle(
-        builder.Configuration.GetConnectionString("TOMAFIS")));
+        builder.Configuration.GetConnectionString("TOMAFIS"),
+        oracleOptions =>
+        {
+            oracleOptions.UseOracleSQLCompatibility("11");
+        });
+});
 
 builder.Services.Configure<TiendasDescuentosWorkerOptions>(
     builder.Configuration.GetSection("TiendasDescuentosWorker"));
