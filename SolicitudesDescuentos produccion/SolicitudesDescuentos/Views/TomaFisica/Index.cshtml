@@ -22,11 +22,7 @@
         }
 
     .toma-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 8px;
-        margin-bottom: 10px;
+        margin-bottom: 8px;
     }
 
         .toma-header h2 {
@@ -47,10 +43,47 @@
         white-space: nowrap;
     }
 
+    .toma-ventanas {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 3px;
+        margin-bottom: 8px;
+    }
+
+    .toma-ventana-btn {
+        width: 100%;
+        min-width: 0;
+        padding: 7px 4px;
+        border: 1px solid #dc3545;
+        border-radius: 4px;
+        background: #fff;
+        color: #dc3545;
+        font-size: .82rem;
+        font-weight: 700;
+        text-align: center;
+        text-decoration: none;
+        white-space: nowrap;
+    }
+
+        .toma-ventana-btn:hover,
+        .toma-ventana-btn:focus {
+            color: #fff;
+            background: #bb2d3b;
+            border-color: #b02a37;
+        }
+
+        .toma-ventana-btn.activo {
+            color: #fff;
+            background: #dc3545;
+            border-color: #dc3545;
+        }
+
     /*
-         * Primera línea de cada registro:
-         * Código artículo | Código de barras
-         */
+     * AGREGAR
+     * Se conserva el diseño actual:
+     * Artículo | Código barras
+     * Descripción a todo el ancho.
+     */
     .captura-encabezado,
     .captura-grid-principal {
         display: grid;
@@ -98,10 +131,6 @@
         min-width: 0;
     }
 
-    /*
-         * Segunda línea:
-         * descripción a todo lo ancho.
-         */
     .captura-descripcion {
         width: 100%;
         margin-top: 2px;
@@ -160,9 +189,144 @@
         }
 
     /*
-         * En handheld las dos columnas superiores siguen siempre horizontales.
-         * Solo se compactan espacios.
-         */
+     * CONSULTAR
+     */
+    .consulta-busqueda {
+        display: grid;
+        grid-template-columns: minmax(105px, 1fr) minmax(145px, 1.35fr);
+        gap: 2px;
+        width: 100%;
+        align-items: end;
+    }
+
+    .consulta-campo {
+        min-width: 0;
+    }
+
+        .consulta-campo label {
+            display: block;
+            margin: 0 0 3px 2px;
+            color: #495057;
+            font-size: .69rem;
+            font-weight: 700;
+        }
+
+        .consulta-campo .form-control {
+            width: 100%;
+            min-width: 0;
+            height: 38px;
+            min-height: 38px;
+            padding: 4px 5px;
+            border-radius: 3px;
+            font-size: 16px;
+        }
+
+    .consulta-ayuda {
+        margin-top: 4px;
+        color: #6c757d;
+        font-size: .68rem;
+        line-height: 1.2;
+    }
+
+    .consulta-resultado {
+        margin-top: 10px;
+        border-top: 1px solid #dee2e6;
+        padding-top: 8px;
+    }
+
+    .consulta-articulo {
+        margin-bottom: 7px;
+    }
+
+    .consulta-articulo-codigo {
+        font-size: .8rem;
+        font-weight: 700;
+    }
+
+    .consulta-articulo-descripcion {
+        margin-top: 2px;
+        padding: 5px 6px;
+        border: 1px solid #dee2e6;
+        border-radius: 3px;
+        background: #f8f9fa;
+        font-size: .78rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .consulta-titulo-lista {
+        margin-bottom: 3px;
+        color: #495057;
+        font-size: .69rem;
+        font-weight: 700;
+    }
+
+    .consulta-codigos {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .codigo-consulta-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 5px;
+        width: 100%;
+        padding: 7px 6px;
+        border: 1px solid #ced4da;
+        border-radius: 3px;
+        background: #fff;
+        color: #212529;
+        font-size: .85rem;
+        text-align: left;
+    }
+
+        .codigo-consulta-item:hover,
+        .codigo-consulta-item:focus {
+            border-color: #dc3545;
+            background: #fff5f5;
+        }
+
+        .codigo-consulta-item .codigo-texto {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-weight: 700;
+        }
+
+        .codigo-consulta-item .codigo-eliminar {
+            flex: 0 0 auto;
+            color: #dc3545;
+            font-size: .65rem;
+            font-weight: 700;
+        }
+
+    .consulta-mensaje {
+        margin-top: 7px;
+        font-size: .72rem;
+        font-weight: 600;
+    }
+
+        .consulta-mensaje.error {
+            color: #dc3545;
+        }
+
+        .consulta-mensaje.ok {
+            color: #198754;
+        }
+
+    .sin-codigos {
+        padding: 8px;
+        border: 1px dashed #ced4da;
+        border-radius: 3px;
+        color: #6c757d;
+        font-size: .75rem;
+        text-align: center;
+    }
+
     @@media (max-width: 767.98px) {
         .toma-page {
             padding: 0 1px;
@@ -178,7 +342,7 @@
             }
 
         .toma-header {
-            margin-bottom: 6px;
+            margin-bottom: 5px;
         }
 
             .toma-header h2 {
@@ -189,14 +353,20 @@
             font-size: .68rem;
         }
 
-        .toma-header .btn {
-            padding: 4px 7px;
+        .toma-ventanas {
+            gap: 2px;
+            margin-bottom: 5px;
+        }
+
+        .toma-ventana-btn {
+            padding: 6px 2px;
+            border-radius: 3px;
             font-size: .72rem;
-            white-space: nowrap;
         }
 
         .captura-encabezado,
-        .captura-grid-principal {
+        .captura-grid-principal,
+        .consulta-busqueda {
             grid-template-columns: minmax(100px, .95fr) minmax(140px, 1.30fr);
             gap: 1px;
         }
@@ -232,11 +402,33 @@
             min-width: 82px;
             font-size: .67rem;
         }
+
+        .consulta-campo label {
+            font-size: .62rem;
+        }
+
+        .consulta-campo .form-control {
+            height: 37px;
+            min-height: 37px;
+            padding: 3px 4px;
+            border-radius: 2px;
+            font-size: 16px;
+        }
+
+        .consulta-articulo-descripcion {
+            font-size: .72rem;
+        }
+
+        .codigo-consulta-item {
+            padding: 6px 5px;
+            font-size: .8rem;
+        }
     }
 
     @@media (max-width: 390px) {
         .captura-encabezado,
-        .captura-grid-principal {
+        .captura-grid-principal,
+        .consulta-busqueda {
             grid-template-columns: minmax(92px, .9fr) minmax(132px, 1.25fr);
         }
 
@@ -248,45 +440,182 @@
 </style>
 
 <div class="toma-page">
-    <div class="toma-header">
-        <div>
-            <h2>Registro de códigos de barras</h2>
-            <div class="text-muted instruccion">
-                Artículo → Enter → código de barras → Enter.
-            </div>
-        </div>
 
-        <a asp-controller="ReportesCobros"
-           asp-action="ResumenCobrosAgente"
-           class="btn btn-outline-secondary btn-sm">
+    <div class="toma-header">
+        <h2>Registro de códigos de barras</h2>
+    </div>
+
+    <div class="toma-ventanas">
+        <button type="button"
+                id="btnVentanaAgregar"
+                class="toma-ventana-btn activo">
+            Agregar
+        </button>
+
+        <button type="button"
+                id="btnVentanaConsultar"
+                class="toma-ventana-btn">
+            Consultar
+        </button>
+
+        <a asp-controller="Predescuentos"
+           asp-action="Index"
+           class="toma-ventana-btn">
             Volver
         </a>
     </div>
 
-    <div class="card toma-card">
-        <div class="card-body">
+    <form id="formAntiforgery" class="d-none">
+        @Html.AntiForgeryToken()
+    </form>
 
-            <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
-                <div class="small text-muted instruccion">
-                    Se guarda automáticamente al escanear.
+    <div id="panelAgregar">
+        <div class="card toma-card">
+            <div class="card-body">
+
+                <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                    <div class="small text-muted instruccion">
+                        Artículo → Enter → código de barras → Enter.
+                    </div>
+
+                    <div id="contadorGuardados"
+                         class="badge bg-success contador">
+                        Guardados: 0
+                    </div>
                 </div>
 
-                <div id="contadorGuardados"
-                     class="badge bg-success contador">
-                    Guardados: 0
+                <div class="captura-encabezado">
+                    <div>Artículo</div>
+                    <div>Código barras</div>
+                </div>
+
+                <div id="contenedorFilas"></div>
+
+            </div>
+        </div>
+    </div>
+
+    <div id="panelConsultar" class="d-none">
+        <div class="card toma-card">
+            <div class="card-body">
+
+                <div class="consulta-busqueda">
+
+                    <div class="consulta-campo">
+                        <label for="consultaArticulo">
+                            Artículo
+                        </label>
+
+                        <input type="text"
+                               id="consultaArticulo"
+                               class="form-control"
+                               maxlength="20"
+                               autocomplete="off"
+                               autocapitalize="characters"
+                               spellcheck="false"
+                               placeholder="Código artículo" />
+                    </div>
+
+                    <div class="consulta-campo">
+                        <label for="consultaCodigoBarras">
+                            Código barras
+                        </label>
+
+                        <input type="text"
+                               id="consultaCodigoBarras"
+                               class="form-control"
+                               maxlength="25"
+                               autocomplete="off"
+                               spellcheck="false"
+                               placeholder="Escanee o digite" />
+                    </div>
+
+                </div>
+
+                <div class="consulta-ayuda">
+                    Digite artículo o código de barras y presione Enter.
+                    Se mostrarán todos los códigos de barras del artículo.
+                </div>
+
+                <div id="mensajeConsulta"
+                     class="consulta-mensaje"></div>
+
+                <div id="resultadoConsulta"
+                     class="consulta-resultado d-none">
+
+                    <div class="consulta-articulo">
+                        <div id="resultadoArticuloCodigo"
+                             class="consulta-articulo-codigo"></div>
+
+                        <div id="resultadoArticuloDescripcion"
+                             class="consulta-articulo-descripcion"></div>
+                    </div>
+
+                    <div class="consulta-titulo-lista">
+                        Códigos de barras
+                    </div>
+
+                    <div id="listaCodigosBarras"
+                         class="consulta-codigos"></div>
+
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<div class="modal fade"
+     id="modalEliminarCodigoBarras"
+     tabindex="-1"
+     aria-labelledby="modalEliminarCodigoBarrasLabel"
+     aria-hidden="true">
+
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content">
+
+            <div class="modal-header py-2">
+                <h6 class="modal-title"
+                    id="modalEliminarCodigoBarrasLabel">
+                    Eliminar código
+                </h6>
+
+                <button type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Cerrar"></button>
+            </div>
+
+            <div class="modal-body py-2">
+                <div class="small mb-1">
+                    Artículo:
+                    <strong id="modalArticulo"></strong>
+                </div>
+
+                <div class="small">
+                    Código:
+                    <strong id="modalCodigoBarras"></strong>
+                </div>
+
+                <div class="small text-danger mt-2">
+                    ¿Desea eliminar este registro?
                 </div>
             </div>
 
-            <form id="formAntiforgery" class="d-none">
-                @Html.AntiForgeryToken()
-            </form>
+            <div class="modal-footer py-2">
+                <button type="button"
+                        class="btn btn-sm btn-secondary"
+                        data-bs-dismiss="modal">
+                    Cancelar
+                </button>
 
-            <div class="captura-encabezado">
-                <div>Artículo</div>
-                <div>Código barras</div>
+                <button type="button"
+                        id="btnConfirmarEliminar"
+                        class="btn btn-sm btn-danger">
+                    Eliminar
+                </button>
             </div>
-
-            <div id="contenedorFilas"></div>
 
         </div>
     </div>
@@ -301,10 +630,28 @@
             const urlGuardar =
                 '@Url.Action("GuardarCodigoBarras", "TomaFisica")';
 
+            const urlConsultar =
+                '@Url.Action("Consultar", "TomaFisica")';
+
+            const urlEliminar =
+                '@Url.Action("EliminarCodigoBarras", "TomaFisica")';
+
             const token =
                 document.querySelector(
                     '#formAntiforgery input[name="__RequestVerificationToken"]'
                 )?.value ?? '';
+
+            const btnVentanaAgregar =
+                document.getElementById('btnVentanaAgregar');
+
+            const btnVentanaConsultar =
+                document.getElementById('btnVentanaConsultar');
+
+            const panelAgregar =
+                document.getElementById('panelAgregar');
+
+            const panelConsultar =
+                document.getElementById('panelConsultar');
 
             const contenedor =
                 document.getElementById('contenedorFilas');
@@ -312,8 +659,62 @@
             const contador =
                 document.getElementById('contadorGuardados');
 
+            const consultaArticulo =
+                document.getElementById('consultaArticulo');
+
+            const consultaCodigoBarras =
+                document.getElementById('consultaCodigoBarras');
+
+            const mensajeConsulta =
+                document.getElementById('mensajeConsulta');
+
+            const resultadoConsulta =
+                document.getElementById('resultadoConsulta');
+
+            const resultadoArticuloCodigo =
+                document.getElementById('resultadoArticuloCodigo');
+
+            const resultadoArticuloDescripcion =
+                document.getElementById('resultadoArticuloDescripcion');
+
+            const listaCodigosBarras =
+                document.getElementById('listaCodigosBarras');
+
             let numeroFila = 0;
             let totalGuardados = 0;
+            let articuloConsultado = '';
+            let codigoSeleccionadoEliminar = '';
+
+            function mostrarVentana(nombre) {
+                const agregar = nombre === 'agregar';
+
+                panelAgregar.classList.toggle('d-none', !agregar);
+                panelConsultar.classList.toggle('d-none', agregar);
+
+                btnVentanaAgregar.classList.toggle('activo', agregar);
+                btnVentanaConsultar.classList.toggle('activo', !agregar);
+
+                requestAnimationFrame(() => {
+                    if (agregar) {
+                        const ultimoArticulo =
+                            contenedor.querySelector(
+                                '.captura-fila:last-child .codigo-articulo');
+
+                        ultimoArticulo?.focus();
+                    }
+                    else {
+                        consultaArticulo.focus();
+                    }
+                });
+            }
+
+            btnVentanaAgregar.addEventListener(
+                'click',
+                () => mostrarVentana('agregar'));
+
+            btnVentanaConsultar.addEventListener(
+                'click',
+                () => mostrarVentana('consultar'));
 
             function actualizarContador() {
                 contador.textContent =
@@ -384,9 +785,7 @@
                 }
 
                 fila.dataset.validando = '1';
-                mostrarMensaje(
-                    fila,
-                    'Validando...');
+                mostrarMensaje(fila, 'Validando...');
 
                 try {
                     const respuesta = await fetch(
@@ -449,7 +848,6 @@
                 }
                 catch {
                     fila.dataset.articuloValido = '0';
-
                     inputBarras.disabled = true;
 
                     mostrarMensaje(
@@ -509,9 +907,7 @@
                 inputArticulo.readOnly = true;
                 inputBarras.readOnly = true;
 
-                mostrarMensaje(
-                    fila,
-                    'Guardando...');
+                mostrarMensaje(fila, 'Guardando...');
 
                 try {
                     const cuerpo = new URLSearchParams();
@@ -616,10 +1012,6 @@
                 fila.dataset.validando = '0';
                 fila.dataset.guardando = '0';
 
-                /*
-                 * Primera línea:
-                 * Artículo | Código de barras
-                 */
                 const gridPrincipal =
                     document.createElement('div');
 
@@ -675,8 +1067,7 @@
                         await validarArticulo(fila);
                     });
 
-                grupoArticulo.appendChild(
-                    inputArticulo);
+                grupoArticulo.appendChild(inputArticulo);
 
                 const grupoBarras =
                     document.createElement('div');
@@ -704,19 +1095,11 @@
                         await guardarCodigoBarras(fila);
                     });
 
-                grupoBarras.appendChild(
-                    inputBarras);
+                grupoBarras.appendChild(inputBarras);
 
-                gridPrincipal.appendChild(
-                    grupoArticulo);
+                gridPrincipal.appendChild(grupoArticulo);
+                gridPrincipal.appendChild(grupoBarras);
 
-                gridPrincipal.appendChild(
-                    grupoBarras);
-
-                /*
-                 * Segunda línea:
-                 * descripción usando todo el ancho disponible.
-                 */
                 const grupoDescripcion =
                     document.createElement('div');
 
@@ -735,26 +1118,18 @@
                 inputDescripcion.placeholder =
                     'Nombre del artículo';
 
-                grupoDescripcion.appendChild(
-                    inputDescripcion);
+                grupoDescripcion.appendChild(inputDescripcion);
 
                 const mensaje =
                     document.createElement('div');
 
-                mensaje.className =
-                    'mensaje-fila';
+                mensaje.className = 'mensaje-fila';
 
-                fila.appendChild(
-                    gridPrincipal);
+                fila.appendChild(gridPrincipal);
+                fila.appendChild(grupoDescripcion);
+                fila.appendChild(mensaje);
 
-                fila.appendChild(
-                    grupoDescripcion);
-
-                fila.appendChild(
-                    mensaje);
-
-                contenedor.appendChild(
-                    fila);
+                contenedor.appendChild(fila);
 
                 requestAnimationFrame(() => {
                     fila.scrollIntoView({
@@ -766,7 +1141,366 @@
                 });
             }
 
+            function limpiarResultadoConsulta() {
+                resultadoConsulta.classList.add('d-none');
+
+                resultadoArticuloCodigo.textContent = '';
+                resultadoArticuloDescripcion.textContent = '';
+                resultadoArticuloDescripcion.title = '';
+                listaCodigosBarras.innerHTML = '';
+
+                articuloConsultado = '';
+            }
+
+            function mostrarMensajeConsulta(
+                mensaje,
+                tipo = '') {
+
+                mensajeConsulta.textContent =
+                    mensaje ?? '';
+
+                mensajeConsulta.classList.remove(
+                    'error',
+                    'ok');
+
+                if (tipo)
+                    mensajeConsulta.classList.add(tipo);
+            }
+
+            consultaArticulo.addEventListener(
+                'input',
+                () => {
+                    if (consultaArticulo.value.trim()) {
+                        consultaCodigoBarras.value = '';
+                    }
+
+                    limpiarResultadoConsulta();
+                    mostrarMensajeConsulta('');
+                });
+
+            consultaCodigoBarras.addEventListener(
+                'input',
+                () => {
+                    if (consultaCodigoBarras.value.trim()) {
+                        consultaArticulo.value = '';
+                    }
+
+                    limpiarResultadoConsulta();
+                    mostrarMensajeConsulta('');
+                });
+
+            async function consultarRegistros() {
+                const articulo =
+                    consultaArticulo.value.trim();
+
+                const barras =
+                    consultaCodigoBarras.value.trim();
+
+                if (!articulo && !barras) {
+                    mostrarMensajeConsulta(
+                        'Digite artículo o código de barras.',
+                        'error');
+
+                    consultaArticulo.focus();
+                    return;
+                }
+
+                mostrarMensajeConsulta('Consultando...');
+                limpiarResultadoConsulta();
+
+                const parametros = new URLSearchParams();
+
+                if (articulo) {
+                    parametros.append(
+                        'codigoArticulo',
+                        articulo);
+                }
+
+                if (barras) {
+                    parametros.append(
+                        'codigoBarras',
+                        barras);
+                }
+
+                try {
+                    const respuesta = await fetch(
+                        `${urlConsultar}?${parametros.toString()}`,
+                        {
+                            method: 'GET',
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest'
+                            }
+                        });
+
+                    let datos = null;
+
+                    try {
+                        datos = await respuesta.json();
+                    }
+                    catch {
+                        datos = null;
+                    }
+
+                    if (!respuesta.ok || !datos?.ok) {
+                        mostrarMensajeConsulta(
+                            datos?.mensaje ??
+                                'No se encontraron registros.',
+                            'error');
+
+                        return;
+                    }
+
+                    articuloConsultado =
+                        datos.codigoArticulo ?? '';
+
+                    /*
+                     * Si se buscó por barcode, dejamos el artículo como
+                     * búsqueda activa. Así, después de eliminar un barcode,
+                     * podemos refrescar todos los restantes de ese artículo.
+                     */
+                    consultaArticulo.value =
+                        articuloConsultado;
+
+                    consultaCodigoBarras.value = '';
+
+                    resultadoArticuloCodigo.textContent =
+                        articuloConsultado;
+
+                    resultadoArticuloDescripcion.textContent =
+                        datos.descripcion ?? '';
+
+                    resultadoArticuloDescripcion.title =
+                        datos.descripcion ?? '';
+
+                    listaCodigosBarras.innerHTML = '';
+
+                    const codigos =
+                        Array.isArray(datos.codigosBarras)
+                            ? datos.codigosBarras
+                            : [];
+
+                    if (codigos.length === 0) {
+                        const vacio =
+                            document.createElement('div');
+
+                        vacio.className =
+                            'sin-codigos';
+
+                        vacio.textContent =
+                            'Este artículo no tiene códigos de barras registrados.';
+
+                        listaCodigosBarras.appendChild(vacio);
+                    }
+                    else {
+                        codigos.forEach(registro => {
+                            const codigo =
+                                registro.codigoBarras ?? '';
+
+                            const boton =
+                                document.createElement('button');
+
+                            boton.type = 'button';
+                            boton.className =
+                                'codigo-consulta-item';
+
+                            const texto =
+                                document.createElement('span');
+
+                            texto.className =
+                                'codigo-texto';
+
+                            texto.textContent = codigo;
+
+                            const eliminar =
+                                document.createElement('span');
+
+                            eliminar.className =
+                                'codigo-eliminar';
+
+                            eliminar.textContent =
+                                'Eliminar';
+
+                            boton.appendChild(texto);
+                            boton.appendChild(eliminar);
+
+                            boton.addEventListener(
+                                'click',
+                                () => abrirPopupEliminar(
+                                    articuloConsultado,
+                                    codigo));
+
+                            listaCodigosBarras.appendChild(boton);
+                        });
+                    }
+
+                    resultadoConsulta.classList.remove('d-none');
+
+                    mostrarMensajeConsulta(
+                        'Consulta realizada.',
+                        'ok');
+                }
+                catch {
+                    mostrarMensajeConsulta(
+                        'Error de comunicación al consultar.',
+                        'error');
+                }
+            }
+
+            consultaArticulo.addEventListener(
+                'keydown',
+                async event => {
+                    if (event.key !== 'Enter')
+                        return;
+
+                    event.preventDefault();
+                    await consultarRegistros();
+                });
+
+            consultaCodigoBarras.addEventListener(
+                'keydown',
+                async event => {
+                    if (event.key !== 'Enter')
+                        return;
+
+                    event.preventDefault();
+                    await consultarRegistros();
+                });
+
+            const modalElemento =
+                document.getElementById(
+                    'modalEliminarCodigoBarras');
+
+            const modalArticulo =
+                document.getElementById('modalArticulo');
+
+            const modalCodigoBarras =
+                document.getElementById('modalCodigoBarras');
+
+            const btnConfirmarEliminar =
+                document.getElementById('btnConfirmarEliminar');
+
+            function obtenerModalEliminar() {
+                if (typeof bootstrap === 'undefined')
+                    return null;
+
+                return bootstrap.Modal.getOrCreateInstance(
+                    modalElemento);
+            }
+
+            function abrirPopupEliminar(
+                articulo,
+                codigoBarras) {
+
+                articuloConsultado = articulo ?? '';
+                codigoSeleccionadoEliminar =
+                    codigoBarras ?? '';
+
+                modalArticulo.textContent =
+                    articuloConsultado;
+
+                modalCodigoBarras.textContent =
+                    codigoSeleccionadoEliminar;
+
+                const modal =
+                    obtenerModalEliminar();
+
+                if (modal) {
+                    modal.show();
+                    return;
+                }
+
+                if (confirm(
+                    `¿Eliminar ${codigoSeleccionadoEliminar}?`)) {
+                    eliminarCodigoSeleccionado();
+                }
+            }
+
+            async function eliminarCodigoSeleccionado() {
+                if (!articuloConsultado ||
+                    !codigoSeleccionadoEliminar) {
+                    return;
+                }
+
+                btnConfirmarEliminar.disabled = true;
+                btnConfirmarEliminar.textContent =
+                    'Eliminando...';
+
+                const cuerpo =
+                    new URLSearchParams();
+
+                cuerpo.append(
+                    '__RequestVerificationToken',
+                    token);
+
+                cuerpo.append(
+                    'codigoArticulo',
+                    articuloConsultado);
+
+                cuerpo.append(
+                    'codigoBarras',
+                    codigoSeleccionadoEliminar);
+
+                try {
+                    const respuesta = await fetch(
+                        urlEliminar,
+                        {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type':
+                                    'application/x-www-form-urlencoded; charset=UTF-8',
+                                'X-Requested-With':
+                                    'XMLHttpRequest'
+                            },
+                            body: cuerpo.toString()
+                        });
+
+                    let datos = null;
+
+                    try {
+                        datos = await respuesta.json();
+                    }
+                    catch {
+                        datos = null;
+                    }
+
+                    if (!respuesta.ok || !datos?.ok) {
+                        mostrarMensajeConsulta(
+                            datos?.mensaje ??
+                                'No fue posible eliminar el código.',
+                            'error');
+
+                        return;
+                    }
+
+                    obtenerModalEliminar()?.hide();
+
+                    codigoSeleccionadoEliminar = '';
+
+                    consultaArticulo.value =
+                        articuloConsultado;
+
+                    consultaCodigoBarras.value = '';
+
+                    await consultarRegistros();
+                }
+                catch {
+                    mostrarMensajeConsulta(
+                        'Error de comunicación al eliminar.',
+                        'error');
+                }
+                finally {
+                    btnConfirmarEliminar.disabled = false;
+                    btnConfirmarEliminar.textContent =
+                        'Eliminar';
+                }
+            }
+
+            btnConfirmarEliminar.addEventListener(
+                'click',
+                eliminarCodigoSeleccionado);
+
             agregarFila();
+            mostrarVentana('agregar');
         })();
     </script>
 }

@@ -25,9 +25,12 @@ namespace SolicitudesDescuentos.Data
         public virtual DbSet<CXC_DETAGE_COBRO> CXC_DETAGE_COBROs { get; set; } = null!;
         public virtual DbSet<CXC_EMPLEADO_COBRO> CXC_EMPLEADO_COBROs { get; set; } = null!;
         public virtual DbSet<FE_TIPODOC> FE_TIPODOCs { get; set; } = null!;
+        public virtual DbSet<INV_ARTIC_CODBAR> INV_ARTIC_CODBARs { get; set; } = null!;
         public virtual DbSet<LOG_ENVIO_PDF_ORACLE> LOG_ENVIO_PDF_ORACLEs { get; set; } = null!;
         public virtual DbSet<PLAEMPLEADO> PLAEMPLEADOs { get; set; } = null!;
         public virtual DbSet<PLAENCPAGO> PLAENCPAGOs { get; set; } = null!;
+        public virtual DbSet<SEG_GRUPO> SEG_GRUPOs { get; set; } = null!;
+        public virtual DbSet<SEG_USUARIO> SEG_USUARIOs { get; set; } = null!;
         public virtual DbSet<VENDOCENCFED> VENDOCENCFEDs { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -437,6 +440,51 @@ namespace SolicitudesDescuentos.Data
                     .IsUnicode(false);
             });
 
+            modelBuilder.Entity<INV_ARTIC_CODBAR>(entity =>
+            {
+                entity.HasKey(e => new { e.COD_CIA, e.COD_ARTICULO, e.COD_BARRAS })
+                    .HasName("INV_ARTIC_CODBAR_PK");
+
+                entity.ToTable("INV_ARTIC_CODBAR");
+
+                entity.HasIndex(e => new { e.COD_CIA, e.COD_ARTICULO }, "INVARTICULO_ARTICCODBAR_FK1");
+
+                entity.HasIndex(e => new { e.COD_CIA, e.COD_BARRAS }, "INV_ARTIC_CODBAR_IDX1")
+                    .IsUnique();
+
+                entity.Property(e => e.COD_CIA)
+                    .HasMaxLength(3)
+                    .IsUnicode(false)
+                    .IsFixedLength();
+
+                entity.Property(e => e.COD_ARTICULO)
+                    .HasMaxLength(25)
+                    .IsUnicode(false);
+
+                entity.Property(e => e.COD_BARRAS)
+                    .HasMaxLength(25)
+                    .IsUnicode(false);
+
+                entity.Property(e => e.CLASE)
+                    .HasMaxLength(5)
+                    .IsUnicode(false);
+
+                entity.Property(e => e.LOCAL1)
+                    .HasMaxLength(1)
+                    .IsUnicode(false)
+                    .HasDefaultValueSql("'S' ");
+
+                entity.Property(e => e.REPLICA1)
+                    .HasMaxLength(1)
+                    .IsUnicode(false)
+                    .HasDefaultValueSql("'S' ");
+
+                entity.Property(e => e.TITULAR)
+                    .HasMaxLength(1)
+                    .IsUnicode(false)
+                    .IsFixedLength();
+            });
+
             modelBuilder.Entity<LOG_ENVIO_PDF_ORACLE>(entity =>
             {
                 entity.HasKey(e => e.ID_LOG);
@@ -558,7 +606,7 @@ namespace SolicitudesDescuentos.Data
                     .IsUnicode(false);
 
                 entity.Property(e => e.COD_CLIENTE)
-                    .HasMaxLength(25)
+                    .HasMaxLength(500)
                     .IsUnicode(false);
 
                 entity.Property(e => e.CONYUGUE)
@@ -668,6 +716,10 @@ namespace SolicitudesDescuentos.Data
 
                 entity.Property(e => e.NOMBRE)
                     .HasMaxLength(40)
+                    .IsUnicode(false);
+
+                entity.Property(e => e.NOMBRE_CLIENTE)
+                    .HasMaxLength(500)
                     .IsUnicode(false);
 
                 entity.Property(e => e.ORDEN).HasColumnType("NUMBER(38)");
@@ -791,6 +843,103 @@ namespace SolicitudesDescuentos.Data
                     .HasMaxLength(1)
                     .IsUnicode(false)
                     .HasDefaultValueSql("'N' ")
+                    .IsFixedLength();
+            });
+
+            modelBuilder.Entity<SEG_GRUPO>(entity =>
+            {
+                entity.HasKey(e => e.COD_GRUPO)
+                    .HasName("SEG_GRUPO_PK");
+
+                entity.ToTable("SEG_GRUPO");
+
+                entity.Property(e => e.COD_GRUPO)
+                    .HasMaxLength(30)
+                    .IsUnicode(false);
+
+                entity.Property(e => e.DES_GRUPO)
+                    .HasMaxLength(30)
+                    .IsUnicode(false);
+
+                entity.HasMany(d => d.COD_USUARIOs)
+                    .WithMany(p => p.COD_GRUPOs)
+                    .UsingEntity<Dictionary<string, object>>(
+                        "SEG_GRPUSUARIO",
+                        l => l.HasOne<SEG_USUARIO>().WithMany().HasForeignKey("COD_USUARIO").OnDelete(DeleteBehavior.ClientSetNull).HasConstraintName("SEGUSUARIO_GRPUSUARIO_FK"),
+                        r => r.HasOne<SEG_GRUPO>().WithMany().HasForeignKey("COD_GRUPO").OnDelete(DeleteBehavior.ClientSetNull).HasConstraintName("SEGGRUPO_GRPUSUARIO_FK"),
+                        j =>
+                        {
+                            j.HasKey("COD_GRUPO", "COD_USUARIO").HasName("SEG_GRPUSUARIO_PK");
+
+                            j.ToTable("SEG_GRPUSUARIO");
+
+                            j.HasIndex(new[] { "COD_USUARIO" }, "SEGUSUARIO_GRPUSUARIO_FK");
+
+                            j.IndexerProperty<string>("COD_GRUPO").HasMaxLength(30).IsUnicode(false);
+
+                            j.IndexerProperty<string>("COD_USUARIO").HasMaxLength(30).IsUnicode(false);
+                        });
+            });
+
+            modelBuilder.Entity<SEG_USUARIO>(entity =>
+            {
+                entity.HasKey(e => e.COD_USUARIO)
+                    .HasName("SEG_USUARIO_PK");
+
+                entity.ToTable("SEG_USUARIO");
+
+                entity.Property(e => e.COD_USUARIO)
+                    .HasMaxLength(30)
+                    .IsUnicode(false);
+
+                entity.Property(e => e.CAJA)
+                    .HasMaxLength(3)
+                    .IsUnicode(false)
+                    .IsFixedLength();
+
+                entity.Property(e => e.CAMBIOCLAVE).HasColumnType("DATE");
+
+                entity.Property(e => e.CIA)
+                    .HasMaxLength(3)
+                    .IsUnicode(false)
+                    .IsFixedLength();
+
+                entity.Property(e => e.CLAVE_USUARIO)
+                    .HasMaxLength(15)
+                    .IsUnicode(false);
+
+                entity.Property(e => e.COD_CIA)
+                    .HasMaxLength(3)
+                    .IsUnicode(false)
+                    .HasDefaultValueSql("'001' ")
+                    .IsFixedLength();
+
+                entity.Property(e => e.COD_CLIENTE)
+                    .HasMaxLength(25)
+                    .IsUnicode(false);
+
+                entity.Property(e => e.DES_USUARIO)
+                    .HasMaxLength(30)
+                    .IsUnicode(false);
+
+                entity.Property(e => e.IDIOMA)
+                    .HasMaxLength(10)
+                    .IsUnicode(false)
+                    .HasDefaultValueSql("'ESP'");
+
+                entity.Property(e => e.PASSWORD)
+                    .HasMaxLength(30)
+                    .IsUnicode(false);
+
+                entity.Property(e => e.SUCURSAL)
+                    .HasMaxLength(3)
+                    .IsUnicode(false)
+                    .IsFixedLength();
+
+                entity.Property(e => e.TIPO)
+                    .HasMaxLength(2)
+                    .IsUnicode(false)
+                    .HasDefaultValueSql("'OT'")
                     .IsFixedLength();
             });
 
