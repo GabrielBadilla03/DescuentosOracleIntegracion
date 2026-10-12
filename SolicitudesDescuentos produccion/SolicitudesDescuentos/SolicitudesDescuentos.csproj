@@ -43,8 +43,4 @@
 		<PackageReference Include="WinSCP" Version="6.5.6" />
 	</ItemGroup>
 
-	<ItemGroup>
-	  <Folder Include="ModelsTomaFis\" />
-	</ItemGroup>
-
 </Project>

@@ -13,6 +13,16 @@ var builder = WebApplication.CreateBuilder(args);
 
 var contentRoot = builder.Environment.ContentRootPath;
 
+var descuentosHabilitado =
+    builder.Configuration.GetValue(
+        "Aplicaciones:DescuentosHabilitado",
+        true);
+
+var tomaFisicaHabilitada =
+    builder.Configuration.GetValue(
+        "Aplicaciones:TomaFisicaHabilitada",
+        true);
+
 string ResolverRutaProyecto(string? ruta)
 {
     if (string.IsNullOrWhiteSpace(ruta))
@@ -40,12 +50,21 @@ var privateKeyPath = builder.Configuration["DescuentosSftp:PrivateKeyPath"];
 
 if (!string.IsNullOrWhiteSpace(privateKeyPath))
 {
-    builder.Configuration["DescuentosSftp:PrivateKeyPath"] = ResolverRutaProyecto(privateKeyPath);
+    builder.Configuration["DescuentosSftp:PrivateKeyPath"] =
+        ResolverRutaProyecto(privateKeyPath);
 }
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
 
+/*
+ * LANCO se registra siempre:
+ * - Descuentos usa sus tablas Navius.
+ * - Toma Física usa SEG_USUARIO / SEG_GRUPO / SEG_GRPUSUARIO.
+ *
+ * Que el contexto tenga otros modelos NO obliga a que todas esas
+ * tablas existan mientras no sean consultadas.
+ */
 builder.Services.AddDbContext<LancoDbContext>(options =>
 {
     options.UseOracle(
@@ -56,57 +75,77 @@ builder.Services.AddDbContext<LancoDbContext>(options =>
         });
 });
 
-builder.Services.AddDbContext<OracleContext>(options =>
-    options.UseOracle(builder.Configuration.GetConnectionString("Oracle")));
-
-builder.Services.AddDbContext<LancoTiendasContext>(options =>
-    options.UseOracle(
-        builder.Configuration.GetConnectionString("LANCOTIENDAS")));
-
 /*
- * Contexto independiente para la base TOMAFIS.
- * La cadena ConnectionStrings:TOMAFIS ya existe en appsettings.json.
+ * Todo lo que es exclusivo de Descuentos se registra solamente
+ * cuando la aplicación está habilitada.
+ *
+ * Esto evita que una instalación "solo Toma Física" arranque workers
+ * que intenten consultar PLAEMPLEADO, CXC_*, etc.
  */
-builder.Services.AddDbContext<TomaFisDbContext>(options =>
+if (descuentosHabilitado)
 {
-    options.UseOracle(
-        builder.Configuration.GetConnectionString("TOMAFIS"),
-        oracleOptions =>
-        {
-            oracleOptions.UseOracleSQLCompatibility("11");
-        });
-});
+    builder.Services.AddDbContext<OracleContext>(options =>
+        options.UseOracle(
+            builder.Configuration.GetConnectionString("Oracle")));
 
-builder.Services.Configure<TiendasDescuentosWorkerOptions>(
-    builder.Configuration.GetSection("TiendasDescuentosWorker"));
+    builder.Services.AddDbContext<LancoTiendasContext>(options =>
+        options.UseOracle(
+            builder.Configuration.GetConnectionString("LANCOTIENDAS")));
 
-builder.Services.AddScoped<
-    ITiendasDescuentosService,
-    TiendasDescuentosService>();
+    builder.Services.Configure<TiendasDescuentosWorkerOptions>(
+        builder.Configuration.GetSection("TiendasDescuentosWorker"));
 
-builder.Services.AddHostedService<
-    TiendasDescuentosHostedService>();
+    builder.Services.AddScoped<
+        ITiendasDescuentosService,
+        TiendasDescuentosService>();
 
-builder.Services.Configure<DescuentosWorkerOptions>(
-    builder.Configuration.GetSection("DescuentosWorker"));
+    builder.Services.AddHostedService<
+        TiendasDescuentosHostedService>();
 
-builder.Services.Configure<DescuentosSftpOptions>(
-    builder.Configuration.GetSection("DescuentosSftp"));
+    builder.Services.Configure<DescuentosWorkerOptions>(
+        builder.Configuration.GetSection("DescuentosWorker"));
 
-builder.Services.AddScoped<IArchivosDescuentosService, ArchivosDescuentosService>();
-builder.Services.AddScoped<IDescuentosBatchService, DescuentosBatchService>();
+    builder.Services.Configure<DescuentosSftpOptions>(
+        builder.Configuration.GetSection("DescuentosSftp"));
 
-builder.Services.AddHostedService<PredescuentosHostedService>();
+    builder.Services.AddScoped<
+        IArchivosDescuentosService,
+        ArchivosDescuentosService>();
 
-builder.Services.AddSingleton<ISftpFingerprintProvider, SftpFingerprintProvider>();
-builder.Services.AddHostedService<SftpFingerprintStartupService>();
+    builder.Services.AddScoped<
+        IDescuentosBatchService,
+        DescuentosBatchService>();
+
+    builder.Services.AddHostedService<
+        PredescuentosHostedService>();
+
+    builder.Services.AddSingleton<
+        ISftpFingerprintProvider,
+        SftpFingerprintProvider>();
+
+    builder.Services.AddHostedService<
+        SftpFingerprintStartupService>();
+}
 
 /*
-builder.Services.AddDbContext<DescuentosMasterContext>(options =>
-    options.UseOracle(builder.Configuration.GetConnectionString("OracleDb")));
-*/
+ * TOMAFIS se usa solamente para la funcionalidad de Toma Física.
+ * El login de Toma Física NO usa esta conexión: usa LANCO.
+ */
+if (tomaFisicaHabilitada)
+{
+    builder.Services.AddDbContext<TomaFisDbContext>(options =>
+    {
+        options.UseOracle(
+            builder.Configuration.GetConnectionString("TOMAFIS"),
+            oracleOptions =>
+            {
+                oracleOptions.UseOracleSQLCompatibility("11");
+            });
+    });
+}
 
-builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+builder.Services.AddAuthentication(
+        CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {
         options.LoginPath = "/Account/Login";
@@ -124,13 +163,35 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 
 builder.Services.AddAuthorization(options =>
 {
+    /*
+     * Toma Física tiene su propia política explícita.
+     */
+    options.AddPolicy("TomaFisicaApp", policy =>
+        policy.RequireAuthenticatedUser()
+              .RequireClaim("AppMode", "TOMAFISICA"));
+
+    /*
+     * Se conserva la política de edición de precios, pero solo para
+     * sesiones autenticadas en Descuentos.
+     */
     options.AddPolicy("CanEditPrice", policy =>
         policy.RequireAuthenticatedUser()
+              .RequireClaim("AppMode", "DESCUENTOS")
               .RequireRole("PRICE_EDITOR"));
 
-    options.FallbackPolicy = new AuthorizationPolicyBuilder()
+    /*
+     * Toda la aplicación existente queda, por defecto, reservada
+     * a una sesión de Descuentos.
+     *
+     * TomaFisicaController llevará una política explícita diferente.
+     */
+    var descuentosPolicy = new AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
+        .RequireClaim("AppMode", "DESCUENTOS")
         .Build();
+
+    options.DefaultPolicy = descuentosPolicy;
+    options.FallbackPolicy = descuentosPolicy;
 });
 
 builder.Services.AddHttpClient("BlancoAuth", client =>
@@ -165,8 +226,14 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
+/*
+ * El inicio pasa por Account/Login:
+ * - sin sesión: selector Descuentos / Toma Física
+ * - sesión Descuentos: redirige a Predescuentos
+ * - sesión Toma Física: redirige a TomaFisica/Menu
+ */
 app.MapControllerRoute(
     name: "default",
-    pattern: "{controller=Predescuentos}/{action=Index}/{id?}");
+    pattern: "{controller=Account}/{action=Login}/{id?}");
 
 app.Run();

@@ -1,0 +1,89 @@
+﻿@{
+    ViewData["Title"] = "Toma Física";
+
+    var displayName =
+        User.FindFirst("DisplayName")?.Value ??
+        User.Identity?.Name ??
+        "";
+
+    var codCia =
+        User.FindFirst("CodCia")?.Value ??
+        "";
+
+    var codSucursal =
+        User.FindFirst("CodSucursal")?.Value ??
+        "";
+}
+
+<style>
+    .toma-menu-page {
+        width: 100%;
+        max-width: 560px;
+        margin: 35px auto 0 auto;
+        padding: 0 6px;
+    }
+
+    .toma-menu-card {
+        border: 1px solid #dee2e6;
+        border-radius: 10px;
+        box-shadow: 0 3px 12px rgba(0, 0, 0, .08);
+    }
+
+    .toma-menu-opcion {
+        min-height: 58px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+        font-weight: 700;
+    }
+
+    @@media (max-width: 767.98px) {
+        .toma-menu-page {
+            margin-top: 12px;
+            padding: 0 2px;
+        }
+
+        .toma-menu-card .card-body {
+            padding: 12px;
+        }
+
+        .toma-menu-opcion {
+            min-height: 54px;
+        }
+    }
+</style>
+
+<div class="toma-menu-page">
+
+    <div class="card toma-menu-card">
+        <div class="card-body">
+
+            <h3 class="text-center mb-1">
+                Toma Física
+            </h3>
+
+            <div class="text-muted text-center small mb-4">
+                @displayName
+                @if (!string.IsNullOrWhiteSpace(codCia) ||
+                     !string.IsNullOrWhiteSpace(codSucursal))
+                {
+                    <span>
+                        · CIA @codCia
+                        · Sucursal @codSucursal
+                    </span>
+                }
+            </div>
+
+            <div class="d-grid gap-2">
+                <a asp-controller="TomaFisica"
+                   asp-action="Index"
+                   class="btn btn-danger toma-menu-opcion">
+                    Códigos de barras
+                </a>
+            </div>
+
+        </div>
+    </div>
+
+</div>

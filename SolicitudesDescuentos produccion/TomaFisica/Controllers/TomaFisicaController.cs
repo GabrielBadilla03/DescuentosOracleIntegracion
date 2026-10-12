@@ -2,9 +2,11 @@
 using Microsoft.EntityFrameworkCore;
 using SolicitudesDescuentos.Data;
 using SolicitudesDescuentos.ModelsTomaFis;
+using Microsoft.AspNetCore.Authorization;
 
 namespace SolicitudesDescuentos.Controllers
 {
+    [Authorize(Policy = "TomaFisicaApp")]
     public class TomaFisicaController : Controller
     {
         private const string CodCia = "001";
@@ -14,6 +16,12 @@ namespace SolicitudesDescuentos.Controllers
         public TomaFisicaController(TomaFisDbContext context)
         {
             _context = context;
+        }
+
+        [HttpGet]
+        public IActionResult Menu()
+        {
+            return View();
         }
 
         [HttpGet]
