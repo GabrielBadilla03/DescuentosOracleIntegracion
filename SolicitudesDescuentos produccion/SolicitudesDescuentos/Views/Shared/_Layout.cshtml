@@ -1,41 +1,14 @@
-﻿@{
-    var autenticado =
-        User.Identity?.IsAuthenticated == true;
-
-    var appMode =
-        User.FindFirst("AppMode")?.Value;
-
-    string inicioController;
-    string inicioAction;
-
-    if (!autenticado)
-    {
-        inicioController = "Account";
-        inicioAction = "Login";
-    }
-    else if (string.Equals(
-        appMode,
-        "TOMAFISICA",
-        StringComparison.OrdinalIgnoreCase))
-    {
-        inicioController = "TomaFisica";
-        inicioAction = "Menu";
-    }
-    else
-    {
-        inicioController = "Predescuentos";
-        inicioAction = "Index";
-    }
-}
-
-<!DOCTYPE html>
-<html lang="en">
+﻿<!DOCTYPE html>
+<html lang="es">
 <head>
     <meta charset="utf-8" />
+
     <meta name="viewport"
           content="width=device-width, initial-scale=1.0" />
 
-    <title>@ViewData["Title"] - SolicitudesDescuentos</title>
+    <title>
+        @ViewData["Title"] - SolicitudesDescuentos
+    </title>
 
     <link rel="stylesheet"
           href="~/css/site.css"
@@ -53,32 +26,37 @@
 
     <header>
         <nav class="navbar navbar-light bg-white border-bottom box-shadow mb-3">
+
             <div class="container-fluid">
 
                 <a class="navbar-brand"
-                   asp-controller="@inicioController"
-                   asp-action="@inicioAction">
+                   asp-controller="Predescuentos"
+                   asp-action="Index">
 
                     <img src="~/imagenes/lanco.png"
                          alt="Lanco"
                          style="height: 50px; width: auto;" />
                 </a>
 
-                @if (autenticado)
+                @if (User.Identity?.IsAuthenticated == true)
                 {
                     <form method="post"
                           asp-controller="Account"
                           asp-action="Logout"
                           class="d-inline">
 
+                        @Html.AntiForgeryToken()
+
                         <button type="submit"
                                 class="btn btn-sm btn-danger">
-                            Cerrar Sesion
+                            Cerrar Sesión
                         </button>
+
                     </form>
                 }
 
             </div>
+
         </nav>
     </header>
 

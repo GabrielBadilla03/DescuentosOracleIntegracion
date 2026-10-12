@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-
-namespace SolicitudesDescuentos.ModelsTomaFis
+﻿namespace TomaFisica.ModelsTomaFis
 {
     public partial class INV_ARTIC_CODBAR
     {
@@ -13,6 +10,7 @@ namespace SolicitudesDescuentos.ModelsTomaFis
         public string REPLICA1 { get; set; } = null!;
         public string? CLASE { get; set; }
 
-        public virtual INV_ARTICULO COD_ARTICULONavigation { get; set; } = null!;
+        public virtual INV_ARTICULO
+            COD_ARTICULONavigation { get; set; } = null!;
     }
 }

@@ -65,6 +65,7 @@
 
             <div class="text-muted text-center small mb-4">
                 @displayName
+
                 @if (!string.IsNullOrWhiteSpace(codCia) ||
                      !string.IsNullOrWhiteSpace(codSucursal))
                 {
@@ -76,11 +77,13 @@
             </div>
 
             <div class="d-grid gap-2">
+
                 <a asp-controller="TomaFisica"
                    asp-action="Index"
                    class="btn btn-danger toma-menu-opcion">
                     Códigos de barras
                 </a>
+
             </div>
 
         </div>

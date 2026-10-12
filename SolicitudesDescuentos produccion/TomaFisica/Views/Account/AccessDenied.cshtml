@@ -1,0 +1,26 @@
+﻿@{
+    ViewData["Title"] = "Acceso denegado";
+}
+
+<div class="container d-flex justify-content-center"
+     style="margin-top: 90px;">
+
+    <div class="card shadow-sm p-4 text-center"
+         style="max-width: 430px; width: 100%;">
+
+        <h3 class="text-danger mb-3">
+            Acceso denegado
+        </h3>
+
+        <p class="text-muted">
+            Su usuario no tiene permiso para acceder a esta opción.
+        </p>
+
+        <a asp-controller="TomaFisica"
+           asp-action="Menu"
+           class="btn btn-danger">
+            Volver
+        </a>
+
+    </div>
+</div>

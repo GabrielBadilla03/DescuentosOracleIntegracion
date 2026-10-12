@@ -1,7 +1,7 @@
-﻿@model LoginViewModel
+﻿@model TomaFisica.Models.LoginViewModel
 
 @{
-    ViewData["Title"] = "Iniciar sesión - Toma Física";
+    ViewData["Title"] = "Iniciar sesión";
 }
 
 <div class="container d-flex justify-content-center"
@@ -19,7 +19,7 @@
         </p>
 
         <form asp-controller="Account"
-              asp-action="TomaFisicaLogin"
+              asp-action="Login"
               method="post"
               novalidate>
 
@@ -39,7 +39,8 @@
 
                 <input asp-for="CodUsuario"
                        class="form-control"
-                       autocomplete="username" />
+                       autocomplete="username"
+                       autofocus />
 
                 <span asp-validation-for="CodUsuario"
                       class="text-danger small"></span>
@@ -60,23 +61,17 @@
                       class="text-danger small"></span>
             </div>
 
-            <div class="d-grid gap-2">
-                <button type="submit"
-                        class="btn btn-danger">
-                    Ingresar
-                </button>
-
-                <a asp-controller="Account"
-                   asp-action="Login"
-                   class="btn btn-outline-secondary">
-                    Volver
-                </a>
-            </div>
+            <button type="submit"
+                    class="btn btn-danger w-100">
+                Ingresar
+            </button>
 
         </form>
+
     </div>
 </div>
 
 @section Scripts {
-    @await Html.PartialAsync("_ValidationScriptsPartial")
+    @await Html.PartialAsync(
+        "_ValidationScriptsPartial")
 }
