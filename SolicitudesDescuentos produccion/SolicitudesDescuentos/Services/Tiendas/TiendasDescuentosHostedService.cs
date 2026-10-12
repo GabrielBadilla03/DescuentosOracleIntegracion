@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Options;
+﻿using System.Diagnostics;
+using Microsoft.Extensions.Options;
 
 namespace SolicitudesDescuentos.Services.Tiendas;
 
@@ -24,54 +25,67 @@ public sealed class TiendasDescuentosHostedService : BackgroundService
         if (!_options.Habilitado)
         {
             _logger.LogInformation(
-                "TiendasDescuentosHostedService está deshabilitado.");
+                "[JOB TIENDAS] Worker deshabilitado.");
 
             return;
         }
 
-        var intervalHours = _options.IntervalHours > 0
-            ? _options.IntervalHours
-            : 8;
+        var intervalHours =
+            _options.IntervalHours > 0
+                ? _options.IntervalHours
+                : 8;
 
-        var intervalo = TimeSpan.FromHours(intervalHours);
+        var intervalo =
+            TimeSpan.FromHours(intervalHours);
 
         _logger.LogInformation(
-            "TiendasDescuentosHostedService iniciado. Intervalo={Intervalo}.",
+            "[JOB TIENDAS] Worker iniciado. Intervalo={Intervalo}.",
             intervalo);
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            var reloj = Stopwatch.StartNew();
+
             try
             {
-                /*
-                 * Evita ejecuciones simultáneas durante recycle de IIS o
-                 * cuando el App Pool utiliza más de un proceso en el mismo
-                 * servidor. La lógica funcional del job no cambia.
-                 */
                 using var jobLock =
-                    CrossProcessJobLock.TryAcquire("TiendasDescuentosHostedService");
+                    CrossProcessJobLock.TryAcquire(
+                        "TiendasDescuentosHostedService");
 
                 if (!jobLock.Acquired)
                 {
                     _logger.LogInformation(
-                        "Se omitió este ciclo de TiendasDescuentosHostedService " +
-                        "porque otra instancia del job ya se encuentra ejecutándose.");
+                        "[JOB TIENDAS] Ciclo omitido: otra instancia ya está ejecutándose.");
                 }
                 else
                 {
-                    using var scope = _scopeFactory.CreateScope();
+                    _logger.LogInformation(
+                        "[JOB TIENDAS] ===== INICIO CICLO =====");
 
-                    var service = scope.ServiceProvider
-                        .GetRequiredService<ITiendasDescuentosService>();
+                    using var scope =
+                        _scopeFactory.CreateScope();
 
-                    var resultado = await service.SincronizarAsync(
-                        stoppingToken);
+                    var service =
+                        scope.ServiceProvider
+                            .GetRequiredService<ITiendasDescuentosService>();
+
+                    var resultado =
+                        await service.SincronizarAsync(
+                            stoppingToken);
+
+                    reloj.Stop();
 
                     if (!resultado.Ok)
                     {
                         _logger.LogWarning(
-                            "La sincronización de descuentos de tiendas no se completó: {Mensaje}",
+                            "[JOB TIENDAS] Finalizó con advertencia: {Mensaje}",
                             resultado.Mensaje);
+                    }
+                    else
+                    {
+                        _logger.LogInformation(
+                            "[JOB TIENDAS] ===== FIN CICLO ===== Duración={DuracionMs} ms.",
+                            reloj.ElapsedMilliseconds);
                     }
                 }
             }
@@ -82,14 +96,19 @@ public sealed class TiendasDescuentosHostedService : BackgroundService
             }
             catch (Exception ex)
             {
+                reloj.Stop();
+
                 _logger.LogError(
                     ex,
-                    "Error sincronizando descuentos con INV_ARTIC_PROV.");
+                    "[JOB TIENDAS] ERROR después de {DuracionMs} ms.",
+                    reloj.ElapsedMilliseconds);
             }
 
             try
             {
-                await Task.Delay(intervalo, stoppingToken);
+                await Task.Delay(
+                    intervalo,
+                    stoppingToken);
             }
             catch (OperationCanceledException)
                 when (stoppingToken.IsCancellationRequested)
@@ -99,6 +118,6 @@ public sealed class TiendasDescuentosHostedService : BackgroundService
         }
 
         _logger.LogInformation(
-            "TiendasDescuentosHostedService detenido.");
+            "[JOB TIENDAS] Worker detenido.");
     }
 }

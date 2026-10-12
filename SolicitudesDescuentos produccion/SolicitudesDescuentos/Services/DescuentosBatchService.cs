@@ -47,39 +47,81 @@ public class DescuentosBatchService : IDescuentosBatchService
          * lock entre procesos IIS; este gate evita además una segunda llamada
          * concurrente al servicio desde el mismo proceso.
          */
-        var acquired = await _executionGate.WaitAsync(0, cancellationToken);
+        var acquired =
+            await _executionGate.WaitAsync(
+                0,
+                cancellationToken);
 
         if (!acquired)
         {
             _logger.LogInformation(
-                "Se omitió la ejecución de ProcesarPendientesAsync porque " +
-                "ya existe otra ejecución activa dentro del proceso.");
+                "[JOB DESCUENTOS] Ciclo omitido: ya existe otra ejecución activa dentro del proceso.");
 
             return;
         }
 
         try
         {
-            await EjecutarLimpiezaImpulsadoresAsync(cancellationToken);
+            _logger.LogInformation(
+                "[JOB DESCUENTOS][1/4] Revisando impulsadores inactivos...");
+
+            await EjecutarLimpiezaImpulsadoresAsync(
+                cancellationToken);
+
+            _logger.LogInformation(
+                "[JOB DESCUENTOS][1/4] Revisión de impulsadores terminada.");
+
+            _logger.LogInformation(
+                "[JOB DESCUENTOS][2/4] Buscando solicitudes aprobadas/reversadas pendientes...");
 
             /*
              * Se normalizan GENERADO y ESTADO para evitar que espacios o
              * diferencias de mayúsculas/minúsculas dejen solicitudes sin
              * procesar. No se cambia ningún valor almacenado.
              */
-            var headers = await _db.PREDESCUENTOs
-                .AsNoTracking()
-                .Where(p =>
-                    p.GENERADO != null &&
-                    p.ESTADO != null &&
-                    p.GENERADO.Trim().ToUpper() == "N" &&
-                    (
-                        p.ESTADO.Trim().ToUpper() == "APROBADO" ||
-                        p.ESTADO.Trim().ToUpper() == "REVERSADO"
-                    ))
-                .ToListAsync(cancellationToken);
+            var headers =
+                await _db.PREDESCUENTOs
+                    .AsNoTracking()
+                    .Where(p =>
+                        p.GENERADO != null &&
+                        p.ESTADO != null &&
+                        p.GENERADO
+                            .Trim()
+                            .ToUpper() == "N" &&
+                        (
+                            p.ESTADO
+                                .Trim()
+                                .ToUpper() ==
+                            "APROBADO" ||
+                            p.ESTADO
+                                .Trim()
+                                .ToUpper() ==
+                            "REVERSADO"
+                        ))
+                    .ToListAsync(
+                        cancellationToken);
 
-            headers = OrdenarSolicitudesPorConsecutivo(headers).ToList();
+            headers =
+                OrdenarSolicitudesPorConsecutivo(
+                    headers)
+                .ToList();
+
+            var cantidadAprobadas =
+                headers.Count(x =>
+                    Eq(x.ESTADO, "Aprobado"));
+
+            var cantidadReversadas =
+                headers.Count(x =>
+                    Eq(x.ESTADO, "Reversado"));
+
+            _logger.LogInformation(
+                "[JOB DESCUENTOS][2/4] Pendientes encontradas: Total={Total}, Aprobadas={Aprobadas}, Reversadas={Reversadas}.",
+                headers.Count,
+                cantidadAprobadas,
+                cantidadReversadas);
+
+            _logger.LogInformation(
+                "[JOB DESCUENTOS][3/4] Procesando solicitudes pendientes...");
 
             if (headers.Count > 0)
             {
@@ -88,36 +130,50 @@ public class DescuentosBatchService : IDescuentosBatchService
                  * Permanecen pendientes, pero quedan registrados claramente
                  * en logs para poder corregir el dato sin alterar la lógica.
                  */
-                var tipoDesconocido = headers
-                    .Where(x => string.IsNullOrWhiteSpace(
-                        ArchivosDescuentosService.NormalizeTipo(x.TIPODESCUENTO)))
-                    .ToList();
+                var tipoDesconocido =
+                    headers
+                        .Where(x =>
+                            string.IsNullOrWhiteSpace(
+                                ArchivosDescuentosService
+                                    .NormalizeTipo(
+                                        x.TIPODESCUENTO)))
+                        .ToList();
 
-                foreach (var solicitud in tipoDesconocido)
+                foreach (var solicitud
+                         in tipoDesconocido)
                 {
                     _logger.LogWarning(
-                        "Solicitud pendiente con TIPODESCUENTO no reconocido. " +
-                        "BU={BU}, Consecutivo={Consecutivo}, Estado={Estado}, Tipo={Tipo}. " +
-                        "La solicitud no será procesada en este ciclo.",
-                        solicitud.BU_NOMBRE,
+                        "[JOB DESCUENTOS][SOLICITUD {Consecutivo}] TIPODESCUENTO no reconocido. Estado={Estado}, Tipo={Tipo}. No se procesará en este ciclo.",
                         solicitud.CONSECUTIVO,
                         solicitud.ESTADO,
                         solicitud.TIPODESCUENTO);
                 }
 
-                var aprobados = headers
-                    .Where(x => Eq(x.ESTADO, "Aprobado"))
-                    .ToList();
+                var aprobados =
+                    headers
+                        .Where(x =>
+                            Eq(
+                                x.ESTADO,
+                                "Aprobado"))
+                        .ToList();
 
-                var reversados = headers
-                    .Where(x => Eq(x.ESTADO, "Reversado"))
-                    .ToList();
+                var reversados =
+                    headers
+                        .Where(x =>
+                            Eq(
+                                x.ESTADO,
+                                "Reversado"))
+                        .ToList();
 
                 if (aprobados.Count > 0)
                 {
                     await ProcesarGrupoAsync(
                         aprobados
-                            .Where(x => ArchivosDescuentosService.NormalizeTipo(x.TIPODESCUENTO) == "promocional")
+                            .Where(x =>
+                                ArchivosDescuentosService
+                                    .NormalizeTipo(
+                                        x.TIPODESCUENTO) ==
+                                "promocional")
                             .ToList(),
                         "promocional",
                         forzarVencimientoDiaAnterior: false,
@@ -125,7 +181,11 @@ public class DescuentosBatchService : IDescuentosBatchService
 
                     await ProcesarGrupoAsync(
                         aprobados
-                            .Where(x => ArchivosDescuentosService.NormalizeTipo(x.TIPODESCUENTO) == "fijo")
+                            .Where(x =>
+                                ArchivosDescuentosService
+                                    .NormalizeTipo(
+                                        x.TIPODESCUENTO) ==
+                                "fijo")
                             .ToList(),
                         "fijo",
                         forzarVencimientoDiaAnterior: false,
@@ -136,7 +196,11 @@ public class DescuentosBatchService : IDescuentosBatchService
                 {
                     await ProcesarGrupoAsync(
                         reversados
-                            .Where(x => ArchivosDescuentosService.NormalizeTipo(x.TIPODESCUENTO) == "promocional")
+                            .Where(x =>
+                                ArchivosDescuentosService
+                                    .NormalizeTipo(
+                                        x.TIPODESCUENTO) ==
+                                "promocional")
                             .ToList(),
                         "promocional",
                         forzarVencimientoDiaAnterior: true,
@@ -144,7 +208,11 @@ public class DescuentosBatchService : IDescuentosBatchService
 
                     await ProcesarGrupoAsync(
                         reversados
-                            .Where(x => ArchivosDescuentosService.NormalizeTipo(x.TIPODESCUENTO) == "fijo")
+                            .Where(x =>
+                                ArchivosDescuentosService
+                                    .NormalizeTipo(
+                                        x.TIPODESCUENTO) ==
+                                "fijo")
                             .ToList(),
                         "fijo",
                         forzarVencimientoDiaAnterior: true,
@@ -152,7 +220,17 @@ public class DescuentosBatchService : IDescuentosBatchService
                 }
             }
 
-            await ProcesarArticulosNoPromoAsync(cancellationToken);
+            _logger.LogInformation(
+                "[JOB DESCUENTOS][3/4] Procesamiento de solicitudes terminado.");
+
+            _logger.LogInformation(
+                "[JOB DESCUENTOS][4/4] Revisando artículos NO PROMO pendientes...");
+
+            await ProcesarArticulosNoPromoAsync(
+                cancellationToken);
+
+            _logger.LogInformation(
+                "[JOB DESCUENTOS][4/4] Revisión NO PROMO terminada.");
         }
         finally
         {
@@ -165,7 +243,8 @@ public class DescuentosBatchService : IDescuentosBatchService
     {
         try
         {
-            await EliminarImpulsadoresInactivosAsync(cancellationToken);
+            await EliminarImpulsadoresInactivosAsync(
+                cancellationToken);
         }
         catch (OperationCanceledException)
             when (cancellationToken.IsCancellationRequested)
@@ -174,14 +253,15 @@ public class DescuentosBatchService : IDescuentosBatchService
         }
         catch (Exception ex)
         {
-            // Si el SaveChanges de la limpieza falló, no se deben arrastrar
-            // entidades Deleted al procesamiento posterior de descuentos.
+            /*
+             * Si el SaveChanges de la limpieza falló, no se deben arrastrar
+             * entidades Deleted al procesamiento posterior de descuentos.
+             */
             _db.ChangeTracker.Clear();
 
             _logger.LogError(
                 ex,
-                "Falló la limpieza de IMPULSADORESORACLE según el estado de PLAEMPLEADO. " +
-                "El procesamiento de descuentos continuará.");
+                "[JOB DESCUENTOS][1/4] Falló la limpieza de IMPULSADORESORACLE. El procesamiento de descuentos continuará.");
         }
     }
 
@@ -197,105 +277,130 @@ public class DescuentosBatchService : IDescuentosBatchService
          * por bloques de esos códigos, evitando cargar todas las asignaciones
          * de la BU en memoria cada dos minutos.
          */
-        var empleadosInactivosDb = await _lancoDb.PLAEMPLEADOs
-            .AsNoTracking()
-            .Where(x =>
-                x.CIA != null &&
-                x.EMPLEADO != null &&
-                x.ESTADO != null &&
-                x.CIA.Trim() == CiaLanco &&
-                x.ESTADO.Trim().ToUpper() == "I")
-            .Select(x => x.EMPLEADO)
-            .ToListAsync(cancellationToken);
+        var empleadosInactivosDb =
+            await _lancoDb.PLAEMPLEADOs
+                .AsNoTracking()
+                .Where(x =>
+                    x.CIA != null &&
+                    x.EMPLEADO != null &&
+                    x.ESTADO != null &&
+                    x.CIA.Trim() ==
+                    CiaLanco &&
+                    x.ESTADO
+                        .Trim()
+                        .ToUpper() ==
+                    "I")
+                .Select(x =>
+                    x.EMPLEADO)
+                .ToListAsync(
+                    cancellationToken);
 
-        var empleadosInactivos = empleadosInactivosDb
-            .Select(N)
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        var empleadosInactivos =
+            empleadosInactivosDb
+                .Select(N)
+                .Where(x =>
+                    !string.IsNullOrWhiteSpace(x))
+                .Distinct(
+                    StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
         if (empleadosInactivos.Count == 0)
         {
             _logger.LogInformation(
-                "Limpieza de impulsadores finalizada: no hay empleados inactivos " +
-                "en PLAEMPLEADO para CIA={Cia}.",
+                "[JOB DESCUENTOS][1/4] No hay empleados inactivos en PLAEMPLEADO para CIA={Cia}.",
                 CiaLanco);
 
             return;
         }
 
-        var empleadosEliminados = new HashSet<string>(
-            StringComparer.OrdinalIgnoreCase);
+        var empleadosEliminados =
+            new HashSet<string>(
+                StringComparer.OrdinalIgnoreCase);
 
         var cantidadAsignacionesEliminadas = 0;
 
-        foreach (var chunk in Chunk(empleadosInactivos, OracleInChunkSize))
+        foreach (var chunk
+                 in Chunk(
+                     empleadosInactivos,
+                     OracleInChunkSize))
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            cancellationToken
+                .ThrowIfCancellationRequested();
 
-            var empleadosChunk = chunk
-                .Select(N)
-                .Where(x => !string.IsNullOrWhiteSpace(x))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
+            var empleadosChunk =
+                chunk
+                    .Select(N)
+                    .Where(x =>
+                        !string.IsNullOrWhiteSpace(x))
+                    .Distinct(
+                        StringComparer.OrdinalIgnoreCase)
+                    .ToList();
 
             if (empleadosChunk.Count == 0)
                 continue;
 
-            var asignaciones = await _db.IMPULSADORESORACLEs
-                .Where(x =>
-                    x.BU_NOMBRE != null &&
-                    x.EMPLEADO != null &&
-                    x.BU_NOMBRE.Trim().ToUpper() == BuImpulsadores &&
-                    empleadosChunk.Contains(x.EMPLEADO.Trim().ToUpper()))
-                .ToListAsync(cancellationToken);
+            var asignaciones =
+                await _db.IMPULSADORESORACLEs
+                    .Where(x =>
+                        x.BU_NOMBRE != null &&
+                        x.EMPLEADO != null &&
+                        x.BU_NOMBRE
+                            .Trim()
+                            .ToUpper() ==
+                        BuImpulsadores &&
+                        empleadosChunk.Contains(
+                            x.EMPLEADO
+                                .Trim()
+                                .ToUpper()))
+                    .ToListAsync(
+                        cancellationToken);
 
             if (asignaciones.Count == 0)
                 continue;
 
-            foreach (var asignacion in asignaciones)
+            foreach (var asignacion
+                     in asignaciones)
             {
-                var empleado = T(asignacion.EMPLEADO);
+                var empleado =
+                    T(asignacion.EMPLEADO);
 
-                if (!string.IsNullOrWhiteSpace(empleado))
-                    empleadosEliminados.Add(empleado);
+                if (!string.IsNullOrWhiteSpace(
+                        empleado))
+                {
+                    empleadosEliminados.Add(
+                        empleado);
+                }
             }
 
-            cantidadAsignacionesEliminadas += asignaciones.Count;
-            _db.IMPULSADORESORACLEs.RemoveRange(asignaciones);
+            cantidadAsignacionesEliminadas +=
+                asignaciones.Count;
+
+            _db.IMPULSADORESORACLEs
+                .RemoveRange(asignaciones);
         }
 
         if (cantidadAsignacionesEliminadas == 0)
         {
             _logger.LogInformation(
-                "Limpieza de impulsadores finalizada: ningún empleado inactivo " +
-                "está asignado en IMPULSADORESORACLE para BU={Bu}.",
+                "[JOB DESCUENTOS][1/4] Ningún empleado inactivo está asignado en IMPULSADORESORACLE para BU={Bu}.",
                 BuImpulsadores);
 
             return;
         }
 
-        await _db.SaveChangesAsync(cancellationToken);
-
-        var empleadosOrdenados = empleadosEliminados
-            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        await _db.SaveChangesAsync(
+            cancellationToken);
 
         _logger.LogInformation(
-            "Limpieza de IMPULSADORESORACLE completada. " +
-            "Asignaciones eliminadas={CantidadAsignaciones}, " +
-            "empleados inactivos afectados={CantidadEmpleados}, " +
-            "BU={Bu}, CIA={Cia}. Empleados={Empleados}",
+            "[JOB DESCUENTOS][1/4] Limpieza completada. Asignaciones eliminadas={Asignaciones}, Empleados afectados={Empleados}.",
             cantidadAsignacionesEliminadas,
-            empleadosOrdenados.Count,
-            BuImpulsadores,
-            CiaLanco,
-            string.Join(", ", empleadosOrdenados));
+            empleadosEliminados.Count);
     }
 
-    private async Task<(bool Ok, string Mensaje, int Detalles)> PrepararRespaldoNoPromoActivoAsync(
-        ART_NO_PROMO art,
-        CancellationToken cancellationToken)
+    private async Task<(bool Ok, string Mensaje, int Detalles)>
+        PrepararRespaldoNoPromoActivoAsync(
+            ART_NO_PROMO art,
+            CancellationToken cancellationToken)
     {
         var buKey = N(art.BU_NAME);
         var orgKey = N(art.ORGANIZATION_CODE);
@@ -318,19 +423,28 @@ public class DescuentosBatchService : IDescuentosBatchService
          * 3) Después se genera y sube el ZIP.
          *
          * Si el ZIP/SFTP falló después de haber creado el respaldo, en el
-         * siguiente ciclo se conserva ese mismo snapshot. Así un reintento no
-         * sustituye el respaldo por datos que pudieron cambiar mientras tanto.
+         * siguiente ciclo se conserva ese mismo snapshot.
          */
-        var yaExisteRespaldo = await _db.ART_DET_NO_PROMOs
-            .AsNoTracking()
-            .AnyAsync(d =>
-                d.BU_NAME != null &&
-                d.ORGANIZATION_CODE != null &&
-                d.ITEM_NUMBER != null &&
-                d.BU_NAME.Trim().ToUpper() == buKey &&
-                d.ORGANIZATION_CODE.Trim().ToUpper() == orgKey &&
-                d.ITEM_NUMBER.Trim().ToUpper() == itemKey,
-                cancellationToken);
+        var yaExisteRespaldo =
+            await _db.ART_DET_NO_PROMOs
+                .AsNoTracking()
+                .AnyAsync(d =>
+                    d.BU_NAME != null &&
+                    d.ORGANIZATION_CODE != null &&
+                    d.ITEM_NUMBER != null &&
+                    d.BU_NAME
+                        .Trim()
+                        .ToUpper() ==
+                    buKey &&
+                    d.ORGANIZATION_CODE
+                        .Trim()
+                        .ToUpper() ==
+                    orgKey &&
+                    d.ITEM_NUMBER
+                        .Trim()
+                        .ToUpper() ==
+                    itemKey,
+                    cancellationToken);
 
         if (yaExisteRespaldo)
         {
@@ -340,23 +454,31 @@ public class DescuentosBatchService : IDescuentosBatchService
                 0);
         }
 
-        var xxoraRowsRaw = await _db.XXORA_DISCOUNT_LISTs
-            .AsNoTracking()
-            .Where(x =>
-                x.BU_NAME != null &&
-                x.ITEM_NUMBER != null &&
-                x.BU_NAME.Trim().ToUpper() == buKey &&
-                x.ITEM_NUMBER.Trim().ToUpper() == itemKey)
-            .Select(x => new
-            {
-                x.RULE_DISCOUNT_NAME,
-                x.PARTY_NUMBER,
-                x.PRICING_UOM_CODE,
-                x.DISCOUNT_PRICE,
-                x.START_DATE,
-                x.END_DATE
-            })
-            .ToListAsync(cancellationToken);
+        var xxoraRowsRaw =
+            await _db.XXORA_DISCOUNT_LISTs
+                .AsNoTracking()
+                .Where(x =>
+                    x.BU_NAME != null &&
+                    x.ITEM_NUMBER != null &&
+                    x.BU_NAME
+                        .Trim()
+                        .ToUpper() ==
+                    buKey &&
+                    x.ITEM_NUMBER
+                        .Trim()
+                        .ToUpper() ==
+                    itemKey)
+                .Select(x => new
+                {
+                    x.RULE_DISCOUNT_NAME,
+                    x.PARTY_NUMBER,
+                    x.PRICING_UOM_CODE,
+                    x.DISCOUNT_PRICE,
+                    x.START_DATE,
+                    x.END_DATE
+                })
+                .ToListAsync(
+                    cancellationToken);
 
         if (xxoraRowsRaw.Count == 0)
         {
@@ -370,31 +492,41 @@ public class DescuentosBatchService : IDescuentosBatchService
         /*
          * ART_DET_NO_PROMO tiene índice único por:
          * BU, ORG, ITEM, RULE, PARTY, START_DATE.
-         * Se conserva la misma deduplicación que existía en el flujo de la vista.
          *
-         * IMPORTANTE: END_DATE se copia EXACTAMENTE desde XXORA_DISCOUNT_LIST.
-         * Ya no existe tratamiento especial CLIENTE => NULL.
+         * END_DATE se copia exactamente desde XXORA_DISCOUNT_LIST.
          */
-        var filas = xxoraRowsRaw
-            .Select(r => new
-            {
-                Rule = T(r.RULE_DISCOUNT_NAME),
-                Party = T(r.PARTY_NUMBER),
-                Uom = string.IsNullOrWhiteSpace(r.PRICING_UOM_CODE)
-                    ? null
-                    : T(r.PRICING_UOM_CODE),
-                DiscountPrice = r.DISCOUNT_PRICE,
-                StartDate = r.START_DATE,
-                EndDate = r.END_DATE
-            })
-            .Where(r =>
-                !string.IsNullOrWhiteSpace(r.Rule) &&
-                !string.IsNullOrWhiteSpace(r.Party))
-            .GroupBy(r =>
-                $"{N(r.Rule)}|{N(r.Party)}|{r.StartDate:yyyyMMddHHmmss}",
-                StringComparer.OrdinalIgnoreCase)
-            .Select(g => g.First())
-            .ToList();
+        var filas =
+            xxoraRowsRaw
+                .Select(r => new
+                {
+                    Rule =
+                        T(r.RULE_DISCOUNT_NAME),
+                    Party =
+                        T(r.PARTY_NUMBER),
+                    Uom =
+                        string.IsNullOrWhiteSpace(
+                            r.PRICING_UOM_CODE)
+                            ? null
+                            : T(r.PRICING_UOM_CODE),
+                    DiscountPrice =
+                        r.DISCOUNT_PRICE,
+                    StartDate =
+                        r.START_DATE,
+                    EndDate =
+                        r.END_DATE
+                })
+                .Where(r =>
+                    !string.IsNullOrWhiteSpace(
+                        r.Rule) &&
+                    !string.IsNullOrWhiteSpace(
+                        r.Party))
+                .GroupBy(
+                    r =>
+                        $"{N(r.Rule)}|{N(r.Party)}|{r.StartDate:yyyyMMddHHmmss}",
+                    StringComparer.OrdinalIgnoreCase)
+                .Select(g =>
+                    g.First())
+                .ToList();
 
         if (filas.Count == 0)
         {
@@ -405,12 +537,16 @@ public class DescuentosBatchService : IDescuentosBatchService
                 0);
         }
 
-        await using var trx = await _db.Database.BeginTransactionAsync(cancellationToken);
+        await using var trx =
+            await _db.Database
+                .BeginTransactionAsync(
+                    cancellationToken);
 
         try
         {
             // Defensa adicional: el flujo de la vista ya lo deja vacío.
-            await _db.Database.ExecuteSqlInterpolatedAsync($@"
+            await _db.Database
+                .ExecuteSqlInterpolatedAsync($@"
                 DELETE FROM ART_DET_NO_PROMO
                  WHERE TRIM(UPPER(BU_NAME)) = {buKey}
                    AND TRIM(UPPER(ORGANIZATION_CODE)) = {orgKey}
@@ -419,16 +555,29 @@ public class DescuentosBatchService : IDescuentosBatchService
 
             foreach (var fila in filas)
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                cancellationToken
+                    .ThrowIfCancellationRequested();
 
-                var rule = fila.Rule;
-                var party = fila.Party;
-                var uom = fila.Uom;
-                var discountPrice = fila.DiscountPrice;
-                var startDate = fila.StartDate;
-                var endDate = fila.EndDate;
+                var rule =
+                    fila.Rule;
 
-                await _db.Database.ExecuteSqlInterpolatedAsync($@"
+                var party =
+                    fila.Party;
+
+                var uom =
+                    fila.Uom;
+
+                var discountPrice =
+                    fila.DiscountPrice;
+
+                var startDate =
+                    fila.StartDate;
+
+                var endDate =
+                    fila.EndDate;
+
+                await _db.Database
+                    .ExecuteSqlInterpolatedAsync($@"
                     INSERT INTO ART_DET_NO_PROMO
                     (
                         BU_NAME,
@@ -456,7 +605,8 @@ public class DescuentosBatchService : IDescuentosBatchService
                 ", cancellationToken);
             }
 
-            await trx.CommitAsync(cancellationToken);
+            await trx.CommitAsync(
+                cancellationToken);
 
             return (
                 true,
@@ -465,7 +615,9 @@ public class DescuentosBatchService : IDescuentosBatchService
         }
         catch
         {
-            await trx.RollbackAsync(cancellationToken);
+            await trx.RollbackAsync(
+                cancellationToken);
+
             throw;
         }
     }
@@ -473,41 +625,70 @@ public class DescuentosBatchService : IDescuentosBatchService
     private async Task ProcesarArticulosNoPromoAsync(
         CancellationToken cancellationToken)
     {
-        var articulos = await _db.ART_NO_PROMOs
-            .AsNoTracking()
-            .Where(a =>
-                a.ESTADO != null &&
-                a.GENERADO != null &&
-                a.GENERADO.Trim().ToUpper() == "N" &&
-                (
-                    a.ESTADO.Trim().ToUpper() == "ACTIVO" ||
-                    a.ESTADO.Trim().ToUpper() == "INACTIVO" ||
-                    a.ESTADO.Trim().ToUpper() == "NUEVO"
-                ))
-            .OrderBy(a => a.ITEM_NUMBER)
-            .ToListAsync(cancellationToken);
+        var articulos =
+            await _db.ART_NO_PROMOs
+                .AsNoTracking()
+                .Where(a =>
+                    a.ESTADO != null &&
+                    a.GENERADO != null &&
+                    a.GENERADO
+                        .Trim()
+                        .ToUpper() ==
+                    "N" &&
+                    (
+                        a.ESTADO
+                            .Trim()
+                            .ToUpper() ==
+                        "ACTIVO" ||
+                        a.ESTADO
+                            .Trim()
+                            .ToUpper() ==
+                        "INACTIVO" ||
+                        a.ESTADO
+                            .Trim()
+                            .ToUpper() ==
+                        "NUEVO"
+                    ))
+                .OrderBy(a =>
+                    a.ITEM_NUMBER)
+                .ToListAsync(
+                    cancellationToken);
+
+        _logger.LogInformation(
+            "[JOB DESCUENTOS][NO PROMO] Pendientes={Cantidad}.",
+            articulos.Count);
 
         if (articulos.Count == 0)
+        {
+            _logger.LogInformation(
+                "[JOB DESCUENTOS][NO PROMO] No hay artículos pendientes.");
+
             return;
+        }
 
         foreach (var art in articulos)
         {
             try
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                cancellationToken
+                    .ThrowIfCancellationRequested();
+
+                _logger.LogInformation(
+                    "[JOB DESCUENTOS][NO PROMO {Item}] Procesando. Estado={Estado}.",
+                    art.ITEM_NUMBER,
+                    art.ESTADO);
 
                 if (Eq(art.ESTADO, "Activo"))
                 {
-                    var respaldo = await PrepararRespaldoNoPromoActivoAsync(
-                        art,
-                        cancellationToken);
+                    var respaldo =
+                        await PrepararRespaldoNoPromoActivoAsync(
+                            art,
+                            cancellationToken);
 
                     if (!respaldo.Ok)
                     {
                         _logger.LogWarning(
-                            "No se preparó ART_DET_NO_PROMO para BU={BU}, ORG={Org}, ITEM={Item}. Motivo: {Motivo}",
-                            art.BU_NAME,
-                            art.ORGANIZATION_CODE,
+                            "[JOB DESCUENTOS][NO PROMO {Item}] No se preparó respaldo. Motivo={Motivo}",
                             art.ITEM_NUMBER,
                             respaldo.Mensaje);
 
@@ -515,172 +696,197 @@ public class DescuentosBatchService : IDescuentosBatchService
                     }
 
                     _logger.LogInformation(
-                        "ART_DET_NO_PROMO listo antes de generar. BU={BU}, ORG={Org}, ITEM={Item}, DetallesCopiados={Detalles}. {Mensaje}",
-                        art.BU_NAME,
-                        art.ORGANIZATION_CODE,
+                        "[JOB DESCUENTOS][NO PROMO {Item}] Respaldo listo. Detalles={Detalles}.",
                         art.ITEM_NUMBER,
-                        respaldo.Detalles,
-                        respaldo.Mensaje);
+                        respaldo.Detalles);
                 }
 
-                var result = await _archivosService.GenerarNoPromoPendienteAsync(
-                    bu: T(art.BU_NAME),
-                    org: T(art.ORGANIZATION_CODE),
-                    itemNumber: T(art.ITEM_NUMBER),
-                    marcarComoGenerado: false,
-                    ct: cancellationToken);
+                var result =
+                    await _archivosService
+                        .GenerarNoPromoPendienteAsync(
+                            bu:
+                                T(art.BU_NAME),
+                            org:
+                                T(art.ORGANIZATION_CODE),
+                            itemNumber:
+                                T(art.ITEM_NUMBER),
+                            marcarComoGenerado:
+                                false,
+                            ct:
+                                cancellationToken);
 
                 if (!result.Ok ||
                     result.ArchivoBytes == null ||
                     result.ArchivoBytes.Length == 0)
                 {
                     _logger.LogWarning(
-                        "No se generó ZIP ART_NO_PROMO para BU={BU}, ORG={Org}, ITEM={Item}. Motivo: {Motivo}",
-                        art.BU_NAME,
-                        art.ORGANIZATION_CODE,
+                        "[JOB DESCUENTOS][NO PROMO {Item}] NO GENERADO. Motivo={Motivo}",
                         art.ITEM_NUMBER,
                         result.Mensaje);
 
                     continue;
                 }
 
-                Directory.CreateDirectory(_options.OutputFolder);
+                Directory.CreateDirectory(
+                    _options.OutputFolder);
 
                 // Se conserva exactamente la nomenclatura vigente.
-                var accion = Eq(art.ESTADO, "NUEVO")
-                    ? "NUEVO"
-                    : Eq(art.ESTADO, "INACTIVO")
-                        ? "REACTIVAR"
-                        : "DESACTIVAR";
+                var accion =
+                    Eq(art.ESTADO, "NUEVO")
+                        ? "NUEVO"
+                        : Eq(
+                            art.ESTADO,
+                            "INACTIVO")
+                            ? "REACTIVAR"
+                            : "DESACTIVAR";
 
-                var fechaNombreArchivo = DateTime.Today.ToString("ddMMyy");
+                var fechaNombreArchivo =
+                    DateTime.Today
+                        .ToString("ddMMyy");
 
-                var fileName = string.IsNullOrWhiteSpace(result.NombreArchivo)
-                    ? $"Descuentos_COSTARICA_ALL_{accion}_{T(art.ITEM_NUMBER)}_{fechaNombreArchivo}.zip"
-                    : result.NombreArchivo.Trim();
+                var fileName =
+                    string.IsNullOrWhiteSpace(
+                        result.NombreArchivo)
+                        ? $"Descuentos_COSTARICA_ALL_{accion}_{T(art.ITEM_NUMBER)}_{fechaNombreArchivo}.zip"
+                        : result.NombreArchivo
+                            .Trim();
 
-                var fullPath = Path.Combine(_options.OutputFolder, fileName);
+                var fullPath =
+                    Path.Combine(
+                        _options.OutputFolder,
+                        fileName);
 
                 await File.WriteAllBytesAsync(
                     fullPath,
                     result.ArchivoBytes,
                     cancellationToken);
 
-                var huella = ObtenerHuellaSftp();
+                var huella =
+                    ObtenerHuellaSftp();
 
-                var sftp = new SftpService(
-                    host: _sftpOptions.Host,
-                    port: _sftpOptions.Port,
-                    user: _sftpOptions.User,
-                    privateKeyPath: _sftpOptions.PrivateKeyPath,
-                    sshHostKeyFingerprint: huella,
-                    privateKeyPassphrase: _sftpOptions.PrivateKeyPassphrase,
-                    ignorarSeguridad: _sftpOptions.IgnorarSeguridad,
-                    autoDiscoverFingerprintIfMissing: false
-                );
+                var sftp =
+                    new SftpService(
+                        host:
+                            _sftpOptions.Host,
+                        port:
+                            _sftpOptions.Port,
+                        user:
+                            _sftpOptions.User,
+                        privateKeyPath:
+                            _sftpOptions.PrivateKeyPath,
+                        sshHostKeyFingerprint:
+                            huella,
+                        privateKeyPassphrase:
+                            _sftpOptions.PrivateKeyPassphrase,
+                        ignorarSeguridad:
+                            _sftpOptions.IgnorarSeguridad,
+                        autoDiscoverFingerprintIfMissing:
+                            false
+                    );
 
                 SftpUploadResult uploadResult;
 
-                if (!string.IsNullOrWhiteSpace(result.NombreArchivo))
+                if (!string.IsNullOrWhiteSpace(
+                        result.NombreArchivo))
                 {
-                    uploadResult = sftp.UploadFileIdempotent(
-                        localFullPath: fullPath,
-                        remoteDir: _sftpOptions.RemoteDirPending,
-                        remoteFileName: fileName,
-                        overwrite: true
-                    );
+                    uploadResult =
+                        sftp.UploadFileIdempotent(
+                            localFullPath:
+                                fullPath,
+                            remoteDir:
+                                _sftpOptions.RemoteDirPending,
+                            remoteFileName:
+                                fileName,
+                            overwrite:
+                                true
+                        );
                 }
                 else
                 {
-                    // Fallback: conserva exactamente el comportamiento previo.
+                    /*
+                     * Fallback: conserva exactamente el comportamiento previo.
+                     */
                     sftp.UploadFile(
-                        localFullPath: fullPath,
-                        remoteDir: _sftpOptions.RemoteDirPending,
-                        remoteFileName: fileName,
-                        overwrite: true
+                        localFullPath:
+                            fullPath,
+                        remoteDir:
+                            _sftpOptions.RemoteDirPending,
+                        remoteFileName:
+                            fileName,
+                        overwrite:
+                            true
                     );
 
-                    uploadResult = SftpUploadResult.Subido;
+                    uploadResult =
+                        SftpUploadResult.Subido;
                 }
 
-                if (uploadResult == SftpUploadResult.YaExistiaMismoTamano)
+                if (uploadResult ==
+                    SftpUploadResult
+                        .YaExistiaMismoTamano)
                 {
                     _logger.LogWarning(
-                        "El ZIP ART_NO_PROMO ya existía en SFTP con el mismo tamaño. " +
-                        "No se retransmitió y se continuará confirmando GENERADO='S'. " +
-                        "BU={BU}, ORG={Org}, ITEM={Item}, Archivo={Archivo}.",
-                        art.BU_NAME,
-                        art.ORGANIZATION_CODE,
+                        "[JOB DESCUENTOS][NO PROMO {Item}] El ZIP ya existía en SFTP con el mismo tamaño. Se confirmará GENERADO='S'. Archivo={Archivo}.",
                         art.ITEM_NUMBER,
                         fileName);
                 }
 
-                var entity = await _db.ART_NO_PROMOs.FirstOrDefaultAsync(
-                    a => a.BU_NAME == art.BU_NAME &&
-                         a.ORGANIZATION_CODE == art.ORGANIZATION_CODE &&
-                         a.ITEM_NUMBER == art.ITEM_NUMBER,
-                    cancellationToken);
+                var entity =
+                    await _db.ART_NO_PROMOs
+                        .FirstOrDefaultAsync(
+                            a =>
+                                a.BU_NAME ==
+                                art.BU_NAME &&
+                                a.ORGANIZATION_CODE ==
+                                art.ORGANIZATION_CODE &&
+                                a.ITEM_NUMBER ==
+                                art.ITEM_NUMBER,
+                            cancellationToken);
 
                 if (entity != null &&
-                    Eq(entity.ESTADO, art.ESTADO) &&
-                    Eq(entity.GENERADO, "N"))
+                    Eq(
+                        entity.ESTADO,
+                        art.ESTADO) &&
+                    Eq(
+                        entity.GENERADO,
+                        "N"))
                 {
                     entity.GENERADO = "S";
-                    await _db.SaveChangesAsync(cancellationToken);
+
+                    await _db.SaveChangesAsync(
+                        cancellationToken);
                 }
                 else
                 {
                     /*
                      * Mientras se generaba/subía el ZIP el usuario pudo cambiar
-                     * el artículo de Activo a Inactivo (o viceversa). No se pisa
-                     * ese nuevo GENERADO='N'; el siguiente ciclo procesará la
-                     * nueva solicitud.
+                     * el artículo de Activo a Inactivo o viceversa.
                      */
                     _db.ChangeTracker.Clear();
 
                     _logger.LogWarning(
-                        "El ZIP se subió, pero ART_NO_PROMO cambió durante el proceso. " +
-                        "No se sobrescribió el estado actual con GENERADO='S'. " +
-                        "BU={BU}, ORG={Org}, ITEM={Item}, EstadoProcesado={EstadoProcesado}.",
-                        art.BU_NAME,
-                        art.ORGANIZATION_CODE,
-                        art.ITEM_NUMBER,
-                        art.ESTADO);
+                        "[JOB DESCUENTOS][NO PROMO {Item}] El ZIP se subió pero el registro cambió durante el proceso. No se sobrescribió GENERADO.",
+                        art.ITEM_NUMBER);
                 }
 
                 _logger.LogInformation(
-                    "ZIP ART_NO_PROMO generado y subido por SFTP: Local={Local}, Remoto={RemoteDir}/{FileName}, BU={BU}, ORG={Org}, ITEM={Item}.",
-                    fullPath,
-                    _sftpOptions.RemoteDirPending,
-                    fileName,
-                    art.BU_NAME,
-                    art.ORGANIZATION_CODE,
-                    art.ITEM_NUMBER);
+                    "[JOB DESCUENTOS][NO PROMO {Item}] OK. Archivo={Archivo} enviado por SFTP.",
+                    art.ITEM_NUMBER,
+                    fileName);
             }
             catch (OperationCanceledException)
-                when (cancellationToken.IsCancellationRequested)
+                when (cancellationToken
+                    .IsCancellationRequested)
             {
                 throw;
             }
             catch (Exception ex)
             {
-                /*
-                 * Limpia estados trackeados que hayan quedado pendientes por
-                 * una excepción de SaveChanges y evita que contaminen el
-                 * procesamiento del siguiente artículo.
-                 */
                 _db.ChangeTracker.Clear();
 
-                /*
-                 * Un artículo fallido no detiene el resto de ART_NO_PROMO.
-                 * GENERADO permanece N y podrá reintentarse en otro ciclo.
-                 */
                 _logger.LogError(
                     ex,
-                    "Error procesando ART_NO_PROMO. El job continuará con el siguiente artículo. " +
-                    "BU={BU}, ORG={Org}, ITEM={Item}, Estado={Estado}.",
-                    art.BU_NAME,
-                    art.ORGANIZATION_CODE,
+                    "[JOB DESCUENTOS][NO PROMO {Item}] ERROR. Estado={Estado}. El job continuará con el siguiente artículo.",
                     art.ITEM_NUMBER,
                     art.ESTADO);
             }
@@ -696,30 +902,56 @@ public class DescuentosBatchService : IDescuentosBatchService
         if (grupo.Count == 0)
             return;
 
-        foreach (var solicitud in OrdenarSolicitudesPorConsecutivo(grupo))
+        _logger.LogInformation(
+            "[JOB DESCUENTOS][SOLICITUDES] Grupo Tipo={Tipo}, Reversa={Reversa}, Cantidad={Cantidad}.",
+            tipoFiltro,
+            forzarVencimientoDiaAnterior,
+            grupo.Count);
+
+        foreach (var solicitud
+                 in OrdenarSolicitudesPorConsecutivo(
+                     grupo))
         {
             try
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                cancellationToken
+                    .ThrowIfCancellationRequested();
 
-                var pares = new List<(string CodCia, string Consecutivo)>
-                {
-                    (T(solicitud.BU_NOMBRE), T(solicitud.CONSECUTIVO))
-                };
-
-                var result = await _archivosService.DescargarExcelDesdeParesAsync(
-                    pares,
+                _logger.LogInformation(
+                    "[JOB DESCUENTOS][SOLICITUD {Consecutivo}] Generando ZIP. Tipo={Tipo}, Reversa={Reversa}.",
+                    solicitud.CONSECUTIVO,
                     tipoFiltro,
-                    marcarComoGenerado: false,
-                    forzarVencimientoDiaAnterior: forzarVencimientoDiaAnterior,
-                    ct: cancellationToken);
+                    forzarVencimientoDiaAnterior);
+
+                var pares =
+                    new List<
+                        (string CodCia,
+                         string Consecutivo)>
+                    {
+                        (
+                            T(solicitud.BU_NOMBRE),
+                            T(solicitud.CONSECUTIVO)
+                        )
+                    };
+
+                var result =
+                    await _archivosService
+                        .DescargarExcelDesdeParesAsync(
+                            pares,
+                            tipoFiltro,
+                            marcarComoGenerado:
+                                false,
+                            forzarVencimientoDiaAnterior:
+                                forzarVencimientoDiaAnterior,
+                            ct:
+                                cancellationToken);
 
                 if (!result.Ok ||
                     result.ArchivoBytes == null ||
                     result.ArchivoBytes.Length == 0)
                 {
                     _logger.LogWarning(
-                        "No se generó ZIP para consecutivo {Consecutivo}, tipo {Tipo}, reversa={Reversa}. Motivo: {Motivo}",
+                        "[JOB DESCUENTOS][SOLICITUD {Consecutivo}] NO GENERADA. Tipo={Tipo}, Reversa={Reversa}. Motivo={Motivo}",
                         solicitud.CONSECUTIVO,
                         tipoFiltro,
                         forzarVencimientoDiaAnterior,
@@ -728,97 +960,126 @@ public class DescuentosBatchService : IDescuentosBatchService
                     continue;
                 }
 
-                Directory.CreateDirectory(_options.OutputFolder);
+                Directory.CreateDirectory(
+                    _options.OutputFolder);
 
                 // Se conserva exactamente la nomenclatura vigente.
-                var fileName = string.IsNullOrWhiteSpace(result.NombreArchivo)
-                    ? "Descuentos_COSTARICA_ALL.zip"
-                    : result.NombreArchivo.Trim();
+                var fileName =
+                    string.IsNullOrWhiteSpace(
+                        result.NombreArchivo)
+                        ? "Descuentos_COSTARICA_ALL.zip"
+                        : result.NombreArchivo.Trim();
 
-                var fullPath = Path.Combine(_options.OutputFolder, fileName);
+                var fullPath =
+                    Path.Combine(
+                        _options.OutputFolder,
+                        fileName);
 
                 await File.WriteAllBytesAsync(
                     fullPath,
                     result.ArchivoBytes,
                     cancellationToken);
 
-                var huella = ObtenerHuellaSftp();
+                var huella =
+                    ObtenerHuellaSftp();
 
-                var sftp = new SftpService(
-                    host: _sftpOptions.Host,
-                    port: _sftpOptions.Port,
-                    user: _sftpOptions.User,
-                    privateKeyPath: _sftpOptions.PrivateKeyPath,
-                    sshHostKeyFingerprint: huella,
-                    privateKeyPassphrase: _sftpOptions.PrivateKeyPassphrase,
-                    ignorarSeguridad: _sftpOptions.IgnorarSeguridad,
-                    autoDiscoverFingerprintIfMissing: false
-                );
+                var sftp =
+                    new SftpService(
+                        host:
+                            _sftpOptions.Host,
+                        port:
+                            _sftpOptions.Port,
+                        user:
+                            _sftpOptions.User,
+                        privateKeyPath:
+                            _sftpOptions.PrivateKeyPath,
+                        sshHostKeyFingerprint:
+                            huella,
+                        privateKeyPassphrase:
+                            _sftpOptions.PrivateKeyPassphrase,
+                        ignorarSeguridad:
+                            _sftpOptions.IgnorarSeguridad,
+                        autoDiscoverFingerprintIfMissing:
+                            false
+                    );
 
                 SftpUploadResult uploadResult;
 
-                if (!string.IsNullOrWhiteSpace(result.NombreArchivo))
+                if (!string.IsNullOrWhiteSpace(
+                        result.NombreArchivo))
                 {
-                    // El nombre generado por el servicio identifica la solicitud
-                    // y permite un reintento idempotente seguro.
-                    uploadResult = sftp.UploadFileIdempotent(
-                        localFullPath: fullPath,
-                        remoteDir: _sftpOptions.RemoteDirPending,
-                        remoteFileName: fileName,
-                        overwrite: true
-                    );
+                    /*
+                     * El nombre generado por el servicio identifica la solicitud
+                     * y permite un reintento idempotente seguro.
+                     */
+                    uploadResult =
+                        sftp.UploadFileIdempotent(
+                            localFullPath:
+                                fullPath,
+                            remoteDir:
+                                _sftpOptions.RemoteDirPending,
+                            remoteFileName:
+                                fileName,
+                            overwrite:
+                                true
+                        );
                 }
                 else
                 {
                     /*
                      * Si por alguna razón se utilizó el fallback genérico
                      * Descuentos_COSTARICA_ALL.zip, se conserva el comportamiento
-                     * original de subirlo siempre para no confundir dos solicitudes
-                     * diferentes que compartan ese nombre de contingencia.
+                     * original de subirlo siempre.
                      */
                     sftp.UploadFile(
-                        localFullPath: fullPath,
-                        remoteDir: _sftpOptions.RemoteDirPending,
-                        remoteFileName: fileName,
-                        overwrite: true
+                        localFullPath:
+                            fullPath,
+                        remoteDir:
+                            _sftpOptions.RemoteDirPending,
+                        remoteFileName:
+                            fileName,
+                        overwrite:
+                            true
                     );
 
-                    uploadResult = SftpUploadResult.Subido;
+                    uploadResult =
+                        SftpUploadResult.Subido;
                 }
 
-                if (uploadResult == SftpUploadResult.YaExistiaMismoTamano)
+                if (uploadResult ==
+                    SftpUploadResult
+                        .YaExistiaMismoTamano)
                 {
                     _logger.LogWarning(
-                        "El ZIP ya existía en SFTP con el mismo tamaño. " +
-                        "No se retransmitió y se continuará confirmando GENERADO='S'. " +
-                        "Consecutivo={Consecutivo}, Tipo={Tipo}, Reversa={Reversa}, Archivo={Archivo}.",
+                        "[JOB DESCUENTOS][SOLICITUD {Consecutivo}] El ZIP ya existía en SFTP con el mismo tamaño. Se confirmará GENERADO='S'. Archivo={Archivo}.",
                         solicitud.CONSECUTIVO,
-                        tipoFiltro,
-                        forzarVencimientoDiaAnterior,
                         fileName);
                 }
 
-                var entity = await _db.PREDESCUENTOs.FirstOrDefaultAsync(
-                    p => p.BU_NOMBRE == solicitud.BU_NOMBRE &&
-                         p.CONSECUTIVO == solicitud.CONSECUTIVO,
-                    cancellationToken);
+                var entity =
+                    await _db.PREDESCUENTOs
+                        .FirstOrDefaultAsync(
+                            p =>
+                                p.BU_NOMBRE ==
+                                solicitud.BU_NOMBRE &&
+                                p.CONSECUTIVO ==
+                                solicitud.CONSECUTIVO,
+                            cancellationToken);
 
                 if (entity != null)
                     entity.GENERADO = "S";
 
-                await _db.SaveChangesAsync(cancellationToken);
+                await _db.SaveChangesAsync(
+                    cancellationToken);
 
                 _logger.LogInformation(
-                    "ZIP generado y subido por SFTP: Local={Local}, Remoto={RemoteDir}/{FileName}, Tipo={Tipo}, Reversa={Reversa}, Consecutivo={Consecutivo}.",
-                    fullPath,
-                    _sftpOptions.RemoteDirPending,
-                    fileName,
-                    tipoFiltro,
-                    forzarVencimientoDiaAnterior,
-                    solicitud.CONSECUTIVO);
+                    "[JOB DESCUENTOS][SOLICITUD {Consecutivo}] OK. Archivo={Archivo} enviado por SFTP y marcado GENERADO='S'.",
+                    solicitud.CONSECUTIVO,
+                    fileName);
             }
             catch (OperationCanceledException)
-                when (cancellationToken.IsCancellationRequested)
+                when (cancellationToken
+                    .IsCancellationRequested)
             {
                 throw;
             }
@@ -826,20 +1087,17 @@ public class DescuentosBatchService : IDescuentosBatchService
             {
                 /*
                  * Limpia cualquier entidad que haya quedado modificada después
-                 * de un SaveChanges fallido, de modo que el siguiente
-                 * consecutivo empiece con un ChangeTracker limpio.
+                 * de un SaveChanges fallido.
                  */
                 _db.ChangeTracker.Clear();
 
                 /*
                  * El error queda aislado al consecutivo actual. Los demás
-                 * consecutivos del mismo grupo continúan procesándose.
+                 * consecutivos continúan procesándose.
                  */
                 _logger.LogError(
                     ex,
-                    "Error procesando solicitud. El job continuará con la siguiente. " +
-                    "BU={BU}, Consecutivo={Consecutivo}, Tipo={Tipo}, Reversa={Reversa}.",
-                    solicitud.BU_NOMBRE,
+                    "[JOB DESCUENTOS][SOLICITUD {Consecutivo}] ERROR. Tipo={Tipo}, Reversa={Reversa}. El job continuará con la siguiente.",
                     solicitud.CONSECUTIVO,
                     tipoFiltro,
                     forzarVencimientoDiaAnterior);
@@ -849,46 +1107,80 @@ public class DescuentosBatchService : IDescuentosBatchService
 
     private string ObtenerHuellaSftp()
     {
-        if (!string.IsNullOrWhiteSpace(_cachedFingerprint))
+        if (!string.IsNullOrWhiteSpace(
+                _cachedFingerprint))
+        {
             return _cachedFingerprint;
+        }
 
         lock (_fingerprintLock)
         {
-            if (!string.IsNullOrWhiteSpace(_cachedFingerprint))
-                return _cachedFingerprint;
-
-            if (!string.IsNullOrWhiteSpace(_sftpOptions.SshHostKeyFingerprint))
+            if (!string.IsNullOrWhiteSpace(
+                    _cachedFingerprint))
             {
-                _cachedFingerprint = _sftpOptions.SshHostKeyFingerprint.Trim();
                 return _cachedFingerprint;
             }
 
-            _cachedFingerprint = SftpService.DescubrirHuellaSshHost(
-                host: _sftpOptions.Host,
-                port: _sftpOptions.Port,
-                user: _sftpOptions.User,
-                privateKeyPath: _sftpOptions.PrivateKeyPath,
-                privateKeyPassphrase: _sftpOptions.PrivateKeyPassphrase
-            );
+            if (!string.IsNullOrWhiteSpace(
+                    _sftpOptions
+                        .SshHostKeyFingerprint))
+            {
+                _cachedFingerprint =
+                    _sftpOptions
+                        .SshHostKeyFingerprint
+                        .Trim();
+
+                return _cachedFingerprint;
+            }
+
+            _cachedFingerprint =
+                SftpService
+                    .DescubrirHuellaSshHost(
+                        host:
+                            _sftpOptions.Host,
+                        port:
+                            _sftpOptions.Port,
+                        user:
+                            _sftpOptions.User,
+                        privateKeyPath:
+                            _sftpOptions.PrivateKeyPath,
+                        privateKeyPassphrase:
+                            _sftpOptions.PrivateKeyPassphrase
+                    );
 
             return _cachedFingerprint;
         }
     }
 
-    private static IEnumerable<PREDESCUENTO> OrdenarSolicitudesPorConsecutivo(
-        IEnumerable<PREDESCUENTO> solicitudes)
+    private static IEnumerable<PREDESCUENTO>
+        OrdenarSolicitudesPorConsecutivo(
+            IEnumerable<PREDESCUENTO> solicitudes)
     {
         return solicitudes
-            .OrderBy(x => EsConsecutivoNumerico(x.CONSECUTIVO) ? 0 : 1)
-            .ThenBy(x => ObtenerConsecutivoNumerico(x.CONSECUTIVO))
-            .ThenBy(x => T(x.CONSECUTIVO), StringComparer.OrdinalIgnoreCase);
+            .OrderBy(x =>
+                EsConsecutivoNumerico(
+                    x.CONSECUTIVO)
+                    ? 0
+                    : 1)
+            .ThenBy(x =>
+                ObtenerConsecutivoNumerico(
+                    x.CONSECUTIVO))
+            .ThenBy(
+                x => T(x.CONSECUTIVO),
+                StringComparer.OrdinalIgnoreCase);
     }
 
-    private static bool EsConsecutivoNumerico(string? consecutivo) =>
-        long.TryParse(T(consecutivo), out _);
+    private static bool EsConsecutivoNumerico(
+        string? consecutivo) =>
+        long.TryParse(
+            T(consecutivo),
+            out _);
 
-    private static long ObtenerConsecutivoNumerico(string? consecutivo) =>
-        long.TryParse(T(consecutivo), out var valor)
+    private static long ObtenerConsecutivoNumerico(
+        string? consecutivo) =>
+        long.TryParse(
+            T(consecutivo),
+            out var valor)
             ? valor
             : long.MaxValue;
 
@@ -896,7 +1188,9 @@ public class DescuentosBatchService : IDescuentosBatchService
         IReadOnlyList<string> source,
         int size)
     {
-        for (var index = 0; index < source.Count; index += size)
+        for (var index = 0;
+             index < source.Count;
+             index += size)
         {
             yield return source
                 .Skip(index)
@@ -905,11 +1199,17 @@ public class DescuentosBatchService : IDescuentosBatchService
         }
     }
 
-    private static string T(string? s) => (s ?? "").Trim();
+    private static string T(string? s) =>
+        (s ?? "").Trim();
 
     private static string N(string? s) =>
         T(s).ToUpperInvariant();
 
-    private static bool Eq(string? a, string b) =>
-        string.Equals(T(a), b, StringComparison.OrdinalIgnoreCase);
+    private static bool Eq(
+        string? a,
+        string b) =>
+        string.Equals(
+            T(a),
+            b,
+            StringComparison.OrdinalIgnoreCase);
 }

@@ -15,9 +15,15 @@ public class SftpFingerprintStartupService : IHostedService
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        var fp = await _provider.GetFingerprintAsync(cancellationToken);
-        _logger.LogInformation("Huella SSH inicializada al arrancar: {Fingerprint}", fp);
+        _logger.LogInformation(
+            "[SFTP] Inicializando huella SSH...");
+
+        await _provider.GetFingerprintAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "[SFTP] Huella SSH lista.");
     }
 
-    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StopAsync(CancellationToken cancellationToken)
+        => Task.CompletedTask;
 }

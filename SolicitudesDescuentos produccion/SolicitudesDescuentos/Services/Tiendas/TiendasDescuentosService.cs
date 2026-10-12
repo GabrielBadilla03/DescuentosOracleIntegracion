@@ -33,7 +33,8 @@ public sealed class TiendasDescuentosService : ITiendasDescuentosService
         static string N(string? value)
             => T(value).ToUpperInvariant();
 
-        var cedula = T(_configuration["IdentificadorTiendas"]);
+        var cedula =
+            T(_configuration["IdentificadorTiendas"]);
 
         if (string.IsNullOrWhiteSpace(cedula))
         {
@@ -41,21 +42,26 @@ public sealed class TiendasDescuentosService : ITiendasDescuentosService
                 "No se configuró IdentificadorTiendas en appsettings.json.");
         }
 
+        _logger.LogInformation(
+            "[JOB TIENDAS][1/5] Buscando cliente configurado. Cédula={Cedula}.",
+            cedula);
+
         /*
-         * Equivalente a:
-         *
          * SELECT REGISTRY_ID
          * FROM XXORA_CUSTOMER_MASTER
          * WHERE CEDULA = :cedula
          */
-        var registryId = await _oracleContext.XXORA_CUSTOMER_MASTERs
-            .AsNoTracking()
-            .Where(x =>
-                x.CEDULA != null &&
-                x.REGISTRY_ID != null &&
-                x.CEDULA.Trim() == cedula)
-            .Select(x => x.REGISTRY_ID)
-            .FirstOrDefaultAsync(cancellationToken);
+        var registryId =
+            await _oracleContext
+                .XXORA_CUSTOMER_MASTERs
+                .AsNoTracking()
+                .Where(x =>
+                    x.CEDULA != null &&
+                    x.REGISTRY_ID != null &&
+                    x.CEDULA.Trim() == cedula)
+                .Select(x => x.REGISTRY_ID)
+                .FirstOrDefaultAsync(
+                    cancellationToken);
 
         registryId = T(registryId);
 
@@ -65,30 +71,39 @@ public sealed class TiendasDescuentosService : ITiendasDescuentosService
                 $"No se encontró REGISTRY_ID en XXORA_CUSTOMER_MASTER para la cédula {cedula}.");
         }
 
+        _logger.LogInformation(
+            "[JOB TIENDAS][1/5] Cliente encontrado. RegistryId={RegistryId}.",
+            registryId);
+
+        _logger.LogInformation(
+            "[JOB TIENDAS][2/5] Cargando descuentos del cliente...");
+
         /*
-         * Equivalente a:
-         *
          * SELECT *
          * FROM XXORA_DISCOUNT_LIST
          * WHERE PARTY_NUMBER = :registryId
          */
-        var descuentosDb = await _oracleContext.XXORA_DISCOUNT_LISTs
-            .AsNoTracking()
-            .Where(x =>
-                x.PARTY_NUMBER != null &&
-                x.PARTY_NUMBER.Trim() == registryId &&
-                x.ITEM_NUMBER != null &&
-                x.RULE_DISCOUNT_NAME != null)
-            .Select(x => new
-            {
-                x.ITEM_NUMBER,
-                x.RULE_DISCOUNT_NAME,
-                x.DISCOUNT_PRICE,
-                x.START_DATE,
-                x.END_DATE,
-                x.LAST_UPDATE_DATE
-            })
-            .ToListAsync(cancellationToken);
+        var descuentosDb =
+            await _oracleContext
+                .XXORA_DISCOUNT_LISTs
+                .AsNoTracking()
+                .Where(x =>
+                    x.PARTY_NUMBER != null &&
+                    x.PARTY_NUMBER.Trim() ==
+                    registryId &&
+                    x.ITEM_NUMBER != null &&
+                    x.RULE_DISCOUNT_NAME != null)
+                .Select(x => new
+                {
+                    x.ITEM_NUMBER,
+                    x.RULE_DISCOUNT_NAME,
+                    x.DISCOUNT_PRICE,
+                    x.START_DATE,
+                    x.END_DATE,
+                    x.LAST_UPDATE_DATE
+                })
+                .ToListAsync(
+                    cancellationToken);
 
         if (descuentosDb.Count == 0)
         {
@@ -96,90 +111,92 @@ public sealed class TiendasDescuentosService : ITiendasDescuentosService
                 $"No existen descuentos en XXORA_DISCOUNT_LIST para PARTY_NUMBER={registryId}.");
         }
 
+        _logger.LogInformation(
+            "[JOB TIENDAS][2/5] Filas de descuentos cargadas={Cantidad}.",
+            descuentosDb.Count);
+
+        _logger.LogInformation(
+            "[JOB TIENDAS][3/5] Calculando descuentos CLIENTE y PROMOCIONES vigentes...");
+
         // Se compara solamente la fecha porque START_DATE y END_DATE
         // normalmente representan días completos.
-        //
-        // Ejemplo:
-        // END_DATE = 20/07/2026 continúa vigente durante todo el 20/07/2026.
-        // Se considera vencido a partir del 21/07/2026.
         var fechaActual = DateTime.Today;
 
         /*
          * Descuentos CLIENTE vigentes.
-         *
-         * Reglas:
-         * - START_DATE debe ser menor o igual a la fecha actual.
-         * - Si END_DATE es NULL, el descuento no tiene vencimiento.
-         * - Si END_DATE tiene valor, debe ser mayor o igual a la fecha actual.
-         *
-         * Si por historial aparecen varias filas CLIENTE vigentes para un mismo
-         * artículo, se toma la más reciente según START_DATE y LAST_UPDATE_DATE.
          */
-        var descuentosCliente = descuentosDb
-            .Where(x =>
-                N(x.RULE_DISCOUNT_NAME) == "CLIENTE" ||
-                N(x.RULE_DISCOUNT_NAME).Contains("CLIENT"))
-            .Where(x =>
-                x.START_DATE.Date <= fechaActual &&
-                (
-                    !x.END_DATE.HasValue ||
-                    x.END_DATE.Value.Date >= fechaActual
-                ))
-            .GroupBy(
-                x => N(x.ITEM_NUMBER),
-                StringComparer.OrdinalIgnoreCase)
-            .Select(g => g
-                .OrderByDescending(x => x.START_DATE)
-                .ThenByDescending(x => x.LAST_UPDATE_DATE)
-                .First())
-            .Where(x => !string.IsNullOrWhiteSpace(T(x.ITEM_NUMBER)))
-            .ToDictionary(
-                x => N(x.ITEM_NUMBER),
-                x => x.DISCOUNT_PRICE,
-                StringComparer.OrdinalIgnoreCase);
+        var descuentosCliente =
+            descuentosDb
+                .Where(x =>
+                    N(x.RULE_DISCOUNT_NAME) ==
+                    "CLIENTE" ||
+                    N(x.RULE_DISCOUNT_NAME)
+                        .Contains("CLIENT"))
+                .Where(x =>
+                    x.START_DATE.Date <=
+                    fechaActual &&
+                    (
+                        !x.END_DATE.HasValue ||
+                        x.END_DATE.Value.Date >=
+                        fechaActual
+                    ))
+                .GroupBy(
+                    x => N(x.ITEM_NUMBER),
+                    StringComparer.OrdinalIgnoreCase)
+                .Select(g =>
+                    g.OrderByDescending(
+                            x => x.START_DATE)
+                        .ThenByDescending(
+                            x => x.LAST_UPDATE_DATE)
+                        .First())
+                .Where(x =>
+                    !string.IsNullOrWhiteSpace(
+                        T(x.ITEM_NUMBER)))
+                .ToDictionary(
+                    x => N(x.ITEM_NUMBER),
+                    x => x.DISCOUNT_PRICE,
+                    StringComparer.OrdinalIgnoreCase);
 
-        /*
-         * No se debe detener la sincronización cuando no existen descuentos
-         * CLIENTE vigentes.
-         *
-         * El proceso debe continuar para poner en cero los descuentos vencidos
-         * que todavía estén registrados en INV_ARTIC_PROV.
-         */
         if (descuentosCliente.Count == 0)
         {
             _logger.LogWarning(
-                "El cliente {RegistryId} no tiene descuentos CLIENTE vigentes. " +
+                "[JOB TIENDAS][3/5] El cliente {RegistryId} no tiene descuentos CLIENTE vigentes. " +
                 "Los descuentos existentes en tiendas serán puestos en cero.",
                 registryId);
         }
 
         /*
          * Promociones vigentes.
-         *
-         * Se valida tanto START_DATE como END_DATE. Si existen varias
-         * promociones vigentes para el mismo artículo, se toma la más
-         * reciente.
          */
-        var promocionesVigentes = descuentosDb
-            .Where(x =>
-                N(x.RULE_DISCOUNT_NAME) == "PROMOCION" ||
-                N(x.RULE_DISCOUNT_NAME).Contains("PROMOC"))
-            .Where(x =>
-                x.START_DATE.Date <= fechaActual &&
-                x.END_DATE.HasValue &&
-                x.END_DATE.Value.Date >= fechaActual)
-            .GroupBy(
-                x => N(x.ITEM_NUMBER),
-                StringComparer.OrdinalIgnoreCase)
-            .Select(g => g
-                .OrderByDescending(x => x.START_DATE)
-                .ThenByDescending(x => x.LAST_UPDATE_DATE)
-                .First())
-            .Where(x => !string.IsNullOrWhiteSpace(T(x.ITEM_NUMBER)))
-            .ToDictionary(
-                x => N(x.ITEM_NUMBER),
-                x => x.DISCOUNT_PRICE,
-                StringComparer.OrdinalIgnoreCase);
+        var promocionesVigentes =
+            descuentosDb
+                .Where(x =>
+                    N(x.RULE_DISCOUNT_NAME) ==
+                    "PROMOCION" ||
+                    N(x.RULE_DISCOUNT_NAME)
+                        .Contains("PROMOC"))
+                .Where(x =>
+                    x.START_DATE.Date <=
+                    fechaActual &&
+                    x.END_DATE.HasValue &&
+                    x.END_DATE.Value.Date >=
+                    fechaActual)
+                .GroupBy(
+                    x => N(x.ITEM_NUMBER),
+                    StringComparer.OrdinalIgnoreCase)
+                .Select(g =>
+                    g.OrderByDescending(
+                            x => x.START_DATE)
+                        .ThenByDescending(
+                            x => x.LAST_UPDATE_DATE)
+                        .First())
+                .Where(x =>
+                    !string.IsNullOrWhiteSpace(
+                        T(x.ITEM_NUMBER)))
+                .ToDictionary(
+                    x => N(x.ITEM_NUMBER),
+                    x => x.DISCOUNT_PRICE,
+                    StringComparer.OrdinalIgnoreCase);
 
         /*
          * Resultado final:
@@ -190,100 +207,132 @@ public sealed class TiendasDescuentosService : ITiendasDescuentosService
          * CLIENTE con promoción vigente:
          *     descuento final = CLIENTE + PROMOCION
          */
-        var descuentosFinales = new Dictionary<string, decimal>(
-            StringComparer.OrdinalIgnoreCase);
+        var descuentosFinales =
+            new Dictionary<string, decimal>(
+                StringComparer.OrdinalIgnoreCase);
 
-        foreach (var descuentoCliente in descuentosCliente)
+        foreach (var descuentoCliente
+                 in descuentosCliente)
         {
-            var itemNumber = descuentoCliente.Key;
-            var porcentajeFinal = descuentoCliente.Value;
+            var itemNumber =
+                descuentoCliente.Key;
+
+            var porcentajeFinal =
+                descuentoCliente.Value;
 
             if (promocionesVigentes.TryGetValue(
                     itemNumber,
                     out var porcentajePromocion))
             {
-                porcentajeFinal += porcentajePromocion;
+                porcentajeFinal +=
+                    porcentajePromocion;
             }
 
-            descuentosFinales[itemNumber] = decimal.Round(
-                porcentajeFinal,
-                2,
-                MidpointRounding.AwayFromZero);
+            descuentosFinales[itemNumber] =
+                decimal.Round(
+                    porcentajeFinal,
+                    2,
+                    MidpointRounding.AwayFromZero);
         }
 
-        var itemNumbers = descuentosFinales.Keys
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        _logger.LogInformation(
+            "[JOB TIENDAS][3/5] Cálculo terminado. Cliente={Cliente}, Promociones={Promociones}, Finales={Finales}.",
+            descuentosCliente.Count,
+            promocionesVigentes.Count,
+            descuentosFinales.Count);
 
-        var articulosTiendas = new List<
-            SolicitudesDescuentos.ModelsTiendas.INV_ARTIC_PROV>();
+        var itemNumbers =
+            descuentosFinales.Keys
+                .Where(x =>
+                    !string.IsNullOrWhiteSpace(x))
+                .Distinct(
+                    StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+        var articulosTiendas =
+            new List<
+                SolicitudesDescuentos.ModelsTiendas
+                    .INV_ARTIC_PROV>();
 
         var filasActualizadas = 0;
         var filasPuestasEnCero = 0;
 
+        _logger.LogInformation(
+            "[JOB TIENDAS][4/5] Actualizando INV_ARTIC_PROV...");
+
         await using var transaction =
-            await _lancoTiendasContext.Database.BeginTransactionAsync(
-                cancellationToken);
+            await _lancoTiendasContext
+                .Database
+                .BeginTransactionAsync(
+                    cancellationToken);
 
         try
         {
             /*
              * Primero se eliminan todos los descuentos actuales.
-             *
-             * Después, dentro de esta misma transacción, se vuelven a colocar
-             * únicamente los descuentos que actualmente existen en
-             * XXORA_DISCOUNT_LIST para el cliente configurado.
+             * Después se colocan nuevamente solo los vigentes.
              */
             filasPuestasEnCero =
-                await _lancoTiendasContext.Database.ExecuteSqlRawAsync(
-                    @"UPDATE LANCOP.INV_ARTIC_PROV
+                await _lancoTiendasContext
+                    .Database
+                    .ExecuteSqlRawAsync(
+                        @"UPDATE LANCOP.INV_ARTIC_PROV
              SET DESC_FIJO = 0
            WHERE NVL(DESC_FIJO, 0) <> 0",
-                    cancellationToken);
+                        cancellationToken);
 
             /*
-             * Ahora se buscan únicamente los artículos que sí deben conservar
-             * un descuento.
-             *
-             * Se consulta por bloques porque Oracle admite un máximo aproximado
-             * de 1000 expresiones dentro de un IN.
+             * Oracle admite aproximadamente 1000 expresiones
+             * dentro de un IN. Se consulta por bloques.
              */
-            foreach (var itemChunk in Chunk(itemNumbers, OracleInChunkSize))
+            foreach (var itemChunk
+                     in Chunk(
+                         itemNumbers,
+                         OracleInChunkSize))
             {
-                var chunkLocal = itemChunk.ToList();
+                var chunkLocal =
+                    itemChunk.ToList();
 
-                var encontrados = await _lancoTiendasContext.INV_ARTIC_PROVs
-                    .Where(x =>
-                        x.COD_ARTIC_PROV != null &&
-                        chunkLocal.Contains(
-                            x.COD_ARTIC_PROV.Trim().ToUpper()))
-                    .ToListAsync(cancellationToken);
+                var encontrados =
+                    await _lancoTiendasContext
+                        .INV_ARTIC_PROVs
+                        .Where(x =>
+                            x.COD_ARTIC_PROV !=
+                            null &&
+                            chunkLocal.Contains(
+                                x.COD_ARTIC_PROV
+                                    .Trim()
+                                    .ToUpper()))
+                        .ToListAsync(
+                            cancellationToken);
 
-                articulosTiendas.AddRange(encontrados);
+                articulosTiendas.AddRange(
+                    encontrados);
             }
 
-            /*
-             * Después de poner todo en cero, se asigna el descuento calculado
-             * solamente a los artículos que sí aparecen en descuentosFinales.
-             */
-            foreach (var articulo in articulosTiendas)
+            foreach (var articulo
+                     in articulosTiendas)
             {
-                var codArticuloProveedor = N(articulo.COD_ARTIC_PROV);
+                var codArticuloProveedor =
+                    N(articulo.COD_ARTIC_PROV);
 
-                if (!descuentosFinales.TryGetValue(
-                        codArticuloProveedor,
-                        out var nuevoDescuento))
+                if (!descuentosFinales
+                        .TryGetValue(
+                            codArticuloProveedor,
+                            out var nuevoDescuento))
                 {
                     continue;
                 }
 
-                nuevoDescuento = decimal.Round(
-                    nuevoDescuento,
-                    2,
-                    MidpointRounding.AwayFromZero);
+                nuevoDescuento =
+                    decimal.Round(
+                        nuevoDescuento,
+                        2,
+                        MidpointRounding
+                            .AwayFromZero);
 
-                articulo.DESC_FIJO = nuevoDescuento;
+                articulo.DESC_FIJO =
+                    nuevoDescuento;
 
                 if (nuevoDescuento != 0)
                     filasActualizadas++;
@@ -291,39 +340,53 @@ public sealed class TiendasDescuentosService : ITiendasDescuentosService
 
             if (articulosTiendas.Count > 0)
             {
-                await _lancoTiendasContext.SaveChangesAsync(
-                    cancellationToken);
+                await _lancoTiendasContext
+                    .SaveChangesAsync(
+                        cancellationToken);
             }
 
-            await transaction.CommitAsync(cancellationToken);
+            _logger.LogInformation(
+                "[JOB TIENDAS][4/5] Cambios preparados. Encontrados={Encontrados}, PuestosEnCero={Cero}, ConDescuento={Actualizados}.",
+                articulosTiendas.Count,
+                filasPuestasEnCero,
+                filasActualizadas);
+
+            await transaction.CommitAsync(
+                cancellationToken);
         }
         catch
         {
-            await transaction.RollbackAsync(cancellationToken);
+            await transaction.RollbackAsync(
+                cancellationToken);
+
             throw;
         }
 
-        var resultado = new SincronizacionTiendasResult
-        {
-            Ok = true,
-            Mensaje =
-                $"Sincronización completada para PARTY_NUMBER={registryId}.",
-            RegistryId = registryId,
-            DescuentosCliente = descuentosCliente.Count,
-            PromocionesVigentes = promocionesVigentes.Count,
-            ArticulosCalculados = descuentosFinales.Count,
-            FilasEncontradasTiendas = articulosTiendas.Count,
-            FilasPuestasEnCero = filasPuestasEnCero,
-            FilasActualizadas = filasActualizadas
-        };
+        var resultado =
+            new SincronizacionTiendasResult
+            {
+                Ok = true,
+                Mensaje =
+                    $"Sincronización completada para PARTY_NUMBER={registryId}.",
+                RegistryId = registryId,
+                DescuentosCliente =
+                    descuentosCliente.Count,
+                PromocionesVigentes =
+                    promocionesVigentes.Count,
+                ArticulosCalculados =
+                    descuentosFinales.Count,
+                FilasEncontradasTiendas =
+                    articulosTiendas.Count,
+                FilasPuestasEnCero =
+                    filasPuestasEnCero,
+                FilasActualizadas =
+                    filasActualizadas
+            };
 
         _logger.LogInformation(
-            "Sincronización descuentos tiendas completada. " +
-            "Cedula={Cedula}, RegistryId={RegistryId}, " +
-            "Cliente={Cliente}, Promociones={Promociones}, " +
-            "Calculados={Calculados}, Encontrados={Encontrados}, " +
-            "PuestosEnCero={PuestosEnCero}, ConDescuento={ConDescuento}.",
-            cedula,
+            "[JOB TIENDAS][5/5] OK. RegistryId={RegistryId}, Cliente={Cliente}, " +
+            "Promociones={Promociones}, Finales={Finales}, Encontrados={Encontrados}, " +
+            "Cero={Cero}, Actualizados={Actualizados}.",
             resultado.RegistryId,
             resultado.DescuentosCliente,
             resultado.PromocionesVigentes,
@@ -339,7 +402,9 @@ public sealed class TiendasDescuentosService : ITiendasDescuentosService
         IReadOnlyList<string> source,
         int size)
     {
-        for (var index = 0; index < source.Count; index += size)
+        for (var index = 0;
+             index < source.Count;
+             index += size)
         {
             yield return source
                 .Skip(index)

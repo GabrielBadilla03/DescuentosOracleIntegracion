@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Options;
 using SolicitudesDescuentos.ModelsOracle;
 using WinSCP;
+using SessionOptions = WinSCP.SessionOptions;
 
 namespace SolicitudesDescuentos.Services;
 
@@ -21,72 +22,112 @@ public class SftpFingerprintProvider : ISftpFingerprintProvider
 
     public string? CurrentFingerprint => _fingerprint;
 
-    public async Task<string> GetFingerprintAsync(CancellationToken ct = default)
+    public async Task<string> GetFingerprintAsync(
+        CancellationToken ct = default)
     {
         if (!string.IsNullOrWhiteSpace(_fingerprint))
             return _fingerprint;
 
         await _gate.WaitAsync(ct);
+
         try
         {
             if (!string.IsNullOrWhiteSpace(_fingerprint))
                 return _fingerprint;
 
-            // 1) Si vino fija en appsettings, úsala
-            if (!string.IsNullOrWhiteSpace(_options.SshHostKeyFingerprint))
+            // 1) Si vino fija en appsettings, úsala.
+            if (!string.IsNullOrWhiteSpace(
+                    _options.SshHostKeyFingerprint))
             {
-                _fingerprint = _options.SshHostKeyFingerprint.Trim();
-                _logger.LogInformation("Usando huella SSH desde configuración: {Fingerprint}", _fingerprint);
+                _fingerprint =
+                    _options.SshHostKeyFingerprint.Trim();
+
+                _logger.LogInformation(
+                    "[SFTP] Usando huella SSH configurada.");
+
                 return _fingerprint;
             }
 
-            // 2) Si existe en archivo local, úsala
-            if (!string.IsNullOrWhiteSpace(_options.FingerprintCacheFile) &&
+            // 2) Si existe en archivo local, úsala.
+            if (!string.IsNullOrWhiteSpace(
+                    _options.FingerprintCacheFile) &&
                 File.Exists(_options.FingerprintCacheFile))
             {
-                var fromFile = (await File.ReadAllTextAsync(_options.FingerprintCacheFile, ct)).Trim();
+                var fromFile =
+                    (await File.ReadAllTextAsync(
+                        _options.FingerprintCacheFile,
+                        ct))
+                    .Trim();
+
                 if (!string.IsNullOrWhiteSpace(fromFile))
                 {
                     _fingerprint = fromFile;
-                    _logger.LogInformation("Usando huella SSH desde caché local: {Fingerprint}", _fingerprint);
+
+                    _logger.LogInformation(
+                        "[SFTP] Usando huella SSH desde caché local.");
+
                     return _fingerprint;
                 }
             }
 
-            // 3) Si no existe, descubrirla
-            var sessionOptions = new WinSCP.SessionOptions
-            {
-                Protocol = Protocol.Sftp,
-                HostName = _options.Host,
-                PortNumber = _options.Port,
-                UserName = _options.User,
-                SshPrivateKeyPath = _options.PrivateKeyPath
-            };
+            // 3) Si no existe, descubrirla.
+            _logger.LogInformation(
+                "[SFTP] Huella no encontrada. Consultando servidor SFTP...");
 
-            if (!string.IsNullOrWhiteSpace(_options.PrivateKeyPassphrase))
-                sessionOptions.PrivateKeyPassphrase = _options.PrivateKeyPassphrase;
+            var sessionOptions =
+                new SessionOptions
+                {
+                    Protocol = Protocol.Sftp,
+                    HostName = _options.Host,
+                    PortNumber = _options.Port,
+                    UserName = _options.User,
+                    SshPrivateKeyPath =
+                        _options.PrivateKeyPath
+                };
+
+            if (!string.IsNullOrWhiteSpace(
+                    _options.PrivateKeyPassphrase))
+            {
+                sessionOptions.PrivateKeyPassphrase =
+                    _options.PrivateKeyPassphrase;
+            }
 
             using var session = new Session();
 
-            var fingerprint = await Task.Run(
-                () => session.ScanFingerprint(sessionOptions, "SHA-256"),
-                ct);
+            var fingerprint =
+                await Task.Run(
+                    () => session.ScanFingerprint(
+                        sessionOptions,
+                        "SHA-256"),
+                    ct);
 
             if (string.IsNullOrWhiteSpace(fingerprint))
-                throw new InvalidOperationException("No se pudo descubrir la huella SSH del servidor.");
+            {
+                throw new InvalidOperationException(
+                    "No se pudo descubrir la huella SSH del servidor.");
+            }
 
             _fingerprint = fingerprint.Trim();
 
-            if (!string.IsNullOrWhiteSpace(_options.FingerprintCacheFile))
+            if (!string.IsNullOrWhiteSpace(
+                    _options.FingerprintCacheFile))
             {
-                var dir = Path.GetDirectoryName(_options.FingerprintCacheFile);
+                var dir =
+                    Path.GetDirectoryName(
+                        _options.FingerprintCacheFile);
+
                 if (!string.IsNullOrWhiteSpace(dir))
                     Directory.CreateDirectory(dir);
 
-                await File.WriteAllTextAsync(_options.FingerprintCacheFile, _fingerprint, ct);
+                await File.WriteAllTextAsync(
+                    _options.FingerprintCacheFile,
+                    _fingerprint,
+                    ct);
             }
 
-            _logger.LogInformation("Huella SSH descubierta y guardada: {Fingerprint}", _fingerprint);
+            _logger.LogInformation(
+                "[SFTP] Huella SSH descubierta y guardada.");
+
             return _fingerprint;
         }
         finally

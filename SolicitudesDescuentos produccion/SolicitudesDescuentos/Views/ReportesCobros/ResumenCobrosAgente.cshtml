@@ -707,20 +707,24 @@
                     Descargar Excel
                 </button>
 
-                <button type="submit"
-                        id="btnActualizarNavius"
-                        formaction="@Url.Action("ActualizarNavius", "ReportesCobros")"
-                        formmethod="post"
-                        formtarget="_self"
-                        class="btn btn-rojo">
-                    Actualizar Navius y planilla
-                </button>
+                @if (User.IsInRole("PRICE_EDITOR"))
+                {
 
-                <a asp-controller="ImpulsadoresOracle"
-                   asp-action="Index"
-                   class="btn btn-rojo">
-                    Administrar impulsadores
-                </a>
+                    <button type="submit"
+                            id="btnActualizarNavius"
+                            formaction="@Url.Action("ActualizarNavius", "ReportesCobros")"
+                            formmethod="post"
+                            formtarget="_self"
+                            class="btn btn-rojo">
+                        Actualizar Navius y planilla
+                    </button>
+
+                    <a asp-controller="ImpulsadoresOracle"
+                       asp-action="Index"
+                       class="btn btn-rojo">
+                        Administrar impulsadores
+                    </a>
+                }
 
                 <a asp-controller="Predescuentos"
                    asp-action="Index"
