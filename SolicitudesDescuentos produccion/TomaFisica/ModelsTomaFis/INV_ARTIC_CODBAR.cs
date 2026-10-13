@@ -1,4 +1,7 @@
-﻿namespace TomaFisica.ModelsTomaFis
+﻿using System;
+using System.Collections.Generic;
+
+namespace TomaFisica.ModelsTomaFis
 {
     public partial class INV_ARTIC_CODBAR
     {
@@ -10,7 +13,6 @@
         public string REPLICA1 { get; set; } = null!;
         public string? CLASE { get; set; }
 
-        public virtual INV_ARTICULO
-            COD_ARTICULONavigation { get; set; } = null!;
+        public virtual INV_ARTICULO COD_ARTICULONavigation { get; set; } = null!;
     }
 }

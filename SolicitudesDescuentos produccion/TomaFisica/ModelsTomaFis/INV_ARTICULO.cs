@@ -1,11 +1,13 @@
-﻿namespace TomaFisica.ModelsTomaFis
+﻿using System;
+using System.Collections.Generic;
+
+namespace TomaFisica.ModelsTomaFis
 {
     public partial class INV_ARTICULO
     {
         public INV_ARTICULO()
         {
-            INV_ARTIC_CODBARs =
-                new HashSet<INV_ARTIC_CODBAR>();
+            INV_ARTIC_CODBARs = new HashSet<INV_ARTIC_CODBAR>();
         }
 
         public string COD_ARTICULO { get; set; } = null!;
@@ -17,7 +19,6 @@
         public string SUBCATEGORIA { get; set; } = null!;
         public string CATEGORIA { get; set; } = null!;
 
-        public virtual ICollection<INV_ARTIC_CODBAR>
-            INV_ARTIC_CODBARs { get; set; }
+        public virtual ICollection<INV_ARTIC_CODBAR> INV_ARTIC_CODBARs { get; set; }
     }
 }

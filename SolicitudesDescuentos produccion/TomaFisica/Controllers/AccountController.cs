@@ -104,11 +104,11 @@ public class AccountController : Controller
                             .Trim()
                             .ToUpper() == usernameKey &&
                         x.PASSWORD
-                            .Trim() == password &&
-                        x.COD_CIA
-                            .Trim() == codCia &&
-                        x.SUCURSAL
-                            .Trim() == codSucursal)
+                            .Trim() == password) // &&
+                       // x.COD_CIA
+                         //   .Trim() == codCia // &&
+                       // x.SUCURSAL
+                         //   .Trim() == codSucursal)
                     .Select(x => new
                     {
                         x.COD_USUARIO,
