@@ -44,14 +44,31 @@ public class AccountController : Controller
         if (!ModelState.IsValid)
             return View(model);
 
-        var username =
-            model.CodUsuario?.Trim();
+        /*
+         * Tanto usuario como contraseña se normalizan:
+         *
+         * TRIM
+         * +
+         * MAYÚSCULAS
+         *
+         * De esta manera:
+         *
+         * adelgado  = ADELGADO
+         * Adelgado  = ADELGADO
+         * ADELGADO  = ADELGADO
+         */
+        var usernameKey =
+            model.CodUsuario?
+                .Trim()
+                .ToUpperInvariant();
 
-        var password =
-            model.Password?.Trim();
+        var passwordKey =
+            model.Password?
+                .Trim()
+                .ToUpperInvariant();
 
-        if (string.IsNullOrWhiteSpace(username) ||
-            string.IsNullOrWhiteSpace(password))
+        if (string.IsNullOrWhiteSpace(usernameKey) ||
+            string.IsNullOrWhiteSpace(passwordKey))
         {
             ModelState.AddModelError(
                 "",
@@ -60,16 +77,25 @@ public class AccountController : Controller
             return View(model);
         }
 
-        var codCia =
+        /*
+         * También normalizamos la configuración.
+         * En este momento son valores numéricos como 001,
+         * pero así queda consistente.
+         */
+        var codCiaKey =
             _configuration[
-                "TomaFisica:COD_CIA"]?.Trim();
+                "TomaFisica:COD_CIA"]?
+                .Trim()
+                .ToUpperInvariant();
 
-        var codSucursal =
+        var codSucursalKey =
             _configuration[
-                "TomaFisica:COD_SUCURSAL"]?.Trim();
+                "TomaFisica:COD_SUCURSAL"]?
+                .Trim()
+                .ToUpperInvariant();
 
-        if (string.IsNullOrWhiteSpace(codCia) ||
-            string.IsNullOrWhiteSpace(codSucursal))
+        if (string.IsNullOrWhiteSpace(codCiaKey) ||
+            string.IsNullOrWhiteSpace(codSucursalKey))
         {
             ModelState.AddModelError(
                 "",
@@ -78,18 +104,28 @@ public class AccountController : Controller
             return View(model);
         }
 
-        var usernameKey =
-            username.ToUpperInvariant();
-
         try
         {
             /*
-             * Valida los 4 datos solicitados:
+             * VALIDACIÓN DEL LOGIN
              *
-             * COD_USUARIO = usuario digitado
-             * PASSWORD    = contraseña digitada
-             * COD_CIA     = appsettings
-             * SUCURSAL    = appsettings
+             * Todos los campos se comparan normalizados:
+             *
+             * Usuario ingresado
+             *      =
+             * UPPER(TRIM(SEG_USUARIO.COD_USUARIO))
+             *
+             * Contraseña ingresada
+             *      =
+             * UPPER(TRIM(SEG_USUARIO.PASSWORD))
+             *
+             * COD_CIA appsettings
+             *      =
+             * UPPER(TRIM(SEG_USUARIO.COD_CIA))
+             *
+             * COD_SUCURSAL appsettings
+             *      =
+             * UPPER(TRIM(SEG_USUARIO.SUCURSAL))
              */
             var usuario =
                 await _seguridadContext
@@ -100,15 +136,22 @@ public class AccountController : Controller
                         x.PASSWORD != null &&
                         x.COD_CIA != null &&
                         x.SUCURSAL != null &&
+
                         x.COD_USUARIO
                             .Trim()
                             .ToUpper() == usernameKey &&
+
                         x.PASSWORD
-                            .Trim() == password) // &&
-                       // x.COD_CIA
-                         //   .Trim() == codCia // &&
-                       // x.SUCURSAL
-                         //   .Trim() == codSucursal)
+                            .Trim()
+                            .ToUpper() == passwordKey &&
+
+                        x.COD_CIA
+                            .Trim()
+                            .ToUpper() == codCiaKey &&
+
+                        x.SUCURSAL
+                            .Trim()
+                            .ToUpper() == codSucursalKey)
                     .Select(x => new
                     {
                         x.COD_USUARIO,
@@ -125,11 +168,21 @@ public class AccountController : Controller
                 return View(model);
             }
 
+            /*
+             * El usuario que queda guardado en la sesión
+             * también queda siempre en mayúsculas.
+             */
             var codigoUsuario =
-                usuario.COD_USUARIO.Trim();
+                usuario.COD_USUARIO
+                    .Trim()
+                    .ToUpperInvariant();
 
+            /*
+             * Se utiliza el mismo valor normalizado
+             * para buscar sus grupos.
+             */
             var codigoUsuarioKey =
-                codigoUsuario.ToUpperInvariant();
+                codigoUsuario;
 
             /*
              * Carga grupos para dejarlos disponibles
@@ -140,14 +193,19 @@ public class AccountController : Controller
                     from gu in _seguridadContext
                         .SEG_GRPUSUARIOs
                         .AsNoTracking()
+
                     join g in _seguridadContext
                         .SEG_GRUPOs
                         .AsNoTracking()
+
                         on gu.COD_GRUPO
                         equals g.COD_GRUPO
+
                     where gu.COD_USUARIO
                         .Trim()
-                        .ToUpper() == codigoUsuarioKey
+                        .ToUpper() ==
+                        codigoUsuarioKey
+
                     select g.COD_GRUPO
                 )
                 .Distinct()
@@ -177,11 +235,11 @@ public class AccountController : Controller
 
                     new Claim(
                         "CodCia",
-                        codCia),
+                        codCiaKey),
 
                     new Claim(
                         "CodSucursal",
-                        codSucursal),
+                        codSucursalKey),
 
                     new Claim(
                         ClaimTypes.Role,
@@ -205,7 +263,8 @@ public class AccountController : Controller
             var identity =
                 new ClaimsIdentity(
                     claims,
-                    CookieAuthenticationDefaults.AuthenticationScheme);
+                    CookieAuthenticationDefaults
+                        .AuthenticationScheme);
 
             var authProperties =
                 new AuthenticationProperties
@@ -215,7 +274,8 @@ public class AccountController : Controller
                 };
 
             await HttpContext.SignInAsync(
-                CookieAuthenticationDefaults.AuthenticationScheme,
+                CookieAuthenticationDefaults
+                    .AuthenticationScheme,
                 new ClaimsPrincipal(identity),
                 authProperties);
 
@@ -238,9 +298,11 @@ public class AccountController : Controller
     public async Task<IActionResult> Logout()
     {
         await HttpContext.SignOutAsync(
-            CookieAuthenticationDefaults.AuthenticationScheme);
+            CookieAuthenticationDefaults
+                .AuthenticationScheme);
 
-        return RedirectToAction(nameof(Login));
+        return RedirectToAction(
+            nameof(Login));
     }
 
     [HttpGet]
