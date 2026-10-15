@@ -302,6 +302,24 @@ namespace TomaFisica.Data
                     .HasDefaultValueSql("'P' ")
                     .IsFixedLength();
 
+                entity.Property(e => e.FEC_APLICA).HasColumnType("DATE");
+
+                entity.Property(e => e.FEC_MOVTO).HasColumnType("DATE");
+
+                entity.Property(e => e.LOCAL1)
+                    .HasMaxLength(1)
+                    .IsUnicode(false)
+                    .HasDefaultValueSql("'S' ");
+
+                entity.Property(e => e.OBSERVACION)
+                    .HasMaxLength(100)
+                    .IsUnicode(false);
+
+                entity.Property(e => e.REPLICA1)
+                    .HasMaxLength(1)
+                    .IsUnicode(false)
+                    .HasDefaultValueSql("'S' ");
+
                 entity.Property(e => e.TIPO)
                     .HasMaxLength(1)
                     .IsUnicode(false)
@@ -311,6 +329,11 @@ namespace TomaFisica.Data
                 entity.Property(e => e.TIPO_INV)
                     .HasMaxLength(3)
                     .IsUnicode(false);
+
+                entity.Property(e => e.USUARIO)
+                    .HasMaxLength(30)
+                    .IsUnicode(false)
+                    .HasDefaultValueSql("USER ");
             });
 
             modelBuilder.Entity<PNORDENE>(entity =>
