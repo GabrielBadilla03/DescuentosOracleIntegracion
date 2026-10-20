@@ -11,7 +11,7 @@ traer las tablas de navius seguridad
 Scaffold-DbContext "User Id=NUEVO;Password=LCR2001;Data Source=192.168.179.1:1522/LANCO;" Oracle.EntityFrameworkCore -Context SeguridadDbContext -OutputDir ModelsSeguridad -Tables SEG_USUARIO,SEG_GRUPO,SEG_GRPUSUARIO  -UseDatabaseNames -NoOnConfiguring -Force
 
 traer las tablas de toma fisica
-Scaffold-DbContext "User Id=TOMAFIS;Password=TOMAFIS;Data Source=192.168.179.11:1521/TOMAFIS;" Oracle.EntityFrameworkCore -Context TomaFisDbContext -OutputDir ModelsTomaFis -Tables INV_ARTICULO,INV_ARTIC_CODBAR,INV_TOMAFIS,INV_DETTOMAFIS,INV_LOC,PNORDENES,INV_ORIGEN,INV_BODEGA -UseDatabaseNames -NoOnConfiguring -Force
+Scaffold-DbContext "User Id=TOMAFIS;Password=TOMAFIS;Data Source=192.168.179.11:1521/TOMAFIS;" Oracle.EntityFrameworkCore -Context TomaFisDbContext -OutputDir ModelsTomaFis -Tables INV_ARTICULO,INV_ARTIC_CODBAR,INV_TOMAFIS,INV_DETTOMAFIS,INV_LOC,PNORDENES,INV_ORIGEN,INV_BODEGA,LOCALIZARD -UseDatabaseNames -NoOnConfiguring -Force
 
 
 dotnet publish .\TomaFis.csproj -c Release -f net6.0 -r win-x64 --self-contained true /p:PublishSingleFile=false -o "C:\Servicios\TomaFis_Publicado"

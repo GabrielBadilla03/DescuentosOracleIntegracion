@@ -1,0 +1,767 @@
+﻿@{
+    ViewData["Title"] = "Crear Toma Física";
+}
+
+<style>
+    .crear-toma-page {
+        width: 100%;
+        max-width: 760px;
+        margin: 0 auto 24px auto;
+        padding: 0 4px;
+    }
+
+    .crear-toma-header {
+        margin-bottom: 8px;
+    }
+
+    .crear-toma-header h2 {
+        margin: 0;
+        font-size: 1.15rem;
+    }
+
+    .crear-toma-card {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, .06);
+        overflow: hidden;
+    }
+
+    .crear-toma-card .card-body {
+        padding: 12px;
+    }
+
+    .datos-auto {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 5px;
+        margin-bottom: 10px;
+    }
+
+    .dato-auto {
+        min-width: 0;
+        padding: 7px 6px;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        background: #f8f9fa;
+    }
+
+    .dato-auto-label {
+        color: #6c757d;
+        font-size: .66rem;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+
+    .dato-auto-valor {
+        margin-top: 1px;
+        overflow: hidden;
+        color: #212529;
+        font-size: .88rem;
+        font-weight: 700;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .estado-listo {
+        color: #198754;
+    }
+
+    .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+
+    .campo {
+        min-width: 0;
+    }
+
+    .campo-full {
+        grid-column: 1 / -1;
+    }
+
+    .campo label {
+        display: block;
+        margin-bottom: 3px;
+        color: #495057;
+        font-size: .72rem;
+        font-weight: 700;
+    }
+
+    .campo .form-control,
+    .campo .form-select {
+        width: 100%;
+        min-height: 40px;
+        font-size: 16px;
+    }
+
+    .campo textarea.form-control {
+        min-height: 74px;
+        resize: vertical;
+    }
+
+    .estado-leyenda {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin-top: 8px;
+        padding: 7px;
+        border-radius: 5px;
+        background: #f8f9fa;
+        color: #6c757d;
+        font-size: .68rem;
+    }
+
+    .estado-leyenda span {
+        white-space: nowrap;
+    }
+
+    .acciones {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 5px;
+        margin-top: 12px;
+    }
+
+    .acciones .btn {
+        min-height: 44px;
+        font-weight: 700;
+    }
+
+    .mensaje {
+        display: none;
+        margin-top: 10px;
+        padding: 9px;
+        border-radius: 5px;
+        font-size: .78rem;
+        font-weight: 600;
+    }
+
+    .mensaje.ok {
+        display: block;
+        color: #0f5132;
+        background: #d1e7dd;
+        border: 1px solid #badbcc;
+    }
+
+    .mensaje.error {
+        display: block;
+        color: #842029;
+        background: #f8d7da;
+        border: 1px solid #f5c2c7;
+    }
+
+    .resultado-creado {
+        display: none;
+        margin-top: 10px;
+        padding: 9px;
+        border: 1px solid #badbcc;
+        border-radius: 5px;
+        background: #f0faf4;
+    }
+
+    .resultado-creado.visible {
+        display: block;
+    }
+
+    .resultado-titulo {
+        margin-bottom: 5px;
+        color: #198754;
+        font-size: .8rem;
+        font-weight: 800;
+    }
+
+    .resultado-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 4px;
+        font-size: .72rem;
+    }
+
+    .resultado-item {
+        min-width: 0;
+        padding: 4px;
+        background: #fff;
+        border-radius: 3px;
+    }
+
+    .resultado-item b {
+        display: block;
+        color: #6c757d;
+        font-size: .62rem;
+    }
+
+    @@media (max-width: 767.98px) {
+        .crear-toma-page {
+            padding: 0 2px;
+            margin-bottom: 12px;
+        }
+
+        .crear-toma-header h2 {
+            font-size: 1rem;
+        }
+
+        .crear-toma-card .card-body {
+            padding: 8px 6px;
+        }
+
+        .datos-auto {
+            grid-template-columns: 1fr 1fr;
+            gap: 3px;
+        }
+
+        .dato-auto {
+            padding: 6px 5px;
+        }
+
+        .form-grid {
+            gap: 6px 4px;
+        }
+
+        .resultado-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+
+    @@media (max-width: 390px) {
+        .crear-toma-page {
+            padding: 0 1px;
+        }
+
+        .crear-toma-card .card-body {
+            padding-left: 4px;
+            padding-right: 4px;
+        }
+
+        .dato-auto-valor {
+            font-size: .8rem;
+        }
+
+        .acciones {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="crear-toma-page">
+
+    <div class="crear-toma-header">
+        <h2>Crear Toma Física</h2>
+    </div>
+
+    <div class="card crear-toma-card">
+        <div class="card-body">
+
+            <form id="formCrearToma">
+                @Html.AntiForgeryToken()
+
+                <div class="datos-auto">
+                    <div class="dato-auto">
+                        <div class="dato-auto-label">
+                            Secuencia
+                        </div>
+                        <div id="datoSecuencia"
+                             class="dato-auto-valor">
+                            ...
+                        </div>
+                    </div>
+
+                    <div class="dato-auto">
+                        <div class="dato-auto-label">
+                            Compañía
+                        </div>
+                        <div id="datoCia"
+                             class="dato-auto-valor">
+                            001
+                        </div>
+                    </div>
+
+                    <div class="dato-auto">
+                        <div class="dato-auto-label">
+                            Usuario
+                        </div>
+                        <div id="datoUsuario"
+                             class="dato-auto-valor">
+                            ...
+                        </div>
+                    </div>
+
+                    <div class="dato-auto">
+                        <div class="dato-auto-label">
+                            Estado
+                        </div>
+                        <div id="datoEstado"
+                             class="dato-auto-valor estado-listo">
+                            L - Listo para toma
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-grid">
+
+                    <div class="campo">
+                        <label for="codBodega">
+                            Bodega
+                        </label>
+
+                        <select id="codBodega"
+                                name="codBodega"
+                                class="form-select"
+                                required>
+                            <option value="">
+                                Cargando...
+                            </option>
+                        </select>
+                    </div>
+
+                    <div class="campo">
+                        <label for="tipoInventario">
+                            Tipo inventario
+                        </label>
+
+                        <input id="tipoInventario"
+                               name="tipoInventario"
+                               type="text"
+                               maxlength="3"
+                               autocomplete="off"
+                               autocapitalize="characters"
+                               spellcheck="false"
+                               class="form-control"
+                               placeholder="Ej. GEN"
+                               required />
+                    </div>
+
+                    <div class="campo campo-full">
+                        <label for="tipo">
+                            Tipo de toma
+                        </label>
+
+                        <select id="tipo"
+                                name="tipo"
+                                class="form-select"
+                                required>
+                            <option value="1">
+                                1 - Conteo 1
+                            </option>
+                            <option value="2">
+                                2 - Conteo 2
+                            </option>
+                            <option value="3">
+                                3 - Conteo de Verificación
+                            </option>
+                        </select>
+                    </div>
+
+                    <div class="campo campo-full">
+                        <label for="observacion">
+                            Observación
+                        </label>
+
+                        <textarea id="observacion"
+                                  name="observacion"
+                                  maxlength="100"
+                                  class="form-control"
+                                  placeholder="Opcional"></textarea>
+                    </div>
+
+                </div>
+
+                <div class="estado-leyenda">
+                    <span><b>P</b> - Pendiente</span>
+                    <span><b>L</b> - Listo para toma</span>
+                    <span><b>A</b> - Aplicada</span>
+                </div>
+
+                <div class="small text-muted mt-2">
+                    Al crear, la toma queda en
+                    <b>L - Listo para toma</b>.
+                    Fecha de movimiento, usuario,
+                    LOCAL1 y REPLICA1 se completan automáticamente.
+                </div>
+
+                <div class="acciones">
+                    <button id="btnCrear"
+                            type="submit"
+                            class="btn btn-danger">
+                        Crear toma física
+                    </button>
+
+                    <a asp-controller="TomaFisica"
+                       asp-action="Menu"
+                       class="btn btn-outline-secondary d-flex align-items-center justify-content-center">
+                        Volver
+                    </a>
+                </div>
+
+                <div id="mensaje"
+                     class="mensaje"></div>
+
+                <div id="resultadoCreado"
+                     class="resultado-creado">
+
+                    <div class="resultado-titulo">
+                        Toma creada
+                    </div>
+
+                    <div class="resultado-grid">
+                        <div class="resultado-item">
+                            <b>Secuencia</b>
+                            <span id="resSecuencia"></span>
+                        </div>
+
+                        <div class="resultado-item">
+                            <b>CIA / Bodega</b>
+                            <span id="resBodega"></span>
+                        </div>
+
+                        <div class="resultado-item">
+                            <b>Tipo inventario</b>
+                            <span id="resTipoInv"></span>
+                        </div>
+
+                        <div class="resultado-item">
+                            <b>Tipo toma</b>
+                            <span id="resTipo"></span>
+                        </div>
+
+                        <div class="resultado-item">
+                            <b>Estado</b>
+                            <span id="resEstado"></span>
+                        </div>
+
+                        <div class="resultado-item">
+                            <b>Fecha</b>
+                            <span id="resFecha"></span>
+                        </div>
+                    </div>
+
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (() => {
+            const urlDatos =
+                '@Url.Action("DatosIniciales", "CrearTomaFisica")';
+
+            const urlCrear =
+                '@Url.Action("Crear", "CrearTomaFisica")';
+
+            const form =
+                document.getElementById('formCrearToma');
+
+            const token =
+                form.querySelector(
+                    'input[name="__RequestVerificationToken"]')
+                    ?.value ?? '';
+
+            const codBodega =
+                document.getElementById('codBodega');
+
+            const tipoInventario =
+                document.getElementById('tipoInventario');
+
+            const tipo =
+                document.getElementById('tipo');
+
+            const observacion =
+                document.getElementById('observacion');
+
+            const btnCrear =
+                document.getElementById('btnCrear');
+
+            const mensaje =
+                document.getElementById('mensaje');
+
+            const resultadoCreado =
+                document.getElementById('resultadoCreado');
+
+            function mostrarMensaje(
+                texto,
+                clase = '') {
+
+                mensaje.textContent = texto ?? '';
+                mensaje.className = 'mensaje';
+
+                if (clase)
+                    mensaje.classList.add(clase);
+            }
+
+            async function cargarDatosIniciales() {
+                mostrarMensaje('');
+
+                try {
+                    const respuesta =
+                        await fetch(urlDatos, {
+                            method: 'GET',
+                            headers: {
+                                'X-Requested-With':
+                                    'XMLHttpRequest'
+                            }
+                        });
+
+                    let datos = null;
+
+                    try {
+                        datos = await respuesta.json();
+                    }
+                    catch {
+                        datos = null;
+                    }
+
+                    if (!respuesta.ok || !datos?.ok) {
+                        throw new Error(
+                            datos?.mensaje ??
+                            'No fue posible cargar los datos iniciales.');
+                    }
+
+                    document.getElementById(
+                        'datoSecuencia'
+                    ).textContent =
+                        datos.siguienteSecuencia ?? '';
+
+                    document.getElementById(
+                        'datoCia'
+                    ).textContent =
+                        datos.codCia ?? '001';
+
+                    document.getElementById(
+                        'datoUsuario'
+                    ).textContent =
+                        datos.usuario ?? '';
+
+                    document.getElementById(
+                        'datoEstado'
+                    ).textContent =
+                        `${datos.estado ?? 'L'} - ${datos.estadoDescripcion ?? 'Listo para toma'}`;
+
+                    codBodega.innerHTML = '';
+
+                    const opcionVacia =
+                        document.createElement('option');
+
+                    opcionVacia.value = '';
+                    opcionVacia.textContent =
+                        'Seleccione una bodega';
+
+                    codBodega.appendChild(
+                        opcionVacia);
+
+                    const bodegas =
+                        Array.isArray(datos.bodegas)
+                            ? datos.bodegas
+                            : [];
+
+                    bodegas.forEach(bodega => {
+                        const opcion =
+                            document.createElement('option');
+
+                        opcion.value =
+                            bodega.codigo ?? '';
+
+                        opcion.textContent =
+                            `${bodega.codigo ?? ''} - ${bodega.descripcion ?? ''}`;
+
+                        codBodega.appendChild(
+                            opcion);
+                    });
+
+                    if (bodegas.length === 0) {
+                        mostrarMensaje(
+                            `No hay bodegas configuradas para CIA 001 y sucursal ${datos.codSucursal ?? ''}.`,
+                            'error');
+
+                        btnCrear.disabled = true;
+                        return;
+                    }
+
+                    btnCrear.disabled = false;
+
+                    requestAnimationFrame(() => {
+                        codBodega.focus();
+                    });
+                }
+                catch (error) {
+                    codBodega.innerHTML =
+                        '<option value="">Sin bodegas</option>';
+
+                    btnCrear.disabled = true;
+
+                    mostrarMensaje(
+                        error?.message ??
+                        'Error cargando la pantalla.',
+                        'error');
+                }
+            }
+
+            form.addEventListener(
+                'submit',
+                async event => {
+
+                    event.preventDefault();
+
+                    const bodega =
+                        codBodega.value.trim();
+
+                    const tipoInv =
+                        tipoInventario.value
+                            .trim()
+                            .toUpperCase();
+
+                    tipoInventario.value =
+                        tipoInv;
+
+                    if (!bodega) {
+                        mostrarMensaje(
+                            'Seleccione una bodega.',
+                            'error');
+
+                        codBodega.focus();
+                        return;
+                    }
+
+                    if (!tipoInv) {
+                        mostrarMensaje(
+                            'Digite el tipo de inventario.',
+                            'error');
+
+                        tipoInventario.focus();
+                        return;
+                    }
+
+                    btnCrear.disabled = true;
+                    btnCrear.textContent = 'Creando...';
+
+                    mostrarMensaje('');
+                    resultadoCreado.classList.remove(
+                        'visible');
+
+                    const cuerpo =
+                        new URLSearchParams();
+
+                    cuerpo.append(
+                        '__RequestVerificationToken',
+                        token);
+
+                    cuerpo.append(
+                        'codBodega',
+                        bodega);
+
+                    cuerpo.append(
+                        'tipoInventario',
+                        tipoInv);
+
+                    cuerpo.append(
+                        'tipo',
+                        tipo.value);
+
+                    cuerpo.append(
+                        'observacion',
+                        observacion.value.trim());
+
+                    try {
+                        const respuesta =
+                            await fetch(
+                                urlCrear,
+                                {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type':
+                                            'application/x-www-form-urlencoded; charset=UTF-8',
+                                        'X-Requested-With':
+                                            'XMLHttpRequest'
+                                    },
+                                    body: cuerpo.toString()
+                                });
+
+                        let datos = null;
+
+                        try {
+                            datos =
+                                await respuesta.json();
+                        }
+                        catch {
+                            datos = null;
+                        }
+
+                        if (!respuesta.ok ||
+                            !datos?.ok) {
+
+                            throw new Error(
+                                datos?.detalle
+                                    ? `${datos.mensaje} ${datos.detalle}`
+                                    : datos?.mensaje ??
+                                      'No fue posible crear la toma.');
+                        }
+
+                        mostrarMensaje(
+                            datos.mensaje ??
+                            'Toma física creada correctamente.',
+                            'ok');
+
+                        document.getElementById(
+                            'resSecuencia'
+                        ).textContent =
+                            datos.secuencia ?? '';
+
+                        document.getElementById(
+                            'resBodega'
+                        ).textContent =
+                            `${datos.codCia ?? '001'} / ${datos.codBodega ?? ''}`;
+
+                        document.getElementById(
+                            'resTipoInv'
+                        ).textContent =
+                            datos.tipoInventario ?? '';
+
+                        document.getElementById(
+                            'resTipo'
+                        ).textContent =
+                            datos.tipo ?? '';
+
+                        document.getElementById(
+                            'resEstado'
+                        ).textContent =
+                            `${datos.estado ?? 'L'} - ${datos.estadoDescripcion ?? 'Listo para toma'}`;
+
+                        document.getElementById(
+                            'resFecha'
+                        ).textContent =
+                            datos.fechaMovimiento ?? '';
+
+                        resultadoCreado.classList.add(
+                            'visible');
+
+                        document.getElementById(
+                            'datoSecuencia'
+                        ).textContent =
+                            datos.siguienteSecuencia ?? '';
+
+                        tipoInventario.value = '';
+                        observacion.value = '';
+                        tipo.value = '1';
+
+                        tipoInventario.focus();
+                    }
+                    catch (error) {
+                        mostrarMensaje(
+                            error?.message ??
+                            'Error al crear la toma física.',
+                            'error');
+                    }
+                    finally {
+                        btnCrear.disabled = false;
+                        btnCrear.textContent =
+                            'Crear toma física';
+                    }
+                });
+
+            cargarDatosIniciales();
+        })();
+    </script>
+}

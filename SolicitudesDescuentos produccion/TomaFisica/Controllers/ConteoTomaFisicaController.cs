@@ -141,7 +141,6 @@ public class ConteoTomaFisicaController : Controller
             {
                 x.SECUENCIA,
                 x.COD_BODEGA,
-                x.TIPO_INV,
                 x.FEC_MOVTO,
                 x.ESTADO,
                 x.TIPO,
@@ -171,7 +170,6 @@ public class ConteoTomaFisicaController : Controller
                 secuencia = x.SECUENCIA,
                 codBodega,
                 desBodega = desBodega ?? "",
-                tipoInventario = (x.TIPO_INV ?? "").Trim(),
                 fecha = x.FEC_MOVTO,
                 estado = (x.ESTADO ?? "").Trim(),
                 tipo = (x.TIPO ?? "").Trim(),
@@ -255,7 +253,6 @@ public class ConteoTomaFisicaController : Controller
                 codCia = (toma.COD_CIA ?? "").Trim(),
                 codBodega = (toma.COD_BODEGA ?? "").Trim(),
                 desBodega = (bodega.DES_BODEGA ?? "").Trim(),
-                tipoInventario = (toma.TIPO_INV ?? "").Trim(),
                 fecha = toma.FEC_MOVTO,
                 estado = (toma.ESTADO ?? "").Trim(),
                 tipo = (toma.TIPO ?? "").Trim(),

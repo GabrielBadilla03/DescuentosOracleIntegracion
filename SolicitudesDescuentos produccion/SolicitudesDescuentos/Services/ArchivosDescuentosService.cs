@@ -18,6 +18,732 @@ public class ArchivosDescuentosService : IArchivosDescuentosService
         _OracleContext = oracleContext;
     }
 
+    private async Task<HashSet<string>> ObtenerArticulosNoPromoActivosAsync(
+        IEnumerable<string> itemNumbers,
+        string? buNombre = "LANCO_CR",
+        string organizationCode = "CR_3",
+        CancellationToken ct = default)
+    {
+        static string N(string? s) => (s ?? "").Trim().ToUpperInvariant();
+
+        var buKey = N(buNombre);
+        var orgKey = N(organizationCode);
+
+        var items = itemNumbers
+            .Select(N)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var bloqueados = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        const int chunkSize = 900;
+
+        for (int i = 0; i < items.Count; i += chunkSize)
+        {
+            var chunk = items.Skip(i).Take(chunkSize).ToList();
+
+            var rows = await _OracleContext.ART_NO_PROMOs
+                .AsNoTracking()
+                .Where(a =>
+                    a.BU_NAME != null &&
+                    a.ORGANIZATION_CODE != null &&
+                    a.ITEM_NUMBER != null &&
+                    a.ESTADO != null &&
+                    a.BU_NAME.Trim().ToUpper() == buKey &&
+                    a.ORGANIZATION_CODE.Trim().ToUpper() == orgKey &&
+                    a.ESTADO.Trim().ToUpper() == "ACTIVO" &&
+                    chunk.Contains(a.ITEM_NUMBER.Trim().ToUpper()))
+                .Select(a => a.ITEM_NUMBER)
+                .Distinct()
+                .ToListAsync(ct);
+
+            foreach (var item in rows)
+            {
+                var key = N(item);
+                if (!string.IsNullOrWhiteSpace(key))
+                    bloqueados.Add(key);
+            }
+        }
+
+        return bloqueados;
+    }
+
+    private async Task<HashSet<string>> ObtenerArticulosNoAceptanDescuentoAsync(
+        IEnumerable<string> itemNumbers,
+        string? buNombre = "LANCO_CR",
+        string organizationCode = "LCR_3",
+        CancellationToken ct = default)
+    {
+        static string N(string? s) => (s ?? "").Trim().ToUpperInvariant();
+
+        var buKey = N(buNombre);
+        var orgKey = N(organizationCode);
+
+        var items = itemNumbers
+            .Select(N)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var aceptados = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        const int chunkSize = 900;
+
+        for (int i = 0; i < items.Count; i += chunkSize)
+        {
+            var chunk = items.Skip(i).Take(chunkSize).ToList();
+
+            var rows = await _OracleContext.XXORA_ITEM_MASTERs
+                .AsNoTracking()
+                .Where(x =>
+                    x.BU_NAME != null &&
+                    x.ORGANIZATION_CODE != null &&
+                    x.ITEM_NUMBER != null &&
+                    x.ACCEPTADESCUENTO != null &&
+                    x.BU_NAME.Trim().ToUpper() == buKey &&
+                    x.ORGANIZATION_CODE.Trim().ToUpper() == orgKey &&
+                    x.ACCEPTADESCUENTO.Trim().ToUpper() == "S" &&
+                    chunk.Contains(x.ITEM_NUMBER.Trim().ToUpper()))
+                .Select(x => x.ITEM_NUMBER)
+                .Distinct()
+                .ToListAsync(ct);
+
+            foreach (var item in rows)
+            {
+                var key = N(item);
+                if (!string.IsNullOrWhiteSpace(key))
+                    aceptados.Add(key);
+            }
+        }
+
+        return items
+            .Where(x => !aceptados.Contains(x))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private async Task<HashSet<string>> ObtenerArticulosSinDescuentoClienteVigenteAsync(
+        IEnumerable<string> itemNumbers,
+        string? codCliente,
+        string? buNombre = "LANCO_CR",
+        CancellationToken ct = default)
+    {
+        static string N(string? s) => (s ?? "").Trim().ToUpperInvariant();
+
+        var items = itemNumbers
+            .Select(N)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (items.Count == 0)
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var clienteKey = N(codCliente);
+        var buKey = N(buNombre);
+
+        if (string.IsNullOrWhiteSpace(clienteKey))
+            return items.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var vigentes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var hoy = DateTime.Today;
+        const int chunkSize = 900;
+
+        for (int i = 0; i < items.Count; i += chunkSize)
+        {
+            var chunk = items.Skip(i).Take(chunkSize).ToList();
+
+            var rows = await _OracleContext.XXORA_DISCOUNT_LISTs
+                .AsNoTracking()
+                .Where(x =>
+                    x.BU_NAME != null &&
+                    x.PARTY_NUMBER != null &&
+                    x.ITEM_NUMBER != null &&
+                    x.RULE_DISCOUNT_NAME != null &&
+                    x.BU_NAME.Trim().ToUpper() == buKey &&
+                    x.PARTY_NUMBER.Trim().ToUpper() == clienteKey &&
+                    x.RULE_DISCOUNT_NAME.Trim().ToUpper() == "CLIENTE" &&
+                    x.START_DATE <= hoy &&
+                    (x.END_DATE == null || x.END_DATE >= hoy) &&
+                    chunk.Contains(x.ITEM_NUMBER.Trim().ToUpper()))
+                .Select(x => x.ITEM_NUMBER)
+                .Distinct()
+                .ToListAsync(ct);
+
+            foreach (var item in rows)
+            {
+                var key = N(item);
+                if (!string.IsNullOrWhiteSpace(key))
+                    vigentes.Add(key);
+            }
+        }
+
+        return items
+            .Where(x => !vigentes.Contains(x))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private async Task GenerarDescuentosMasterAsync(PREDESCUENTO solicitud, CancellationToken ct)
+    {
+        // =========================
+        // Datos base
+        // =========================
+        string buNombre = solicitud.BU_NOMBRE;
+        string organizationCode = "CR_3";
+        string codCliente = solicitud.COD_CLIENTE;
+        string consecutivo = solicitud.CONSECUTIVO;
+        string usuario = T(solicitud.AUTORIZADO_POR);
+        if (string.IsNullOrWhiteSpace(usuario))
+            usuario = "SYSTEM";
+        string fechaTexto = (solicitud.FECHA_APLICACION ?? DateTime.Now).ToString("yyyy-MM-dd");
+
+        // ✅ FECHAS de la solicitud a replicar en todos los registros master
+        DateTime? fechaInicioMaster = solicitud.FECHAINICIO ?? solicitud.FECHA_APLICACION; // <- si no querés fallback, pon: solicitud.FECHAINICIO
+        DateTime? fechaFinMaster = solicitud.FECHAFIN;
+
+        static string T(string? s) => (s ?? "").Trim();
+
+        static string MakeKey(string? linea, string? clase, string? articulo)
+            => $"{T(linea)}|{T(clase)}|{T(articulo)}";
+
+        static string MakePairKey(string? linea, string? clase)
+            => $"{T(linea)}|{T(clase)}";
+
+        static IEnumerable<List<TItem>> Chunk<TItem>(IEnumerable<TItem> source, int size)
+        {
+            var batch = new List<TItem>(size);
+            foreach (var item in source)
+            {
+                batch.Add(item);
+                if (batch.Count == size)
+                {
+                    yield return batch;
+                    batch = new List<TItem>(size);
+                }
+            }
+            if (batch.Count > 0) yield return batch;
+        }
+
+        // =========================
+        // 1) Detalles
+        // =========================
+        var detalles = await _OracleContext.PREDETDESCUENTOs
+            .AsNoTracking()
+            .Where(d => d.BU_NOMBRE == buNombre &&
+                        d.COD_CLIENTE == codCliente &&
+                        d.CONSECUTIVO == consecutivo)
+            .ToListAsync(ct);
+
+        if (detalles.Count == 0)
+            return;
+
+        // =========================
+        // 2) Combos existentes (para no chocar con AK)
+        // =========================
+        var existentes = await _OracleContext.PREDESCUENTOS_MASTERs
+            .AsNoTracking()
+            .Where(m => m.BU_NOMBRE == buNombre &&
+                        m.COD_CLIENTE == codCliente &&
+                        m.CONSECUTIVO == consecutivo)
+            .Select(m => new { m.COD_LINEA, m.COD_CLASE, m.COD_ARTICULO })
+            .ToListAsync(ct);
+
+        var combosInsertados = new HashSet<string>(
+            existentes.Select(e => MakeKey(e.COD_LINEA, e.COD_CLASE, e.COD_ARTICULO)),
+            StringComparer.OrdinalIgnoreCase
+        );
+
+        // =========================
+        // 3) Preparar maps de valores (VALOR) por scope
+        // =========================
+        var artValor = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+        foreach (var d in detalles.Where(d => !string.IsNullOrWhiteSpace(d.COD_ARTICULO)))
+        {
+            var art = T(d.COD_ARTICULO);
+            if (!artValor.ContainsKey(art))
+                artValor[art] = d.VALOR;
+        }
+
+        var pairValor = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+        foreach (var d in detalles.Where(d => string.IsNullOrWhiteSpace(d.COD_ARTICULO) &&
+                                             !string.IsNullOrWhiteSpace(d.COD_CLASE)))
+        {
+            var pk = MakePairKey(d.COD_LINEA, d.COD_CLASE);
+            if (!pairValor.ContainsKey(pk))
+                pairValor[pk] = d.VALOR;
+        }
+
+        var lineValor = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+        foreach (var d in detalles.Where(d => !string.IsNullOrWhiteSpace(d.COD_LINEA) &&
+                                             string.IsNullOrWhiteSpace(d.COD_CLASE) &&
+                                             string.IsNullOrWhiteSpace(d.COD_ARTICULO)))
+        {
+            var ln = T(d.COD_LINEA);
+            if (!lineValor.ContainsKey(ln))
+                lineValor[ln] = d.VALOR;
+        }
+
+        // =========================
+        // 4) Conexión Oracle (1 sola apertura)
+        // =========================
+        var connection = _OracleContext.Database.GetDbConnection();
+        bool cerrarAlFinal = false;
+
+        if (connection.State != System.Data.ConnectionState.Open)
+        {
+            await connection.OpenAsync(ct);
+            cerrarAlFinal = true;
+        }
+
+        var invByArticulo = new Dictionary<string, (string CodLinea, string CodClase, string Medida)>(StringComparer.OrdinalIgnoreCase);
+        var invRowsByPairs = new List<(string CodArticulo, string CodLinea, string CodClase, string Medida)>(capacity: 1024);
+        var invRowsByLines = new List<(string CodArticulo, string CodLinea, string CodClase, string Medida)>(capacity: 1024);
+
+        try
+        {
+            // Q1: por artículos
+            var codArticulosUnicos = artValor.Keys.ToList();
+            if (codArticulosUnicos.Count > 0)
+            {
+                foreach (var chunk in Chunk(codArticulosUnicos, 900))
+                {
+                    using var cmd = connection.CreateCommand();
+                    var paramNames = new List<string>(chunk.Count);
+
+                    for (int i = 0; i < chunk.Count; i++)
+                    {
+                        var p = cmd.CreateParameter();
+                        p.ParameterName = "a" + i;
+                        p.Value = chunk[i];
+                        cmd.Parameters.Add(p);
+                        paramNames.Add(":" + p.ParameterName);
+                    }
+
+                    cmd.CommandText = $@"
+                    SELECT COD_ARTICULO, COD_LINEA, COD_CLASE, MEDIDA
+                    FROM INV_ARTICULO
+                    WHERE COD_ARTICULO IN ({string.Join(",", paramNames)})";
+
+                    using var reader = await cmd.ExecuteReaderAsync(ct);
+                    while (await reader.ReadAsync())
+                    {
+                        var codArt = T(reader["COD_ARTICULO"]?.ToString());
+                        if (string.IsNullOrWhiteSpace(codArt)) continue;
+
+                        invByArticulo[codArt] = (
+                            T(reader["COD_LINEA"]?.ToString()),
+                            T(reader["COD_CLASE"]?.ToString()),
+                            T(reader["MEDIDA"]?.ToString())
+                        );
+                    }
+                }
+            }
+
+            // Q2: por pares (linea,clase)
+            var pairKeys = pairValor.Keys.ToList();
+            if (pairKeys.Count > 0)
+            {
+                var pairs = pairKeys
+                    .Select(k =>
+                    {
+                        var parts = k.Split('|');
+                        return (Linea: parts.Length > 0 ? parts[0] : "", Clase: parts.Length > 1 ? parts[1] : "");
+                    })
+                    .Where(x => !string.IsNullOrWhiteSpace(x.Linea) && !string.IsNullOrWhiteSpace(x.Clase))
+                    .ToList();
+
+                foreach (var chunk in Chunk(pairs, 200))
+                {
+                    using var cmd = connection.CreateCommand();
+
+                    var whereParts = new List<string>(chunk.Count);
+                    for (int i = 0; i < chunk.Count; i++)
+                    {
+                        var pL = cmd.CreateParameter();
+                        pL.ParameterName = "l" + i;
+                        pL.Value = chunk[i].Linea;
+                        cmd.Parameters.Add(pL);
+
+                        var pC = cmd.CreateParameter();
+                        pC.ParameterName = "c" + i;
+                        pC.Value = chunk[i].Clase;
+                        cmd.Parameters.Add(pC);
+
+                        whereParts.Add($"(COD_LINEA = :{pL.ParameterName} AND COD_CLASE = :{pC.ParameterName})");
+                    }
+
+                    cmd.CommandText = $@"
+                    SELECT COD_ARTICULO, COD_LINEA, COD_CLASE, MEDIDA
+                    FROM INV_ARTICULO
+                    WHERE {string.Join(" OR ", whereParts)}";
+
+                    using var reader = await cmd.ExecuteReaderAsync(ct);
+                    while (await reader.ReadAsync())
+                    {
+                        var codArt = T(reader["COD_ARTICULO"]?.ToString());
+                        if (string.IsNullOrWhiteSpace(codArt)) continue;
+
+                        invRowsByPairs.Add((
+                            codArt,
+                            T(reader["COD_LINEA"]?.ToString()),
+                            T(reader["COD_CLASE"]?.ToString()),
+                            T(reader["MEDIDA"]?.ToString())
+                        ));
+                    }
+                }
+            }
+
+            // Q3: por líneas
+            var lineasUnicas = lineValor.Keys.ToList();
+            if (lineasUnicas.Count > 0)
+            {
+                foreach (var chunk in Chunk(lineasUnicas, 900))
+                {
+                    using var cmd = connection.CreateCommand();
+                    var paramNames = new List<string>(chunk.Count);
+
+                    for (int i = 0; i < chunk.Count; i++)
+                    {
+                        var p = cmd.CreateParameter();
+                        p.ParameterName = "ln" + i;
+                        p.Value = chunk[i];
+                        cmd.Parameters.Add(p);
+                        paramNames.Add(":" + p.ParameterName);
+                    }
+
+                    cmd.CommandText = $@"
+                    SELECT COD_ARTICULO, COD_LINEA, COD_CLASE, MEDIDA
+                    FROM INV_ARTICULO
+                    WHERE COD_LINEA IN ({string.Join(",", paramNames)})";
+
+                    using var reader = await cmd.ExecuteReaderAsync(ct);
+                    while (await reader.ReadAsync())
+                    {
+                        var codArt = T(reader["COD_ARTICULO"]?.ToString());
+                        if (string.IsNullOrWhiteSpace(codArt)) continue;
+
+                        invRowsByLines.Add((
+                            codArt,
+                            T(reader["COD_LINEA"]?.ToString()),
+                            T(reader["COD_CLASE"]?.ToString()),
+                            T(reader["MEDIDA"]?.ToString())
+                        ));
+                    }
+                }
+            }
+        }
+        finally
+        {
+            if (cerrarAlFinal && connection.State == System.Data.ConnectionState.Open)
+                await connection.CloseAsync();
+        }
+
+
+        // =========================
+        // 4.2) (NUEVO) Validar que el artículo tenga DESCUENTO FIJO en XXORA_DISCOUNT_LIST
+        //      (END_DATE IS NULL) para este cliente.
+        //      Si NO existe => NO se genera ese artículo en PREDESCUENTOS_MASTER.
+        // =========================
+        var candidateItems = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // candidatos desde las 3 fuentes (artículo explícito, por clase, por línea)
+        foreach (var k in invByArticulo.Keys)
+            if (!string.IsNullOrWhiteSpace(k)) candidateItems.Add(T(k));
+
+        foreach (var r in invRowsByPairs)
+            if (!string.IsNullOrWhiteSpace(r.CodArticulo)) candidateItems.Add(T(r.CodArticulo));
+
+        foreach (var r in invRowsByLines)
+            if (!string.IsNullOrWhiteSpace(r.CodArticulo)) candidateItems.Add(T(r.CodArticulo));
+
+        if (candidateItems.Count == 0)
+            return;
+
+        // =========================================================
+        // REGLA GLOBAL: excluir ART_NO_PROMO ACTIVO
+        // Aplica a FIJO y PROMOCIONAL y a artículos que llegaron
+        // explícitos, por clase o por línea.
+        // =========================================================
+        var noPromoActivos = await ObtenerArticulosNoPromoActivosAsync(
+            candidateItems,
+            buNombre,
+            organizationCode,
+            ct);
+
+        // =========================================================
+        // 4.1) Validar ACCEPTADESCUENTO = 'S' en XXORA_ITEM_MASTER
+        // =========================================================
+
+        // OJO:
+        // PREDESCUENTOS_MASTER usa CR_3,
+        // pero XXORA_ITEM_MASTER está trabajando con LCR_3.
+        const string organizationItemMaster = "LCR_3";
+
+        var acceptedItems = new HashSet<string>(
+            StringComparer.OrdinalIgnoreCase
+        );
+
+        foreach (var chunk in Chunk(candidateItems.ToList(), 900))
+        {
+            var itemsAceptados = await _OracleContext.XXORA_ITEM_MASTERs
+                .AsNoTracking()
+                .Where(x =>
+                    x.BU_NAME != null &&
+                    x.ORGANIZATION_CODE != null &&
+                    x.ITEM_NUMBER != null &&
+                    x.ACCEPTADESCUENTO != null &&
+
+                    x.BU_NAME.Trim().ToUpper() ==
+                        buNombre.Trim().ToUpper() &&
+
+                    x.ORGANIZATION_CODE.Trim().ToUpper() ==
+                        organizationItemMaster &&
+
+                    chunk.Contains(x.ITEM_NUMBER.Trim()) &&
+
+                    x.ACCEPTADESCUENTO.Trim().ToUpper() == "S"
+                )
+                .Select(x => x.ITEM_NUMBER)
+                .Distinct()
+                .ToListAsync(ct);
+
+            foreach (var item in itemsAceptados)
+            {
+                if (!string.IsNullOrWhiteSpace(item))
+                    acceptedItems.Add(T(item));
+            }
+        }
+
+        // Helper
+        bool AceptaDescuento(string codArt)
+        {
+            return !string.IsNullOrWhiteSpace(codArt) &&
+                   acceptedItems.Contains(T(codArt));
+        }
+
+        // =========================================================
+        // El descuento CLIENTE previo solamente es obligatorio
+        // cuando la solicitud es PROMOCIONAL.
+        //
+        // Para solicitudes FIJAS no debe exigirse que el descuento
+        // ya exista, porque precisamente se está creando/actualizando.
+        // =========================================================
+        bool esPromocional = string.Equals(
+            T(solicitud.TIPODESCUENTO),
+            "Descuento Promocional",
+            StringComparison.OrdinalIgnoreCase
+        );
+
+        // =========================================================
+        // PROMOCIONAL:
+        // el artículo debe tener un descuento CLIENTE realmente
+        // vigente para este mismo cliente.
+        //
+        // Se utiliza la misma validación global que ya se usa
+        // al crear/editar solicitudes:
+        //
+        //   BU_NAME            = BU de la solicitud
+        //   PARTY_NUMBER       = cliente de la solicitud
+        //   ITEM_NUMBER        = artículo
+        //   RULE_DISCOUNT_NAME = CLIENTE
+        //   START_DATE         <= hoy
+        //   END_DATE           >= hoy o NULL
+        //
+        // Para FIJO esta condición NO aplica.
+        // =========================================================
+        var sinFijoVigente = new HashSet<string>(
+            StringComparer.OrdinalIgnoreCase
+        );
+
+        if (esPromocional)
+        {
+            sinFijoVigente =
+                await ObtenerArticulosSinDescuentoClienteVigenteAsync(
+                    candidateItems,
+                    codCliente,
+                    buNombre,
+                    ct);
+        }
+
+        bool TieneFijoEnXxora(string codArt)
+        {
+            var item = T(codArt);
+
+            if (string.IsNullOrWhiteSpace(item))
+                return false;
+
+            // Para FIJO no se exige descuento CLIENTE previo.
+            if (!esPromocional)
+                return true;
+
+            // Para PROMOCIONAL solamente pasa si NO está dentro
+            // de los artículos que carecen de CLIENTE vigente.
+            return !sinFijoVigente.Contains(item);
+        }
+
+        bool PuedeGenerarEnMaster(string codArt)
+        {
+            var item = T(codArt);
+
+            if (string.IsNullOrWhiteSpace(item))
+                return false;
+
+            // Aplica tanto a FIJO como a PROMOCIONAL.
+            if (noPromoActivos.Contains(item))
+                return false;
+
+            // Aplica tanto a FIJO como a PROMOCIONAL.
+            if (!AceptaDescuento(item))
+                return false;
+
+            // Solamente las promociones requieren descuento CLIENTE previo.
+            if (esPromocional && !TieneFijoEnXxora(item))
+                return false;
+
+            return true;
+        }
+
+
+
+        // =========================
+        // 5) Construir inserts en memoria (prioridad: artículo > clase > línea)
+        // =========================
+        var nuevos = new List<PREDESCUENTOS_MASTER>(capacity: 4096);
+
+        // 5.1 Artículo explícito
+        foreach (var kv in artValor)
+        {
+            var codArt = kv.Key;
+            var porcentaje = kv.Value;
+
+            // ✅ NUEVO: si no tiene fijo en XXORA, no se genera
+            if (!PuedeGenerarEnMaster(codArt))
+                continue;
+
+            if (!invByArticulo.TryGetValue(codArt, out var art))
+                continue;
+
+            var key = MakeKey(art.CodLinea, art.CodClase, codArt);
+            if (!combosInsertados.Add(key))
+                continue;
+
+            nuevos.Add(new PREDESCUENTOS_MASTER
+            {
+                CONSECUTIVO = consecutivo,
+                ORGANIZATION_CODE = organizationCode,
+                BU_NOMBRE = buNombre,
+                COD_CLIENTE = codCliente,
+                COD_LINEA = art.CodLinea,
+                COD_CLASE = art.CodClase,
+                COD_ARTICULO = codArt,
+                MEDIDA = art.Medida,
+
+                // ✅ fechas solicitud
+                FECHA_INICIO = fechaInicioMaster,
+                FECHA_FIN = fechaFinMaster,
+
+                PORCENTAJE = porcentaje,
+                COD_USUARIO = usuario,
+                FECHA = fechaTexto,
+                LOCAL1 = "S",
+                REPLICA1 = "S"
+            });
+        }
+
+        // 5.2 Por clase (sin artículo)
+        foreach (var row in invRowsByPairs)
+        {
+            // ✅ NUEVO
+            if (!PuedeGenerarEnMaster(row.CodArticulo))
+                continue;
+
+            var pairKey = MakePairKey(row.CodLinea, row.CodClase);
+            if (!pairValor.TryGetValue(pairKey, out var porcentaje))
+                continue;
+
+            var key = MakeKey(row.CodLinea, row.CodClase, row.CodArticulo);
+            if (!combosInsertados.Add(key))
+                continue;
+
+            nuevos.Add(new PREDESCUENTOS_MASTER
+            {
+                CONSECUTIVO = consecutivo,
+                ORGANIZATION_CODE = organizationCode,
+                BU_NOMBRE = buNombre,
+                COD_CLIENTE = codCliente,
+                COD_LINEA = row.CodLinea,
+                COD_CLASE = row.CodClase,
+                COD_ARTICULO = row.CodArticulo,
+                MEDIDA = row.Medida,
+
+                // ✅ fechas solicitud
+                FECHA_INICIO = fechaInicioMaster,
+                FECHA_FIN = fechaFinMaster,
+
+                PORCENTAJE = porcentaje,
+                COD_USUARIO = usuario,
+                FECHA = fechaTexto,
+                LOCAL1 = "S",
+                REPLICA1 = "S"
+            });
+        }
+
+        // 5.3 Solo línea
+        foreach (var row in invRowsByLines)
+        {
+            // ✅ NUEVO
+            if (!PuedeGenerarEnMaster(row.CodArticulo))
+                continue;
+
+            if (!lineValor.TryGetValue(T(row.CodLinea), out var porcentaje))
+                continue;
+
+            var key = MakeKey(row.CodLinea, row.CodClase, row.CodArticulo);
+            if (!combosInsertados.Add(key))
+                continue;
+
+            nuevos.Add(new PREDESCUENTOS_MASTER
+            {
+                CONSECUTIVO = consecutivo,
+                ORGANIZATION_CODE = organizationCode,
+                BU_NOMBRE = buNombre,
+                COD_CLIENTE = codCliente,
+                COD_LINEA = row.CodLinea,
+                COD_CLASE = row.CodClase,
+                COD_ARTICULO = row.CodArticulo,
+                MEDIDA = row.Medida,
+
+                // ✅ fechas solicitud
+                FECHA_INICIO = fechaInicioMaster,
+                FECHA_FIN = fechaFinMaster,
+
+                PORCENTAJE = porcentaje,
+                COD_USUARIO = usuario,
+                FECHA = fechaTexto,
+                LOCAL1 = "S",
+                REPLICA1 = "S"
+            });
+        }
+
+        if (nuevos.Count == 0)
+            return;
+
+        // =========================
+        // 6) Insert masivo (más rápido en EF)
+        // =========================
+        var prevAutoDetect = _OracleContext.ChangeTracker.AutoDetectChangesEnabled;
+        _OracleContext.ChangeTracker.AutoDetectChangesEnabled = false;
+
+        try
+        {
+            _OracleContext.PREDESCUENTOS_MASTERs.AddRange(nuevos);
+            await _OracleContext.SaveChangesAsync(ct);
+        }
+        finally
+        {
+            _OracleContext.ChangeTracker.AutoDetectChangesEnabled = prevAutoDetect;
+        }
+    }
+
     // Compatible con modelos donde FECHASOLICITUD sea DateTime o DateTime?.
     // El resultado se normaliza a DateTime? para poder validarlo y formatearlo igual.
     private static DateTime? CalcularFechaFinPricingTerm(DateTime fechaSolicitud)
@@ -407,8 +1133,8 @@ public class ArchivosDescuentosService : IArchivosDescuentosService
         /*
          * PREDESCUENTOS_MASTER es la fuente autoritativa de los artículos que
          * pertenecen a una solicitud aprobada. La expansión artículo / clase /
-         * línea y las reglas de elegibilidad ya se resolvieron al aprobar la
-         * solicitud en GenerarDescuentosMasterAsync.
+         * línea y las reglas de elegibilidad se resuelven justo antes de generar
+         * el ZIP mediante GenerarDescuentosMasterAsync.
          *
          * Este generador NO vuelve a expandir PREDETDESCUENTO con INV_ARTICULO.
          * Así el ZIP no puede reincorporar un artículo que MASTER excluyó.
@@ -470,6 +1196,21 @@ public class ArchivosDescuentosService : IArchivosDescuentosService
             var partyKey = N(party);
             var consecutivoKey = N(consecutivo);
             const string organizationMaster = "CR_3";
+
+            /*
+             * Para generación normal, PREDESCUENTOS_MASTER se crea/completa aquí,
+             * inmediatamente antes de comprobar sus registros.
+             *
+             * GenerarDescuentosMasterAsync es idempotente por combinación:
+             * conserva lo existente y agrega únicamente lo que falte.
+             *
+             * En reversa NO se reconstruye MASTER, porque debe utilizarse el
+             * conjunto histórico que perteneció a la solicitud original.
+             */
+            if (!esReversa)
+            {
+                await GenerarDescuentosMasterAsync(h, ct);
+            }
 
             var masterDb = await _OracleContext.PREDESCUENTOS_MASTERs
                 .AsNoTracking()

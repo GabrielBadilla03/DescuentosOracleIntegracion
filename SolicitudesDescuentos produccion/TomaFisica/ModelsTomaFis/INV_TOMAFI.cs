@@ -12,7 +12,6 @@ namespace TomaFisica.ModelsTomaFis
 
         public int SECUENCIA { get; set; }
         public string COD_CIA { get; set; } = null!;
-        public string? TIPO_INV { get; set; }
         public string? COD_BODEGA { get; set; }
         public string ESTADO { get; set; } = null!;
         public string TIPO { get; set; } = null!;

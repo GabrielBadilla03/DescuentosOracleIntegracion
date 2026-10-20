@@ -24,6 +24,7 @@ namespace TomaFisica.Data
         public virtual DbSet<INV_LOC> INV_LOCs { get; set; } = null!;
         public virtual DbSet<INV_ORIGEN> INV_ORIGENs { get; set; } = null!;
         public virtual DbSet<INV_TOMAFI> INV_TOMAFIs { get; set; } = null!;
+        public virtual DbSet<LOCALIZARD> LOCALIZARDs { get; set; } = null!;
         public virtual DbSet<PNORDENE> PNORDENEs { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -129,7 +130,7 @@ namespace TomaFisica.Data
                     .IsFixedLength();
 
                 entity.Property(e => e.COD_BODEGA)
-                    .HasMaxLength(3)
+                    .HasMaxLength(5)
                     .IsUnicode(false)
                     .IsFixedLength();
 
@@ -169,7 +170,7 @@ namespace TomaFisica.Data
                     .IsUnicode(false);
 
                 entity.Property(e => e.LOCALIZA)
-                    .HasMaxLength(8)
+                    .HasMaxLength(15)
                     .IsUnicode(false);
 
                 entity.Property(e => e.BATCH)
@@ -230,12 +231,12 @@ namespace TomaFisica.Data
                     .IsFixedLength();
 
                 entity.Property(e => e.COD_BODEGA)
-                    .HasMaxLength(3)
+                    .HasMaxLength(5)
                     .IsUnicode(false)
                     .IsFixedLength();
 
                 entity.Property(e => e.LOCALIZA)
-                    .HasMaxLength(8)
+                    .HasMaxLength(15)
                     .IsUnicode(false);
 
                 entity.Property(e => e.DES_LOCALIZA)
@@ -287,7 +288,7 @@ namespace TomaFisica.Data
                     .ValueGeneratedNever();
 
                 entity.Property(e => e.COD_BODEGA)
-                    .HasMaxLength(3)
+                    .HasMaxLength(5)
                     .IsUnicode(false)
                     .IsFixedLength();
 
@@ -326,14 +327,25 @@ namespace TomaFisica.Data
                     .HasDefaultValueSql("'1' ")
                     .IsFixedLength();
 
-                entity.Property(e => e.TIPO_INV)
-                    .HasMaxLength(3)
-                    .IsUnicode(false);
-
                 entity.Property(e => e.USUARIO)
                     .HasMaxLength(30)
                     .IsUnicode(false)
                     .HasDefaultValueSql("USER ");
+            });
+
+            modelBuilder.Entity<LOCALIZARD>(entity =>
+            {
+                entity.HasKey(e => e.LOCALIZACION);
+
+                entity.ToTable("LOCALIZARD");
+
+                entity.Property(e => e.LOCALIZACION)
+                    .HasMaxLength(15)
+                    .IsUnicode(false);
+
+                entity.Property(e => e.BODEGA)
+                    .HasMaxLength(10)
+                    .IsUnicode(false);
             });
 
             modelBuilder.Entity<PNORDENE>(entity =>
