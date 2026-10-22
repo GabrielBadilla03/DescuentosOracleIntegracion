@@ -56,16 +56,6 @@
         else if (esAprobado || esReversado)
         {
             <div class="d-flex gap-2">
-
-                @* Tanto APROBADO como REVERSADO pueden servir como origen *@
-                <a asp-controller="Predescuentos"
-                   asp-action="Create"
-                   asp-route-copiarDeConsecutivo="@Model.CONSECUTIVO"
-                   asp-route-copiarDeBu="@Model.BU_NOMBRE"
-                   class="btn btn-danger btn-sm">
-                    Copiar descuentos
-                </a>
-
                 @* Solo una solicitud APROBADA puede reversarse *@
                 @if (esAprobado)
                 {
@@ -93,6 +83,16 @@
             </div>
         }
     }
+    <div class="d-flex gap-2">
+        @* Tanto APROBADO como REVERSADO pueden servir como origen *@
+        <a asp-controller="Predescuentos"
+           asp-action="Create"
+           asp-route-copiarDeConsecutivo="@Model.CONSECUTIVO"
+           asp-route-copiarDeBu="@Model.BU_NOMBRE"
+           class="btn btn-danger btn-sm">
+            Copiar descuentos
+        </a>
+    </div>
 </div>
 <div>
     <hr />

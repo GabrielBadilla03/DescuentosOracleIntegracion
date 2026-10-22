@@ -3,388 +3,89 @@
 }
 
 <style>
-    .toma-page {
-        width: 100%;
-        max-width: 1100px;
-        margin: 0 auto 24px auto;
-        padding: 0 4px;
+    .toma-page { width: 100%; max-width: 1100px; margin: 0 auto 24px; padding: 0 4px; }
+    .toma-card { border: 1px solid #dee2e6; border-radius: 7px; margin-bottom: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.05); }
+    .toma-card .card-body { padding: 10px; }
+    .toma-ventanas { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 4px; margin-bottom: 7px; }
+    .toma-ventana-btn { min-height: 38px; padding: 6px; border: 1px solid #dc3545; border-radius: 4px; background: #fff; color: #dc3545; font-size: .8rem; font-weight: 700; text-decoration: none; display: flex; align-items: center; justify-content: center; text-align: center; }
+    .toma-ventana-btn.activo, .toma-ventana-btn:hover, .toma-ventana-btn:focus { background: #dc3545; color: #fff; }
+    .campo-label { display: block; margin-bottom: 3px; color: #495057; font-size: .75rem; font-weight: 700; }
+    .toma-page .form-control, .toma-page .form-select { min-height: 39px; font-size: 16px; }
+    .info-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 4px; margin-top: 7px; }
+    .info-item { padding: 5px 6px; border: 1px solid #dee2e6; border-radius: 4px; background: #f8f9fa; min-width: 0; }
+    .info-label { color: #6c757d; font-size: .64rem; font-weight: 700; text-transform: uppercase; }
+    .info-value { margin-top: 2px; font-size: .8rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .captura-principal { display: grid; grid-template-columns: minmax(120px,.8fr) minmax(180px,1.6fr); gap: 6px; align-items: end; }
+    .captura-secundaria { display: grid; grid-template-columns: minmax(95px,.65fr) minmax(150px,1fr) minmax(160px,1.15fr); gap: 6px; align-items: end; margin: 6px 0; }
+    .descripcion-articulo { margin-top: 5px; padding: 6px; min-height: 36px; border: 1px solid #dee2e6; border-radius: 4px; background: #f8f9fa; font-size: .85rem; }
+    .meta-articulo { margin-top: 3px; color: #6c757d; font-size: .75rem; }
+    .mensaje { min-height: 0; margin-top: 6px; font-size: .84rem; font-weight: 600; }
+    .mensaje:empty { display: none; }
+    .mensaje.ok { color: #198754; }
+    .mensaje.error { color: #dc3545; }
+    .mensaje.info { color: #055160; }
+    .instruccion { color: #6c757d; font-size: .75rem; }
+    .btn-guardar { min-height: 31px; padding: 4px 9px; font-weight: 700; font-size: .78rem; }
+    .ultimos-lista, .consulta-lista { display: flex; flex-direction: column; gap: 4px; margin-top: 5px; }
+    .ultimo-item { display: grid; grid-template-columns: minmax(85px,.8fr) minmax(125px,1.3fr) minmax(70px,.6fr); gap: 6px; padding: 8px; border: 1px solid #e5e7eb; border-radius: 4px; font-size: .95rem; line-height: 1.25; }
+    .ultimo-item .cantidad { text-align: right; font-size: 1rem; font-weight: 800; }
+    .consulta-filtros { display: grid; grid-template-columns: minmax(110px,.8fr) minmax(180px,1.6fr); gap: 5px; align-items: end; }
+    .consulta-acciones { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .consulta-item { padding: 8px; border: 1px solid #dee2e6; border-radius: 5px; background: #fff; }
+    .consulta-cabecera { display: grid; grid-template-columns: minmax(80px,.7fr) minmax(120px,1.2fr) auto; gap: 5px; align-items: center; }
+    .consulta-localiza, .consulta-articulo { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .consulta-localiza { font-size: .78rem; } .consulta-articulo { font-size: .86rem; }
+    .consulta-descripcion, .consulta-extra { margin-top: 4px; color: #6c757d; font-size: .78rem; }
+    .consulta-conteos { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 4px; margin-top: 5px; }
+    .consulta-conteo { padding: 5px; border: 1px solid #e5e7eb; border-radius: 3px; background: #f8f9fa; text-align: center; }
+    .consulta-conteo.activo { border-color: #dc3545; background: #fff5f5; }
+    .consulta-conteo-label { color: #6c757d; font-size: .68rem; font-weight: 700; }
+    .consulta-conteo-valor { font-size: .87rem; font-weight: 700; }
+    .consulta-editar { padding: 8px; border: 1px solid #d1e7dd; border-radius: 5px; background: #f4faf7; margin-top: 8px; }
+    .consulta-editar-grid { display: grid; grid-template-columns: minmax(150px,1fr) minmax(150px,1fr); gap: 6px; }
+    .campo-invalido { border-color: #dc3545 !important; background: #fff5f5 !important; }
+    .campo-valido { border-color: #198754 !important; }
+    .d-none-forzada { display: none !important; }
+    @@media(max-width:767.98px) {
+        .toma-page { padding: 0 1px; margin-bottom: 12px; }
+        .toma-card .card-body { padding: 8px 5px; }
+        .info-grid { grid-template-columns: 1fr 1fr; gap: 4px; }
+        .toma-ventana-btn { padding: 5px 2px; font-size: .72rem; }
+        .captura-principal, .consulta-filtros { gap: 4px; }
+        .captura-secundaria { grid-template-columns: minmax(75px,.6fr) minmax(120px,1fr) minmax(125px,1fr); gap: 4px; }
     }
-
-    .toma-card {
-        border: 1px solid #dee2e6;
-        border-radius: 7px;
-        box-shadow: 0 2px 8px rgba(0,0,0,.05);
-        margin-bottom: 8px;
-    }
-
-        .toma-card .card-body {
-            padding: 10px;
-        }
-
-    .toma-ventanas {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 4px;
-        margin-bottom: 7px;
-    }
-
-    .toma-ventana-btn {
-        min-height: 38px;
-        padding: 6px;
-        border: 1px solid #dc3545;
-        border-radius: 4px;
-        background: #fff;
-        color: #dc3545;
-        font-size: .8rem;
-        font-weight: 700;
-        text-decoration: none;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-        .toma-ventana-btn.activo,
-        .toma-ventana-btn:hover,
-        .toma-ventana-btn:focus {
-            background: #dc3545;
-            color: #fff;
-        }
-
-    .campo-label {
-        display: block;
-        margin-bottom: 3px;
-        color: #495057;
-        font-size: .68rem;
-        font-weight: 700;
-    }
-
-    .form-control,
-    .form-select {
-        min-height: 39px;
-        font-size: 16px;
-    }
-
-    .info-grid {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0,1fr));
-        gap: 4px;
-        margin-top: 7px;
-    }
-
-    .info-item {
-        padding: 5px 6px;
-        border: 1px solid #dee2e6;
-        border-radius: 4px;
-        background: #f8f9fa;
-        min-width: 0;
-    }
-
-    .info-label {
-        color: #6c757d;
-        font-size: .6rem;
-        font-weight: 700;
-        text-transform: uppercase;
-    }
-
-    .info-value {
-        margin-top: 2px;
-        font-size: .76rem;
-        font-weight: 700;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .captura-principal {
-        display: grid;
-        grid-template-columns: minmax(110px,.8fr) minmax(180px,1.6fr);
-        gap: 5px;
-        align-items: end;
-    }
-
-    .captura-secundaria {
-        display: grid;
-        grid-template-columns: minmax(95px,.65fr) minmax(150px,1fr) minmax(160px,1.15fr);
-        gap: 5px;
-        align-items: end;
-        margin-top: 5px;
-    }
-
-    .descripcion-articulo {
-        margin-top: 5px;
-        padding: 6px;
-        min-height: 36px;
-        border: 1px solid #dee2e6;
-        border-radius: 4px;
-        background: #f8f9fa;
-        font-size: .76rem;
-    }
-
-    .meta-articulo {
-        margin-top: 3px;
-        color: #6c757d;
-        font-size: .66rem;
-    }
-
-    .mensaje {
-        min-height: 0;
-        margin-top: 6px;
-        font-size: .74rem;
-        font-weight: 600;
-    }
-
-        .mensaje:empty {
-            display: none;
-        }
-
-        .mensaje.ok {
-            color: #198754;
-        }
-
-        .mensaje.error {
-            color: #dc3545;
-        }
-
-    .captura-top {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 6px;
-        margin-bottom: 6px;
-    }
-
-    .instruccion {
-        color: #6c757d;
-        font-size: .7rem;
-    }
-
-    .btn-guardar {
-        min-height: 30px;
-        padding: 4px 8px;
-        font-weight: 700;
-        font-size: .72rem;
-    }
-
-    .ultimos-lista,
-    .consulta-lista {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        margin-top: 5px;
-    }
-
-    .ultimo-item {
-        display: grid;
-        grid-template-columns: minmax(90px,.8fr) minmax(145px,1.3fr) minmax(70px,.6fr);
-        gap: 6px;
-        padding: 7px 8px;
-        border: 1px solid #e5e7eb;
-        border-radius: 4px;
-        font-size: .88rem;
-        line-height: 1.25;
-    }
-
-        .ultimo-item .cantidad {
-            text-align: right;
-            font-weight: 800;
-            font-size: .95rem;
-        }
-
-    #ultimosContenedor > .small {
-        font-size: .84rem !important;
-    }
-
-    .consulta-filtros {
-        display: grid;
-        grid-template-columns: minmax(110px,.8fr) minmax(180px,1.6fr);
-        gap: 5px;
-        align-items: end;
-    }
-
-    .consulta-acciones {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 5px;
-        margin-top: 6px;
-    }
-
-    .consulta-item {
-        padding: 7px;
-        border: 1px solid #dee2e6;
-        border-radius: 5px;
-        background: #fff;
-    }
-
-    .consulta-cabecera {
-        display: grid;
-        grid-template-columns: minmax(80px,.7fr) minmax(120px,1.2fr) auto;
-        gap: 5px;
-        align-items: center;
-    }
-
-    .consulta-localiza,
-    .consulta-articulo {
-        font-weight: 700;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .consulta-localiza {
-        font-size: .68rem;
-    }
-
-    .consulta-articulo {
-        font-size: .76rem;
-    }
-
-    .consulta-descripcion,
-    .consulta-extra {
-        margin-top: 3px;
-        color: #6c757d;
-        font-size: .66rem;
-    }
-
-    .consulta-conteos {
-        display: grid;
-        grid-template-columns: repeat(3,1fr);
-        gap: 4px;
-        margin-top: 5px;
-    }
-
-    .consulta-conteo {
-        padding: 4px;
-        border: 1px solid #e5e7eb;
-        border-radius: 3px;
-        background: #f8f9fa;
-        text-align: center;
-    }
-
-        .consulta-conteo.activo {
-            border-color: #dc3545;
-            background: #fff5f5;
-        }
-
-    .consulta-conteo-label {
-        color: #6c757d;
-        font-size: .58rem;
-        font-weight: 700;
-    }
-
-    .consulta-conteo-valor {
-        font-size: .78rem;
-        font-weight: 700;
-    }
-
-    .d-none-forzada {
-        display: none !important;
-    }
-
-    @@media (max-width: 767.98px) {
-        .toma-page {
-            padding: 0 1px;
-            margin-bottom: 12px;
-        }
-
-        .toma-card .card-body {
-            padding: 6px 4px;
-        }
-
-        .toma-ventana-btn {
-            font-size: .69rem;
-            padding: 5px 2px;
-        }
-
-        .info-grid {
-            grid-template-columns: 1fr 1fr;
-            gap: 3px;
-        }
-
-        .captura-principal,
-        .consulta-filtros {
-            gap: 3px;
-        }
-
-        .captura-secundaria {
-            grid-template-columns: minmax(75px,.55fr) minmax(120px,.9fr) minmax(125px,1fr);
-            gap: 3px;
-        }
-
-        .campo-label {
-            font-size: .61rem;
-        }
-
-        .consulta-item {
-            padding: 5px;
-        }
-
-        .consulta-cabecera {
-            grid-template-columns: minmax(65px,.65fr) minmax(100px,1fr) auto;
-            gap: 3px;
-        }
-    }
-
-    @@media (max-width: 430px) {
-        .captura-principal,
-        .consulta-filtros {
-            grid-template-columns: minmax(90px,.72fr) minmax(145px,1.28fr);
-        }
-
-        .captura-secundaria {
-            grid-template-columns: 1fr 1fr;
-        }
-
-            .captura-secundaria > div:last-child {
-                grid-column: 1 / -1;
-            }
+    @@media(max-width:430px) {
+        .captura-principal, .consulta-filtros { grid-template-columns: minmax(90px,.72fr) minmax(145px,1.28fr); }
+        .captura-secundaria { grid-template-columns: 1fr 1fr; }
+        .captura-secundaria > div:last-child { grid-column: 1 / -1; }
+        .consulta-editar-grid { grid-template-columns: 1fr; }
     }
 </style>
 
 <div class="toma-page">
     <h2 class="h5 mb-2">Conteo Toma Física</h2>
-
     <div class="toma-ventanas" id="botonesModo">
         <button type="button" class="toma-ventana-btn activo" data-modo="1">Conteo 1</button>
         <button type="button" class="toma-ventana-btn" data-modo="2">Conteo 2</button>
         <button type="button" class="toma-ventana-btn" data-modo="3">Verificación</button>
     </div>
-
     <div class="toma-ventanas">
         <button type="button" id="btnCapturar" class="toma-ventana-btn activo">Capturar</button>
         <button type="button" id="btnConsultar" class="toma-ventana-btn">Consultar</button>
         <a asp-controller="TomaFisica" asp-action="Menu" class="toma-ventana-btn">Volver</a>
     </div>
-
-    <form id="formToken" class="d-none">
-        @Html.AntiForgeryToken()
-    </form>
+    <form id="formToken" class="d-none">@Html.AntiForgeryToken()</form>
 
     <div class="card toma-card">
         <div class="card-body">
             <label for="selectToma" class="campo-label">Toma física</label>
-            <select id="selectToma" class="form-select">
-                <option value="">Cargando tomas...</option>
-            </select>
-
-            <div id="mensajeToma" class="mensaje"></div>
-
+            <select id="selectToma" class="form-select"><option value="">Cargando tomas...</option></select>
+            <div id="mensajeToma" class="mensaje" role="status"></div>
             <div id="infoToma" class="info-grid d-none-forzada">
-                <div class="info-item">
-                    <div class="info-label">Secuencia</div>
-                    <div id="infoSecuencia" class="info-value"></div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Bodega</div>
-                    <div id="infoBodega" class="info-value"></div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Tipo / Estado</div>
-                    <div id="infoTipo" class="info-value"></div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Observación</div>
-                    <div id="infoObservacion" class="info-value"></div>
-                </div>
+                <div class="info-item"><div class="info-label">Secuencia</div><div id="infoSecuencia" class="info-value"></div></div>
+                <div class="info-item"><div class="info-label">Bodega</div><div id="infoBodega" class="info-value"></div></div>
+                <div class="info-item"><div class="info-label">Tipo / Estado</div><div id="infoTipo" class="info-value"></div></div>
+                <div class="info-item"><div class="info-label">Observación</div><div id="infoObservacion" class="info-value"></div></div>
             </div>
         </div>
     </div>
@@ -392,77 +93,43 @@
     <div id="panelCapturar">
         <div id="cardCaptura" class="card toma-card d-none-forzada">
             <div class="card-body">
-                <div class="captura-top">
-                    <div class="instruccion">
-                        Localización → artículo/código de barras → cantidad. Origen y batch son opcionales.
-                    </div>
+                <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                    <div id="instruccionCaptura" class="instruccion">Localización → artículo → cantidad. Origen obligatorio en Conteo 1.</div>
                     <span id="contadorGuardados" class="badge bg-success">Guardados: 0</span>
                 </div>
-
                 <div class="captura-principal">
                     <div>
                         <label for="localiza" class="campo-label">Localización</label>
-                        <input id="localiza"
-                               type="text"
-                               maxlength="15"
-                               class="form-control text-uppercase"
-                               autocomplete="off"
-                               autocapitalize="characters"
-                               spellcheck="false"
+                        <input id="localiza" type="text" maxlength="15" class="form-control text-uppercase"
+                               autocomplete="off" autocapitalize="characters" spellcheck="false"
                                placeholder="Localización" />
                     </div>
                     <div>
                         <label for="codigo" class="campo-label">Artículo / Código de barras</label>
-                        <input id="codigo"
-                               type="text"
-                               maxlength="100"
-                               class="form-control"
-                               autocomplete="off"
-                               spellcheck="false"
-                               placeholder="Escanee o digite" />
+                        <input id="codigo" type="text" maxlength="100" class="form-control"
+                               autocomplete="off" spellcheck="false" placeholder="Escanee o digite" />
                     </div>
                 </div>
-
-                <div id="descripcionArticulo" class="descripcion-articulo text-muted">
-                    Escanee un artículo o código de barras.
-                </div>
+                <div id="mensajeLocaliza" class="mensaje" role="status"></div>
+                <div id="descripcionArticulo" class="descripcion-articulo text-muted">Escanee un artículo o código de barras.</div>
                 <div id="metaArticulo" class="meta-articulo"></div>
-
                 <div class="captura-secundaria">
                     <div>
                         <label for="cantidad" class="campo-label">Cantidad</label>
-                        <input id="cantidad"
-                               type="text"
-                               inputmode="decimal"
-                               class="form-control"
-                               autocomplete="off"
-                               placeholder="0" />
+                        <input id="cantidad" type="text" inputmode="decimal" class="form-control" autocomplete="off" placeholder="0" />
                     </div>
                     <div>
-                        <label for="origen" class="campo-label">Origen (opcional)</label>
-                        <select id="origen" class="form-select">
-                            <option value="">Sin origen</option>
-                        </select>
+                        <label id="labelOrigen" for="origen" class="campo-label">Origen (obligatorio)</label>
+                        <select id="origen" class="form-select" required><option value="">Seleccione origen</option></select>
                     </div>
                     <div>
                         <label for="batch" class="campo-label">Batch (opcional)</label>
-                        <input id="batch"
-                               type="text"
-                               maxlength="30"
-                               class="form-control text-uppercase"
-                               autocomplete="off"
-                               autocapitalize="characters"
-                               spellcheck="false"
-                               placeholder="Batch" />
+                        <input id="batch" type="text" maxlength="30" class="form-control text-uppercase"
+                               autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Batch" />
                     </div>
                 </div>
-
-                <button id="btnGuardar" type="button" class="btn btn-danger btn-guardar">
-                    Guardar conteo
-                </button>
-
-                <div id="mensajeCaptura" class="mensaje"></div>
-
+                <button id="btnGuardar" type="button" class="btn btn-danger btn-guardar">Guardar conteo</button>
+                <div id="mensajeCaptura" class="mensaje" role="status"></div>
                 <div id="ultimosContenedor" class="d-none-forzada mt-2">
                     <div class="small fw-bold text-muted">Capturas de esta sesión</div>
                     <div id="ultimosLista" class="ultimos-lista"></div>
@@ -474,38 +141,18 @@
     <div id="panelConsultar" class="d-none-forzada">
         <div class="card toma-card">
             <div class="card-body">
-                <div class="instruccion mb-2">
-                    Filtre por localización, artículo o código de barras. Sin filtros se muestran hasta 200 registros.
-                </div>
-
                 <div class="consulta-filtros">
-                    <div>
-                        <label for="consultaLocaliza" class="campo-label">Localización</label>
-                        <input id="consultaLocaliza"
-                               type="text"
-                               maxlength="15"
-                               class="form-control text-uppercase"
-                               autocomplete="off"
-                               placeholder="Opcional" />
-                    </div>
-                    <div>
-                        <label for="consultaCodigo" class="campo-label">Artículo / Código de barras</label>
-                        <input id="consultaCodigo"
-                               type="text"
-                               maxlength="100"
-                               class="form-control"
-                               autocomplete="off"
-                               placeholder="Opcional" />
-                    </div>
+                    <div><label for="consultaLocaliza" class="campo-label">Localización</label>
+                        <input id="consultaLocaliza" type="text" maxlength="15" class="form-control text-uppercase"
+                               placeholder="Opcional" autocomplete="off" /></div>
+                    <div><label for="consultaCodigo" class="campo-label">Artículo / Código de barras</label>
+                        <input id="consultaCodigo" type="text" class="form-control" placeholder="Opcional" autocomplete="off" /></div>
                 </div>
-
                 <div class="consulta-acciones">
-                    <button id="btnBuscar" type="button" class="btn btn-danger">Consultar</button>
-                    <button id="btnLimpiar" type="button" class="btn btn-outline-secondary">Limpiar</button>
+                    <button id="btnBuscar" type="button" class="btn btn-danger btn-sm">Consultar</button>
+                    <button id="btnLimpiar" type="button" class="btn btn-outline-secondary btn-sm">Limpiar</button>
                 </div>
-
-                <div id="mensajeConsulta" class="mensaje"></div>
-
+                <div id="mensajeConsulta" class="mensaje" role="status"></div>
                 <div id="resultadoConsulta" class="d-none-forzada mt-2">
                     <div id="tituloResultado" class="small fw-bold text-muted"></div>
                     <div id="listaConteos" class="consulta-lista"></div>
@@ -516,678 +163,540 @@
 </div>
 
 @section Scripts {
-    <script>
-        (() => {
-            const urlListarTomas = '@Url.Action("ListarTomas", "ConteoTomaFisica")';
-            const urlCargarToma = '@Url.Action("CargarToma", "ConteoTomaFisica")';
-            const urlResolverArticulo = '@Url.Action("ResolverArticulo", "ConteoTomaFisica")';
-            const urlGuardarConteo = '@Url.Action("GuardarConteo", "ConteoTomaFisica")';
-            const urlConsultarConteos = '@Url.Action("ConsultarConteos", "ConteoTomaFisica")';
-            const urlEliminarConteo = '@Url.Action("EliminarConteo", "ConteoTomaFisica")';
+<script>
+(() => {
+    const urlListarTomas = '@Url.Action("ListarTomas", "ConteoTomaFisica")';
+    const urlCargarToma = '@Url.Action("CargarToma", "ConteoTomaFisica")';
+    const urlValidarLocalizacion = '@Url.Action("ValidarLocalizacion", "ConteoTomaFisica")';
+    const urlResolverArticulo = '@Url.Action("ResolverArticulo", "ConteoTomaFisica")';
+    const urlGuardarConteo = '@Url.Action("GuardarConteo", "ConteoTomaFisica")';
+    const urlConsultarConteos = '@Url.Action("ConsultarConteos", "ConteoTomaFisica")';
+    const urlEliminarConteo = '@Url.Action("EliminarConteo", "ConteoTomaFisica")';
+    const urlActualizarOrigenBatch = '@Url.Action("ActualizarOrigenBatch", "ConteoTomaFisica")';
+    const token = document.querySelector('#formToken input[name="__RequestVerificationToken"]')?.value ?? '';
+    const $ = id => document.getElementById(id);
+    const selectToma = $('selectToma'), localiza = $('localiza'), codigo = $('codigo');
+    const cantidad = $('cantidad'), origen = $('origen'), batch = $('batch');
+    const mensajeCaptura = $('mensajeCaptura'), mensajeLocaliza = $('mensajeLocaliza');
+    const mensajeConsulta = $('mensajeConsulta'), mensajeToma = $('mensajeToma');
+    const listaConteos = $('listaConteos'), resultadoConsulta = $('resultadoConsulta');
+    const consultaLocaliza = $('consultaLocaliza'), consultaCodigo = $('consultaCodigo');
+    const botonesModo = [...document.querySelectorAll('[data-modo]')];
+    let modo = '1', secuencia = 0, articuloResuelto = '', guardando = false, totalGuardados = 0;
+    let origenesDisponibles = [];
+    let localizacionConfirmada = '', validacionEnCurso = null, numeroSolicitudLoc = 0;
+    let versionToma = 0;
 
-            const token = document.querySelector('#formToken input[name="__RequestVerificationToken"]')?.value ?? '';
-            const botonesModo = Array.from(document.querySelectorAll('[data-modo]'));
-            const btnCapturar = document.getElementById('btnCapturar');
-            const btnConsultar = document.getElementById('btnConsultar');
-            const selectToma = document.getElementById('selectToma');
-            const mensajeToma = document.getElementById('mensajeToma');
-            const infoToma = document.getElementById('infoToma');
-            const cardCaptura = document.getElementById('cardCaptura');
-            const panelCapturar = document.getElementById('panelCapturar');
-            const panelConsultar = document.getElementById('panelConsultar');
-
-            const localiza = document.getElementById('localiza');
-            const codigo = document.getElementById('codigo');
-            const cantidad = document.getElementById('cantidad');
-            const origen = document.getElementById('origen');
-            const batch = document.getElementById('batch');
-            const btnGuardar = document.getElementById('btnGuardar');
-            const mensajeCaptura = document.getElementById('mensajeCaptura');
-            const descripcionArticulo = document.getElementById('descripcionArticulo');
-            const metaArticulo = document.getElementById('metaArticulo');
-            const contadorGuardados = document.getElementById('contadorGuardados');
-            const ultimosContenedor = document.getElementById('ultimosContenedor');
-            const ultimosLista = document.getElementById('ultimosLista');
-
-            const consultaLocaliza = document.getElementById('consultaLocaliza');
-            const consultaCodigo = document.getElementById('consultaCodigo');
-            const btnBuscar = document.getElementById('btnBuscar');
-            const btnLimpiar = document.getElementById('btnLimpiar');
-            const mensajeConsulta = document.getElementById('mensajeConsulta');
-            const resultadoConsulta = document.getElementById('resultadoConsulta');
-            const tituloResultado = document.getElementById('tituloResultado');
-            const listaConteos = document.getElementById('listaConteos');
-
-            let modo = '1';
-            let secuencia = 0;
-            let articuloResuelto = '';
-            let guardando = false;
-            let totalGuardados = 0;
-
-            function mostrarMensaje(elemento, texto, clase = '') {
-                elemento.textContent = texto ?? '';
-                elemento.className = 'mensaje';
-                if (clase) elemento.classList.add(clase);
+    function mensaje(elemento, texto, clase = '') {
+        elemento.textContent = texto ?? '';
+        elemento.className = 'mensaje' + (clase ? ` ${clase}` : '');
+    }
+    async function leerJson(respuesta) { try { return await respuesta.json(); } catch { return null; } }
+    function errorServidor(data, defecto) {
+        return data?.detalle ? `${data.mensaje ?? defecto} ${data.detalle}` : (data?.mensaje ?? defecto);
+    }
+    function nombreModo() { return modo === '1' ? 'Conteo 1' : modo === '2' ? 'Conteo 2' : 'Verificación'; }
+    function valorVisible(v) { return v === null || v === undefined || v === '' ? '-' : v; }
+    function ponerModoActivo() {
+        for (const boton of botonesModo) boton.classList.toggle('activo', boton.dataset.modo === modo);
+        $('labelOrigen').textContent = modo === '1' ? 'Origen (obligatorio)' : 'Origen (opcional)';
+        origen.required = modo === '1';
+        $('instruccionCaptura').textContent = modo === '1'
+            ? 'Localización → artículo → cantidad. Origen obligatorio en Conteo 1.'
+            : 'Localización → artículo → cantidad. Origen y batch opcionales.';
+    }
+    function limpiarArticulo() {
+        articuloResuelto = '';
+        codigo.value = ''; cantidad.value = ''; origen.value = ''; batch.value = '';
+        $('descripcionArticulo').textContent = 'Escanee un artículo o código de barras.';
+        $('descripcionArticulo').classList.add('text-muted');
+        $('metaArticulo').textContent = '';
+        mensaje(mensajeCaptura, '');
+    }
+    function invalidarLocalizacion() {
+        numeroSolicitudLoc++;
+        localizacionConfirmada = '';
+        validacionEnCurso = null;
+        localiza.classList.remove('campo-valido', 'campo-invalido');
+        mensaje(mensajeLocaliza, '');
+    }
+    function limpiarToma() {
+        versionToma++;
+        secuencia = 0;
+        invalidarLocalizacion();
+        $('infoToma').classList.add('d-none-forzada');
+        $('cardCaptura').classList.add('d-none-forzada');
+        origenesDisponibles = [];
+        origen.innerHTML = '<option value="">Seleccione origen</option>';
+        localiza.value = '';
+        limpiarArticulo();
+        resultadoConsulta.classList.add('d-none-forzada');
+        listaConteos.innerHTML = '';
+    }
+    function llenarOrigenes() {
+        origen.innerHTML = '<option value="">Seleccione origen</option>';
+        for (const o of origenesDisponibles) {
+            if (o.origen === null || o.origen === undefined) continue;
+            const opt = document.createElement('option');
+            opt.value = String(o.origen);
+            opt.textContent = o.descripcion ? `${o.origen} - ${o.descripcion}` : String(o.origen);
+            origen.appendChild(opt);
+        }
+    }
+    function opcionesOrigen(select, actual) {
+        const vacio = document.createElement('option');
+        vacio.value = ''; vacio.textContent = 'Seleccione origen'; select.appendChild(vacio);
+        for (const o of origenesDisponibles) {
+            if (o.origen === null || o.origen === undefined) continue;
+            const opt = document.createElement('option');
+            opt.value = String(o.origen);
+            opt.textContent = o.descripcion ? `${o.origen} - ${o.descripcion}` : String(o.origen);
+            select.appendChild(opt);
+        }
+        select.value = actual === null || actual === undefined ? '' : String(actual);
+    }
+    function params(obj) {
+        const qs = new URLSearchParams();
+        for (const [k,v] of Object.entries(obj)) qs.append(k, v ?? '');
+        return qs.toString();
+    }
+    async function cargarListaTomas() {
+        limpiarToma();
+        const v = versionToma;
+        selectToma.disabled = true;
+        selectToma.innerHTML = '<option value="">Cargando tomas...</option>';
+        mensaje(mensajeToma, '');
+        try {
+            const respuesta = await fetch(`${urlListarTomas}?${params({modo})}`, { headers: {Accept:'application/json'} });
+            const data = await leerJson(respuesta);
+            if (!respuesta.ok || data?.ok !== true) throw new Error(errorServidor(data, 'No fue posible cargar las tomas.'));
+            if (v !== versionToma) return;
+            selectToma.innerHTML = '<option value="">Seleccione una toma física</option>';
+            for (const toma of data.tomas ?? []) {
+                const opt = document.createElement('option');
+                opt.value = toma.secuencia;
+                opt.textContent = `${toma.secuencia} | ${toma.codBodega ?? ''}${toma.desBodega ? ' - '+toma.desBodega : ''} | Tipo ${toma.tipo ?? ''}`;
+                selectToma.appendChild(opt);
             }
-
-            async function leerJson(response) {
-                try { return await response.json(); }
-                catch { return null; }
+            if (!(data.tomas ?? []).length) mensaje(mensajeToma, data.mensaje ?? `No hay tomas para ${nombreModo()}.`, 'info');
+        } catch(error) {
+            if (v !== versionToma) return;
+            selectToma.innerHTML = '<option value="">Sin tomas</option>';
+            mensaje(mensajeToma, error.message, 'error');
+        } finally { if (v === versionToma) selectToma.disabled = false; }
+    }
+    async function cargarToma() {
+        const seleccionado = parseInt(selectToma.value,10);
+        limpiarToma();
+        if (!Number.isFinite(seleccionado) || seleccionado <= 0) return;
+        secuencia = seleccionado;
+        const v = versionToma;
+        mensaje(mensajeToma, 'Cargando toma...', 'info');
+        try {
+            const respuesta = await fetch(`${urlCargarToma}?${params({secuencia,modo})}`, {headers:{Accept:'application/json'}});
+            const data = await leerJson(respuesta);
+            if (!respuesta.ok || data?.ok !== true) throw new Error(errorServidor(data, 'No fue posible cargar la toma.'));
+            if (v !== versionToma) return;
+            const t = data.toma ?? {};
+            $('infoSecuencia').textContent = t.secuencia ?? '';
+            $('infoBodega').textContent = `${t.codBodega ?? ''}${t.desBodega ? ' - '+t.desBodega : ''}`;
+            $('infoTipo').textContent = `Tipo ${t.tipo ?? ''} / ${t.estado ?? ''}`;
+            $('infoObservacion').textContent = t.observacion || '-';
+            origenesDisponibles = data.origenes ?? [];
+            llenarOrigenes();
+            $('infoToma').classList.remove('d-none-forzada');
+            $('cardCaptura').classList.remove('d-none-forzada');
+            mensaje(mensajeToma, `${nombreModo()} listo. Registros visibles: ${t.detallesVisibles ?? 0}.`, 'ok');
+            localiza.focus();
+        } catch(error) {
+            if (v !== versionToma) return;
+            limpiarToma(); selectToma.value = '';
+            mensaje(mensajeToma, error.message, 'error');
+        }
+    }
+    // Se valida sin artículo. La respuesta que llega tarde no puede validar una localización ya cambiada.
+    async function validarLocalizacion(enfocarArticulo = false) {
+        const loc = localiza.value.trim().toUpperCase();
+        localiza.value = loc;
+        if (!secuencia) {
+            mensaje(mensajeLocaliza, 'Seleccione primero una toma física.', 'error');
+            return false;
+        }
+        if (localizacionConfirmada === loc && loc !== '') {
+            if (enfocarArticulo) codigo.focus();
+            return true;
+        }
+        if (validacionEnCurso?.localiza === loc && validacionEnCurso?.secuencia === secuencia &&
+            validacionEnCurso?.modo === modo) {
+            const valido = await validacionEnCurso.promise;
+            if (valido && enfocarArticulo) codigo.focus();
+            return valido;
+        }
+        const n = ++numeroSolicitudLoc;
+        const tomaActual = secuencia, modoActual = modo;
+        localiza.classList.remove('campo-valido', 'campo-invalido');
+        if (!loc) {
+            localiza.classList.add('campo-invalido');
+            mensaje(mensajeLocaliza, 'Debe indicar la localización.', 'error');
+            if (enfocarArticulo) localiza.focus();
+            return false;
+        }
+        mensaje(mensajeLocaliza, 'Validando localización...', 'info');
+        const promise = (async () => {
+            try {
+                const respuesta = await fetch(`${urlValidarLocalizacion}?${params({secuencia:tomaActual,modo:modoActual,localiza:loc})}`,
+                    {headers:{Accept:'application/json'}});
+                const data = await leerJson(respuesta);
+                if (n !== numeroSolicitudLoc || secuencia !== tomaActual || modo !== modoActual ||
+                    localiza.value.trim().toUpperCase() !== loc) return false;
+                if (!respuesta.ok || data?.ok !== true) throw new Error(errorServidor(data, 'Localización inválida.'));
+                localizacionConfirmada = loc;
+                localiza.classList.add('campo-valido');
+                mensaje(mensajeLocaliza, data.mensaje ?? 'Localización válida.', 'ok');
+                return true;
+            } catch(error) {
+                if (n !== numeroSolicitudLoc || secuencia !== tomaActual || modo !== modoActual ||
+                    localiza.value.trim().toUpperCase() !== loc) return false;
+                localizacionConfirmada = '';
+                localiza.classList.add('campo-invalido');
+                mensaje(mensajeLocaliza, error.message, 'error');
+                if (document.activeElement === codigo) localiza.focus();
+                return false;
             }
-
-            function errorServidor(data, porDefecto) {
-                if (!data) return porDefecto;
-                if (data.detalle) return `${data.mensaje ?? porDefecto} ${data.detalle}`;
-                return data.mensaje ?? porDefecto;
-            }
-
-            function nombreModo() {
-                if (modo === '1') return 'Conteo 1';
-                if (modo === '2') return 'Conteo 2';
-                return 'Verificación';
-            }
-
-            function valorVisible(valor) {
-                return valor === null || valor === undefined || valor === ''
-                    ? '-'
-                    : valor;
-            }
-
-            function ponerModoActivo() {
-                for (const boton of botonesModo) {
-                    boton.classList.toggle('activo', boton.dataset.modo === modo);
-                }
-            }
-
-            function limpiarArticulo() {
-                articuloResuelto = '';
-                codigo.value = '';
-                cantidad.value = '';
-                origen.value = '';
-                batch.value = '';
-                descripcionArticulo.textContent = 'Escanee un artículo o código de barras.';
-                descripcionArticulo.classList.add('text-muted');
-                metaArticulo.textContent = '';
-                mostrarMensaje(mensajeCaptura, '');
-            }
-
-            function limpiarTomaSeleccionada() {
-                secuencia = 0;
-                infoToma.classList.add('d-none-forzada');
-                cardCaptura.classList.add('d-none-forzada');
-                document.getElementById('infoSecuencia').textContent = '';
-                document.getElementById('infoBodega').textContent = '';
-                document.getElementById('infoTipo').textContent = '';
-                document.getElementById('infoObservacion').textContent = '';
-                origen.innerHTML = '<option value="">Sin origen</option>';
-                localiza.value = '';
-                limpiarArticulo();
-                resultadoConsulta.classList.add('d-none-forzada');
-                listaConteos.innerHTML = '';
-            }
-
-            function cargarOrigenes(origenes) {
-                origen.innerHTML = '<option value="">Sin origen</option>';
-
-                for (const item of (origenes ?? [])) {
-                    if (item.origen === null || item.origen === undefined) continue;
-                    const option = document.createElement('option');
-                    option.value = item.origen.toString();
-                    option.textContent = item.descripcion
-                        ? `${item.origen} - ${item.descripcion}`
-                        : item.origen.toString();
-                    origen.appendChild(option);
-                }
-            }
-
-            async function cargarListaTomas() {
-                limpiarTomaSeleccionada();
-                selectToma.disabled = true;
-                selectToma.innerHTML = '<option value="">Cargando tomas...</option>';
-                mostrarMensaje(mensajeToma, '');
-
-                try {
-                    const response = await fetch(
-                        `${urlListarTomas}?modo=${encodeURIComponent(modo)}`,
-                        { headers: { 'Accept': 'application/json' } });
-                    const data = await leerJson(response);
-
-                    if (!response.ok || data?.ok !== true) {
-                        throw new Error(errorServidor(data, 'No fue posible cargar las tomas.'));
-                    }
-
-                    selectToma.innerHTML = '<option value="">Seleccione una toma física</option>';
-
-                    for (const toma of (data.tomas ?? [])) {
-                        const option = document.createElement('option');
-                        option.value = toma.secuencia ?? '';
-                        const bodega = toma.desBodega
-                            ? `${toma.codBodega} - ${toma.desBodega}`
-                            : (toma.codBodega ?? '');
-                        option.textContent = `${toma.secuencia} | ${bodega} | Tipo ${toma.tipo ?? ''}`;
-                        selectToma.appendChild(option);
-                    }
-
-                    if (!(data.tomas ?? []).length) {
-                        mostrarMensaje(
-                            mensajeToma,
-                            data.mensaje ?? `No hay tomas disponibles para ${nombreModo()}.`,
-                            'error');
-                    }
-
-                    selectToma.disabled = false;
-                }
-                catch (error) {
-                    selectToma.innerHTML = '<option value="">Sin tomas</option>';
-                    mostrarMensaje(mensajeToma, error?.message ?? 'No fue posible cargar las tomas.', 'error');
-                }
-                finally {
-                    selectToma.disabled = false;
-                }
-            }
-
-            async function cargarToma() {
-                const valor = Number.parseInt(selectToma.value, 10);
-
-                if (!Number.isFinite(valor) || valor <= 0) {
-                    limpiarTomaSeleccionada();
-                    return;
-                }
-
-                secuencia = valor;
-                cardCaptura.classList.add('d-none-forzada');
-                infoToma.classList.add('d-none-forzada');
-                mostrarMensaje(mensajeToma, 'Cargando toma...');
-
-                try {
-                    const response = await fetch(
-                        `${urlCargarToma}?secuencia=${encodeURIComponent(secuencia)}&modo=${encodeURIComponent(modo)}`,
-                        { headers: { 'Accept': 'application/json' } });
-                    const data = await leerJson(response);
-
-                    if (!response.ok || data?.ok !== true) {
-                        throw new Error(errorServidor(data, 'No fue posible cargar la toma.'));
-                    }
-
-                    const toma = data.toma ?? {};
-                    document.getElementById('infoSecuencia').textContent = toma.secuencia ?? '';
-                    document.getElementById('infoBodega').textContent =
-                        `${toma.codBodega ?? ''}${toma.desBodega ? ` - ${toma.desBodega}` : ''}`;
-                    document.getElementById('infoTipo').textContent =
-                        `Tipo ${toma.tipo ?? ''} / ${toma.estado ?? ''}`;
-                    document.getElementById('infoObservacion').textContent = toma.observacion || '-';
-
-                    cargarOrigenes(data.origenes);
-                    infoToma.classList.remove('d-none-forzada');
-                    cardCaptura.classList.remove('d-none-forzada');
-                    mostrarMensaje(
-                        mensajeToma,
-                        `${nombreModo()} listo. Registros visibles: ${toma.detallesVisibles ?? 0}.`,
-                        'ok');
-
-                    localiza.focus();
-                }
-                catch (error) {
-                    limpiarTomaSeleccionada();
-                    selectToma.value = '';
-                    mostrarMensaje(mensajeToma, error?.message ?? 'No fue posible cargar la toma.', 'error');
-                }
-            }
-
-            async function resolverArticulo() {
-                if (!secuencia) {
-                    mostrarMensaje(mensajeCaptura, 'Seleccione una toma física.', 'error');
-                    return false;
-                }
-
-                const loc = localiza.value.trim().toUpperCase();
-                const cod = codigo.value.trim();
-
-                if (!loc) {
-                    mostrarMensaje(mensajeCaptura, 'Digite la localización.', 'error');
-                    localiza.focus();
-                    return false;
-                }
-
-                if (!cod) {
-                    mostrarMensaje(mensajeCaptura, 'Escanee o digite el artículo.', 'error');
-                    codigo.focus();
-                    return false;
-                }
-
-                localiza.value = loc;
-                codigo.disabled = true;
-                mostrarMensaje(mensajeCaptura, 'Validando artículo...');
-
-                try {
-                    const url = `${urlResolverArticulo}` +
-                        `?secuencia=${encodeURIComponent(secuencia)}` +
-                        `&modo=${encodeURIComponent(modo)}` +
-                        `&localiza=${encodeURIComponent(loc)}` +
-                        `&codigo=${encodeURIComponent(cod)}`;
-
-                    const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
-                    const data = await leerJson(response);
-
-                    if (!response.ok || data?.ok !== true) {
-                        throw new Error(errorServidor(data, 'No se pudo validar el artículo.'));
-                    }
-
-                    articuloResuelto = data.codigoArticulo ?? '';
-                    codigo.value = articuloResuelto;
-                    descripcionArticulo.classList.remove('text-muted');
-                    descripcionArticulo.textContent =
-                        `${articuloResuelto}${data.descripcion ? ` - ${data.descripcion}` : ''}`;
-
-                    const meta = [];
-                    if (data.medida) meta.push(`Medida: ${data.medida}`);
-                    meta.push(data.existeDetalle ? 'Registro existente' : 'Nuevo registro');
-                    if (data.conteoActual !== null && data.conteoActual !== undefined) {
-                        meta.push(`Conteo actual: ${data.conteoActual}`);
-                    }
-                    if (data.desOrigen) meta.push(`Origen: ${data.desOrigen}`);
-                    metaArticulo.textContent = meta.join(' · ');
-
-                    if (data.cantidadEscaneada !== null && data.cantidadEscaneada !== undefined) {
-                        cantidad.value = data.cantidadEscaneada;
-                    }
-                    else if (data.conteoActual !== null && data.conteoActual !== undefined) {
-                        cantidad.value = data.conteoActual;
-                    }
-                    else {
-                        cantidad.value = '';
-                    }
-
-                    origen.value = data.origen === null || data.origen === undefined
-                        ? ''
-                        : data.origen.toString();
-                    batch.value = data.batch ?? '';
-
-                    mostrarMensaje(mensajeCaptura, 'Artículo válido.', 'ok');
-                    cantidad.focus();
-                    cantidad.select();
-                    return true;
-                }
-                catch (error) {
-                    articuloResuelto = '';
-                    descripcionArticulo.textContent = 'Escanee un artículo o código de barras.';
-                    descripcionArticulo.classList.add('text-muted');
-                    metaArticulo.textContent = '';
-                    mostrarMensaje(mensajeCaptura, error?.message ?? 'No se pudo validar el artículo.', 'error');
-                    codigo.focus();
-                    codigo.select();
-                    return false;
-                }
-                finally {
-                    codigo.disabled = false;
-                }
-            }
-
-            function agregarUltimo(data) {
-                const row = document.createElement('div');
-                row.className = 'ultimo-item';
-
-                const loc = document.createElement('div');
-                loc.textContent = data.localiza ?? '';
-                const art = document.createElement('div');
-                art.textContent = data.codigoArticulo ?? '';
-                const cant = document.createElement('div');
-                cant.className = 'cantidad';
-                cant.textContent = data.cantidad ?? '';
-
-                row.append(loc, art, cant);
-                ultimosLista.prepend(row);
-
-                while (ultimosLista.children.length > 8) {
-                    ultimosLista.lastElementChild?.remove();
-                }
-
-                ultimosContenedor.classList.remove('d-none-forzada');
-            }
-
-            async function guardarConteo() {
-                if (guardando) return;
-
-                if (!secuencia) {
-                    mostrarMensaje(mensajeCaptura, 'Seleccione una toma física.', 'error');
-                    return;
-                }
-
-                if (!articuloResuelto) {
-                    const valido = await resolverArticulo();
-                    if (!valido) return;
-                }
-
-                const loc = localiza.value.trim().toUpperCase();
-                const cod = codigo.value.trim();
-                const cant = cantidad.value.trim();
-                const origenValor = origen.value.trim();
-                const batchValor = batch.value.trim().toUpperCase();
-
-                if (!cant) {
-                    mostrarMensaje(mensajeCaptura, 'Digite la cantidad.', 'error');
-                    cantidad.focus();
-                    return;
-                }
-
-                guardando = true;
-                btnGuardar.disabled = true;
-                mostrarMensaje(mensajeCaptura, 'Guardando conteo...');
-
-                const formData = new FormData();
-                formData.append('__RequestVerificationToken', token);
-                formData.append('secuencia', secuencia.toString());
-                formData.append('modo', modo);
-                formData.append('localiza', loc);
-                formData.append('codigo', cod);
-                formData.append('cantidad', cant);
-                formData.append('origen', origenValor);
-                formData.append('batch', batchValor);
-
-                try {
-                    const response = await fetch(urlGuardarConteo, {
-                        method: 'POST',
-                        body: formData,
-                        headers: { 'Accept': 'application/json' }
-                    });
-                    const data = await leerJson(response);
-
-                    if (!response.ok || data?.ok !== true) {
-                        throw new Error(errorServidor(data, 'No se pudo guardar el conteo.'));
-                    }
-
-                    totalGuardados++;
-                    contadorGuardados.textContent = `Guardados: ${totalGuardados}`;
-                    agregarUltimo(data);
-                    mostrarMensaje(
-                        mensajeCaptura,
-                        `${data.mensaje ?? 'Conteo guardado.'} ${data.codigoArticulo ?? ''} = ${data.cantidad ?? ''}`,
-                        'ok');
-
-                    articuloResuelto = '';
-                    codigo.value = '';
-                    cantidad.value = '';
-                    origen.value = '';
-                    batch.value = '';
-                    descripcionArticulo.textContent = 'Escanee un artículo o código de barras.';
-                    descripcionArticulo.classList.add('text-muted');
-                    metaArticulo.textContent = '';
-                    codigo.focus();
-                }
-                catch (error) {
-                    mostrarMensaje(mensajeCaptura, error?.message ?? 'No se pudo guardar el conteo.', 'error');
-                }
-                finally {
-                    guardando = false;
-                    btnGuardar.disabled = false;
-                }
-            }
-
-            function crearConteo(etiqueta, valor, activo) {
-                const c = document.createElement('div');
-                c.className = `consulta-conteo${activo ? ' activo' : ''}`;
-
-                const l = document.createElement('div');
-                l.className = 'consulta-conteo-label';
-                l.textContent = etiqueta;
-
-                const v = document.createElement('div');
-                v.className = 'consulta-conteo-valor';
-                v.textContent = valorVisible(valor);
-
-                c.append(l, v);
-                return c;
-            }
-
-            function renderizarConteos(data) {
-                listaConteos.innerHTML = '';
-                const filas = data.filas ?? [];
-                tituloResultado.textContent =
-                    `${nombreModo()} · Registros: ${filas.length}${data.limitado ? ' · Máximo 200' : ''}`;
-
-                if (!filas.length) {
-                    const vacio = document.createElement('div');
-                    vacio.className = 'text-muted small border rounded p-2 text-center';
-                    vacio.textContent = 'No se encontraron conteos con los filtros indicados.';
-                    listaConteos.appendChild(vacio);
-                    resultadoConsulta.classList.remove('d-none-forzada');
-                    return;
-                }
-
-                for (const fila of filas) {
-                    const item = document.createElement('div');
-                    item.className = 'consulta-item';
-
-                    const cabecera = document.createElement('div');
-                    cabecera.className = 'consulta-cabecera';
-
-                    const loc = document.createElement('div');
-                    loc.className = 'consulta-localiza';
-                    loc.textContent = fila.localiza ?? '';
-
-                    const art = document.createElement('div');
-                    art.className = 'consulta-articulo';
-                    art.textContent = fila.codigoArticulo ?? '';
-
-                    const eliminar = document.createElement('button');
-                    eliminar.type = 'button';
-                    eliminar.className = 'btn btn-outline-danger btn-sm';
-                    eliminar.textContent = modo === '1'
-                        ? 'Eliminar C1'
-                        : modo === '2'
-                            ? 'Eliminar C2'
-                            : 'Eliminar Verif.';
-                    eliminar.disabled = fila.puedeEliminar !== true;
-                    eliminar.addEventListener('click', () => eliminarConteo(fila));
-
-                    cabecera.append(loc, art, eliminar);
-
-                    const descripcion = document.createElement('div');
-                    descripcion.className = 'consulta-descripcion';
-                    descripcion.textContent = fila.descripcion || '-';
-
-                    const conteos = document.createElement('div');
-                    conteos.className = 'consulta-conteos';
-                    conteos.append(
-                        crearConteo('Conteo 1', fila.conteo1, modo === '1'),
-                        crearConteo('Conteo 2', fila.conteo2, modo === '2'),
-                        crearConteo('Verificación', fila.conteo3, modo === '3'));
-
-                    const extra = document.createElement('div');
-                    extra.className = 'consulta-extra';
-                    const extras = [];
-
-                    if (fila.origen !== null && fila.origen !== undefined) {
-                        extras.push(
-                            fila.desOrigen
-                                ? `Origen: ${fila.origen} - ${fila.desOrigen}`
-                                : `Origen: ${fila.origen}`);
-                    }
-
-                    if (fila.batch) extras.push(`Batch: ${fila.batch}`);
-                    if (fila.fechaLote) extras.push(`Fecha lote: ${new Date(fila.fechaLote).toLocaleDateString()}`);
-                    extra.textContent = extras.length ? extras.join(' · ') : 'Sin origen / batch';
-
-                    item.append(cabecera, descripcion, conteos, extra);
-                    listaConteos.appendChild(item);
-                }
-
-                resultadoConsulta.classList.remove('d-none-forzada');
-            }
-
-            async function consultarConteos() {
-                if (!secuencia) {
-                    mostrarMensaje(mensajeConsulta, 'Seleccione una toma física.', 'error');
-                    resultadoConsulta.classList.add('d-none-forzada');
-                    return;
-                }
-
-                const loc = consultaLocaliza.value.trim().toUpperCase();
-                const cod = consultaCodigo.value.trim();
-                mostrarMensaje(mensajeConsulta, 'Consultando...');
-                resultadoConsulta.classList.add('d-none-forzada');
-
-                try {
-                    const url = `${urlConsultarConteos}` +
-                        `?secuencia=${encodeURIComponent(secuencia)}` +
-                        `&modo=${encodeURIComponent(modo)}` +
-                        `&localiza=${encodeURIComponent(loc)}` +
-                        `&codigo=${encodeURIComponent(cod)}`;
-
-                    const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
-                    const data = await leerJson(response);
-
-                    if (!response.ok || data?.ok !== true) {
-                        throw new Error(errorServidor(data, 'No fue posible consultar los conteos.'));
-                    }
-
-                    renderizarConteos(data);
-                    mostrarMensaje(
-                        mensajeConsulta,
-                        data.limitado
-                            ? 'Consulta completada. Se muestran los primeros 200 registros.'
-                            : 'Consulta completada.',
-                        'ok');
-                }
-                catch (error) {
-                    listaConteos.innerHTML = '';
-                    resultadoConsulta.classList.add('d-none-forzada');
-                    mostrarMensaje(mensajeConsulta, error?.message ?? 'No fue posible consultar.', 'error');
-                }
-            }
-
-            async function eliminarConteo(fila) {
-                const etiqueta = nombreModo();
-                const articulo = fila.codigoArticulo ?? '';
-                const loc = fila.localiza ?? '';
-
-                if (!window.confirm(`¿Eliminar ${etiqueta} de ${articulo} en ${loc}?`)) {
-                    return;
-                }
-
-                const formData = new FormData();
-                formData.append('__RequestVerificationToken', token);
-                formData.append('secuencia', secuencia.toString());
-                formData.append('modo', modo);
-                formData.append('localiza', loc);
-                formData.append('codigoArticulo', articulo);
-
-                try {
-                    const response = await fetch(urlEliminarConteo, {
-                        method: 'POST',
-                        body: formData,
-                        headers: { 'Accept': 'application/json' }
-                    });
-                    const data = await leerJson(response);
-
-                    if (!response.ok || data?.ok !== true) {
-                        throw new Error(errorServidor(data, 'No fue posible eliminar el conteo.'));
-                    }
-
-                    mostrarMensaje(mensajeConsulta, data.mensaje ?? 'Conteo eliminado.', 'ok');
-                    await consultarConteos();
-                }
-                catch (error) {
-                    mostrarMensaje(mensajeConsulta, error?.message ?? 'No fue posible eliminar el conteo.', 'error');
-                }
-            }
-
-            function mostrarVentana(nombre) {
-                const capturar = nombre === 'capturar';
-                panelCapturar.classList.toggle('d-none-forzada', !capturar);
-                panelConsultar.classList.toggle('d-none-forzada', capturar);
-                btnCapturar.classList.toggle('activo', capturar);
-                btnConsultar.classList.toggle('activo', !capturar);
-
-                if (capturar && secuencia) {
-                    localiza.focus();
-                }
-                else if (!capturar && secuencia) {
-                    consultaLocaliza.focus();
-                }
-            }
-
-            for (const boton of botonesModo) {
-                boton.addEventListener('click', async () => {
-                    const nuevoModo = boton.dataset.modo;
-                    if (!nuevoModo || nuevoModo === modo) return;
-
-                    modo = nuevoModo;
-                    ponerModoActivo();
-                    totalGuardados = 0;
-                    contadorGuardados.textContent = 'Guardados: 0';
-                    ultimosLista.innerHTML = '';
-                    ultimosContenedor.classList.add('d-none-forzada');
-                    await cargarListaTomas();
-                });
-            }
-
-            btnCapturar.addEventListener('click', () => mostrarVentana('capturar'));
-            btnConsultar.addEventListener('click', () => mostrarVentana('consultar'));
-            selectToma.addEventListener('change', cargarToma);
-            btnGuardar.addEventListener('click', guardarConteo);
-            btnBuscar.addEventListener('click', consultarConteos);
-
-            btnLimpiar.addEventListener('click', () => {
-                consultaLocaliza.value = '';
-                consultaCodigo.value = '';
-                resultadoConsulta.classList.add('d-none-forzada');
-                listaConteos.innerHTML = '';
-                mostrarMensaje(mensajeConsulta, '');
-                consultaLocaliza.focus();
-            });
-
-            localiza.addEventListener('input', () => {
-                localiza.value = localiza.value.toUpperCase();
-                limpiarArticulo();
-            });
-
-            localiza.addEventListener('keydown', event => {
-                if (event.key !== 'Enter') return;
-                event.preventDefault();
-                codigo.focus();
-            });
-
-            codigo.addEventListener('input', () => {
-                articuloResuelto = '';
-                descripcionArticulo.textContent = 'Escanee un artículo o código de barras.';
-                descripcionArticulo.classList.add('text-muted');
-                metaArticulo.textContent = '';
-            });
-
-            codigo.addEventListener('keydown', async event => {
-                if (event.key !== 'Enter') return;
-                event.preventDefault();
-                await resolverArticulo();
-            });
-
-            cantidad.addEventListener('keydown', async event => {
-                if (event.key !== 'Enter') return;
-                event.preventDefault();
-                await guardarConteo();
-            });
-
-            batch.addEventListener('keydown', async event => {
-                if (event.key !== 'Enter') return;
-                event.preventDefault();
-                await guardarConteo();
-            });
-
-            consultaLocaliza.addEventListener('keydown', event => {
-                if (event.key !== 'Enter') return;
-                event.preventDefault();
-                consultarConteos();
-            });
-
-            consultaCodigo.addEventListener('keydown', event => {
-                if (event.key !== 'Enter') return;
-                event.preventDefault();
-                consultarConteos();
-            });
-
-            ponerModoActivo();
-            mostrarVentana('capturar');
-            cargarListaTomas();
         })();
-    </script>
+        validacionEnCurso = {localiza:loc, secuencia:tomaActual, modo:modoActual, promise};
+        const valido = await promise;
+        if (validacionEnCurso?.promise === promise) validacionEnCurso = null;
+        if (enfocarArticulo && n === numeroSolicitudLoc) {
+            if (valido) codigo.focus(); else localiza.focus();
+        }
+        return valido;
+    }
+
+    async function resolverArticulo() {
+        if (!secuencia) {
+            mensaje(mensajeCaptura, 'Seleccione una toma física.', 'error');
+            return false;
+        }
+        if (!(await validarLocalizacion())) {
+            localiza.focus();
+            return false;
+        }
+        const cod = codigo.value.trim();
+        if (!cod) {
+            mensaje(mensajeCaptura, 'Escanee o digite el artículo.', 'error');
+            codigo.focus(); return false;
+        }
+        const tomaActual = secuencia, modoActual = modo, loc = localiza.value.trim().toUpperCase();
+        codigo.disabled = true;
+        mensaje(mensajeCaptura, 'Validando artículo...', 'info');
+        try {
+            const respuesta = await fetch(`${urlResolverArticulo}?${params({secuencia:tomaActual,modo:modoActual,localiza:loc,codigo:cod})}`,
+                {headers:{Accept:'application/json'}});
+            const data = await leerJson(respuesta);
+            if (secuencia !== tomaActual || modo !== modoActual || localiza.value.trim().toUpperCase() !== loc) return false;
+            if (!respuesta.ok || data?.ok !== true) throw new Error(errorServidor(data, 'No se pudo validar el artículo.'));
+            articuloResuelto = data.codigoArticulo ?? '';
+            codigo.value = articuloResuelto;
+            $('descripcionArticulo').classList.remove('text-muted');
+            $('descripcionArticulo').textContent = `${articuloResuelto}${data.descripcion ? ' - '+data.descripcion : ''}`;
+            const meta = [];
+            if (data.medida) meta.push(`Medida: ${data.medida}`);
+            meta.push(data.existeDetalle ? 'Registro existente' : 'Nuevo registro');
+            if (data.conteoActual !== null && data.conteoActual !== undefined)
+                meta.push(`Conteo actual: ${data.conteoActual}`);
+            if (data.desOrigen) meta.push(`Origen: ${data.desOrigen}`);
+            $('metaArticulo').textContent = meta.join(' · ');
+            cantidad.value = data.cantidadEscaneada ?? data.conteoActual ?? '';
+            origen.value = data.origen === null || data.origen === undefined ? '' : String(data.origen);
+            batch.value = data.batch ?? '';
+            mensaje(mensajeCaptura, 'Artículo válido.', 'ok');
+            cantidad.focus(); cantidad.select();
+            return true;
+        } catch(error) {
+            articuloResuelto = '';
+            mensaje(mensajeCaptura, error.message, 'error');
+            codigo.focus(); codigo.select();
+            return false;
+        } finally { codigo.disabled = false; }
+    }
+
+    function agregarUltimo(data) {
+        const fila = document.createElement('div'); fila.className = 'ultimo-item';
+        const loc = document.createElement('div'); loc.textContent = data.localiza ?? '';
+        const art = document.createElement('div'); art.textContent = data.codigoArticulo ?? '';
+        const cant = document.createElement('div'); cant.className = 'cantidad'; cant.textContent = data.cantidad ?? '';
+        fila.append(loc, art, cant); $('ultimosLista').prepend(fila);
+        while ($('ultimosLista').children.length > 8) $('ultimosLista').lastElementChild?.remove();
+        $('ultimosContenedor').classList.remove('d-none-forzada');
+    }
+
+    async function guardarConteo() {
+        if (guardando) return;
+        if (!secuencia) {
+            mensaje(mensajeCaptura, 'Seleccione una toma física.', 'error'); return;
+        }
+        if (!(await validarLocalizacion())) {
+            localiza.focus(); return;
+        }
+        if (!articuloResuelto && !(await resolverArticulo())) return;
+        if (!cantidad.value.trim()) {
+            mensaje(mensajeCaptura, 'Digite la cantidad.', 'error'); cantidad.focus(); return;
+        }
+        if (modo === '1' && !origen.value.trim()) {
+            mensaje(mensajeCaptura, 'El origen es obligatorio en Conteo 1.', 'error'); origen.focus(); return;
+        }
+        const tomaActual = secuencia, modoActual = modo;
+        guardando = true; $('btnGuardar').disabled = true;
+        mensaje(mensajeCaptura, 'Guardando conteo...', 'info');
+        const body = new FormData();
+        for (const [k,v] of Object.entries({__RequestVerificationToken:token, secuencia, modo,
+            localiza:localiza.value.trim().toUpperCase(), codigo:codigo.value.trim(),
+            cantidad:cantidad.value.trim(), origen:origen.value.trim(), batch:batch.value.trim().toUpperCase()}))
+            body.append(k, v);
+        try {
+            const respuesta = await fetch(urlGuardarConteo, {method:'POST',body,headers:{Accept:'application/json'}});
+            const data = await leerJson(respuesta);
+            if (!respuesta.ok || data?.ok !== true) throw new Error(errorServidor(data, 'No se pudo guardar el conteo.'));
+            if (secuencia !== tomaActual || modo !== modoActual) return;
+            totalGuardados++;
+            $('contadorGuardados').textContent = `Guardados: ${totalGuardados}`;
+            agregarUltimo(data);
+            mensaje(mensajeCaptura, `${data.mensaje ?? 'Conteo guardado.'} ${data.codigoArticulo ?? ''} = ${data.cantidad ?? ''}`, 'ok');
+            articuloResuelto = '';
+            codigo.value = ''; cantidad.value = ''; origen.value = ''; batch.value = '';
+            $('descripcionArticulo').textContent = 'Escanee un artículo o código de barras.';
+            $('descripcionArticulo').classList.add('text-muted');
+            $('metaArticulo').textContent = '';
+            codigo.focus();
+        } catch(error) { mensaje(mensajeCaptura, error.message, 'error'); }
+        finally { guardando = false; $('btnGuardar').disabled = false; }
+    }
+
+    function crearConteo(etiqueta, valor, activo) {
+        const box = document.createElement('div');
+        box.className = `consulta-conteo${activo ? ' activo' : ''}`;
+        const label = document.createElement('div'); label.className = 'consulta-conteo-label'; label.textContent = etiqueta;
+        const dato = document.createElement('div'); dato.className = 'consulta-conteo-valor';
+        dato.textContent = valorVisible(valor);
+        box.append(label, dato); return box;
+    }
+
+    // Edición individual de la consulta: no cambia CONTEO1, CONTEO2 ni CONTEO3.
+    function crearEditor(fila, contenedor, botonEditar) {
+        const editor = document.createElement('div'); editor.className = 'consulta-editar';
+        const cabecera = document.createElement('div'); cabecera.className = 'small fw-bold mb-2';
+        cabecera.textContent = `Editar origen y batch · ${fila.codigoArticulo} · ${fila.localiza}`;
+        const grid = document.createElement('div'); grid.className = 'consulta-editar-grid';
+        const campoOrigen = document.createElement('div');
+        const etiquetaOrigen = document.createElement('label'); etiquetaOrigen.className = 'campo-label';
+        etiquetaOrigen.textContent = fila.conteo1 !== null && fila.conteo1 !== undefined ? 'Origen (obligatorio)' : 'Origen';
+        const selector = document.createElement('select'); selector.className = 'form-select';
+        opcionesOrigen(selector, fila.origen); campoOrigen.append(etiquetaOrigen, selector);
+        const campoBatch = document.createElement('div');
+        const etiquetaBatch = document.createElement('label'); etiquetaBatch.className = 'campo-label';
+        etiquetaBatch.textContent = 'Batch (opcional)';
+        const entrada = document.createElement('input'); entrada.className = 'form-control text-uppercase';
+        entrada.type = 'text'; entrada.maxLength = 30; entrada.value = fila.batch ?? '';
+        entrada.autocomplete = 'off'; campoBatch.append(etiquetaBatch, entrada);
+        grid.append(campoOrigen, campoBatch);
+        const acciones = document.createElement('div'); acciones.className = 'd-flex flex-wrap gap-2 mt-2';
+        const guardar = document.createElement('button'); guardar.type = 'button';
+        guardar.className = 'btn btn-success btn-sm'; guardar.textContent = 'Guardar cambios';
+        const cancelar = document.createElement('button'); cancelar.type = 'button';
+        cancelar.className = 'btn btn-outline-secondary btn-sm'; cancelar.textContent = 'Cancelar';
+        acciones.append(guardar, cancelar);
+        const resultado = document.createElement('div'); resultado.className = 'mensaje'; resultado.setAttribute('role','status');
+        editor.append(cabecera, grid, acciones, resultado);
+        contenedor.appendChild(editor);
+        botonEditar.disabled = true;
+        cancelar.addEventListener('click', () => { editor.remove(); botonEditar.disabled = false; });
+        guardar.addEventListener('click', async () => {
+            if (fila.conteo1 !== null && fila.conteo1 !== undefined && !selector.value.trim()) {
+                mensaje(resultado, 'El origen es obligatorio para los registros con Conteo 1.', 'error');
+                selector.focus(); return;
+            }
+            guardar.disabled = true; cancelar.disabled = true;
+            mensaje(resultado, 'Guardando cambios...', 'info');
+            const body = new FormData();
+            for (const [k,v] of Object.entries({__RequestVerificationToken:token, secuencia,
+                modo, localiza:fila.localiza, codigoArticulo:fila.codigoArticulo,
+                origen:selector.value, batch:entrada.value.trim().toUpperCase()})) body.append(k,v);
+            try {
+                const respuesta = await fetch(urlActualizarOrigenBatch, {method:'POST',body,headers:{Accept:'application/json'}});
+                const data = await leerJson(respuesta);
+                if (!respuesta.ok || data?.ok !== true) throw new Error(errorServidor(data, 'No se pudieron actualizar los datos.'));
+                fila.origen = data.origen; fila.desOrigen = data.desOrigen ?? '';
+                fila.batch = data.batch ?? ''; fila.fechaLote = data.fechaLote;
+                await consultarConteos();
+                mensaje(mensajeConsulta, data.mensaje ?? 'Datos actualizados.', 'ok');
+            } catch(error) {
+                mensaje(resultado, error.message, 'error');
+                guardar.disabled = false; cancelar.disabled = false;
+            }
+        });
+        selector.focus();
+    }
+
+    function renderizarConteos(data) {
+        listaConteos.innerHTML = '';
+        const filas = data.filas ?? [];
+        $('tituloResultado').textContent = `${nombreModo()} · Registros: ${filas.length}${data.limitado ? ' · Máximo 200' : ''}`;
+        if (!filas.length) {
+            const vacio = document.createElement('div');
+            vacio.className = 'text-muted small border rounded p-2 text-center';
+            vacio.textContent = 'No se encontraron conteos con los filtros indicados.';
+            listaConteos.appendChild(vacio);
+        }
+        for (const fila of filas) {
+            const item = document.createElement('div'); item.className = 'consulta-item';
+            const cabecera = document.createElement('div'); cabecera.className = 'consulta-cabecera';
+            const loc = document.createElement('div'); loc.className = 'consulta-localiza'; loc.textContent = fila.localiza ?? '';
+            const art = document.createElement('div'); art.className = 'consulta-articulo'; art.textContent = fila.codigoArticulo ?? '';
+            const botones = document.createElement('div'); botones.className = 'd-flex flex-wrap gap-1 justify-content-end';
+            const editar = document.createElement('button'); editar.type = 'button';
+            editar.className = 'btn btn-outline-primary btn-sm'; editar.textContent = 'Editar origen / batch';
+            editar.addEventListener('click', () => crearEditor(fila, item, editar));
+            const eliminar = document.createElement('button'); eliminar.type = 'button';
+            eliminar.className = 'btn btn-outline-danger btn-sm';
+            eliminar.textContent = modo === '1' ? 'Eliminar C1' : modo === '2' ? 'Eliminar C2' : 'Eliminar Verif.';
+            eliminar.disabled = fila.puedeEliminar !== true;
+            eliminar.addEventListener('click', () => eliminarConteo(fila));
+            botones.append(editar, eliminar); cabecera.append(loc, art, botones);
+            const descripcion = document.createElement('div'); descripcion.className = 'consulta-descripcion';
+            descripcion.textContent = fila.descripcion || '-';
+            const conteos = document.createElement('div'); conteos.className = 'consulta-conteos';
+            conteos.append(crearConteo('Conteo 1',fila.conteo1,modo==='1'),
+                crearConteo('Conteo 2',fila.conteo2,modo==='2'),
+                crearConteo('Verificación',fila.conteo3,modo==='3'));
+            const extra = document.createElement('div'); extra.className = 'consulta-extra';
+            const extras = [];
+            if (fila.origen !== null && fila.origen !== undefined)
+                extras.push(`Origen: ${fila.origen}${fila.desOrigen ? ' - '+fila.desOrigen : ''}`);
+            if (fila.batch) extras.push(`Batch: ${fila.batch}`);
+            if (fila.fechaLote) extras.push(`Fecha lote: ${new Date(fila.fechaLote).toLocaleDateString()}`);
+            extra.textContent = extras.length ? extras.join(' · ') : 'Sin origen / batch';
+            item.append(cabecera, descripcion, conteos, extra);
+            listaConteos.appendChild(item);
+        }
+        resultadoConsulta.classList.remove('d-none-forzada');
+    }
+
+    async function consultarConteos() {
+        if (!secuencia) {
+            mensaje(mensajeConsulta, 'Seleccione una toma física.', 'error');
+            resultadoConsulta.classList.add('d-none-forzada'); return;
+        }
+        const v = versionToma, modoActual = modo;
+        mensaje(mensajeConsulta, 'Consultando...', 'info');
+        resultadoConsulta.classList.add('d-none-forzada');
+        try {
+            const url = `${urlConsultarConteos}?${params({secuencia, modo,
+                localiza:consultaLocaliza.value.trim().toUpperCase(),codigo:consultaCodigo.value.trim()})}`;
+            const respuesta = await fetch(url, {headers:{Accept:'application/json'}});
+            const data = await leerJson(respuesta);
+            if (v !== versionToma || modoActual !== modo) return;
+            if (!respuesta.ok || data?.ok !== true) throw new Error(errorServidor(data, 'No fue posible consultar los conteos.'));
+            renderizarConteos(data);
+            mensaje(mensajeConsulta, data.limitado
+                ? 'Se muestran los primeros 200 registros.' : 'Consulta completada.', 'ok');
+        } catch(error) {
+            if (v !== versionToma) return;
+            listaConteos.innerHTML = ''; resultadoConsulta.classList.add('d-none-forzada');
+            mensaje(mensajeConsulta, error.message, 'error');
+        }
+    }
+
+    async function eliminarConteo(fila) {
+        if (!window.confirm(`¿Eliminar ${nombreModo()} de ${fila.codigoArticulo} en ${fila.localiza}?`)) return;
+        const body = new FormData();
+        for (const [k,v] of Object.entries({__RequestVerificationToken:token,secuencia,modo,
+            localiza:fila.localiza,codigoArticulo:fila.codigoArticulo})) body.append(k,v);
+        try {
+            const respuesta = await fetch(urlEliminarConteo, {method:'POST',body,headers:{Accept:'application/json'}});
+            const data = await leerJson(respuesta);
+            if (!respuesta.ok || data?.ok !== true) throw new Error(errorServidor(data, 'No fue posible eliminar el conteo.'));
+            await consultarConteos();
+            mensaje(mensajeConsulta, data.mensaje ?? 'Conteo eliminado.', 'ok');
+        } catch(error) { mensaje(mensajeConsulta, error.message, 'error'); }
+    }
+
+    function mostrarVentana(nombre) {
+        const capturar = nombre === 'capturar';
+        $('panelCapturar').classList.toggle('d-none-forzada', !capturar);
+        $('panelConsultar').classList.toggle('d-none-forzada', capturar);
+        $('btnCapturar').classList.toggle('activo', capturar);
+        $('btnConsultar').classList.toggle('activo', !capturar);
+        if (secuencia) (capturar ? localiza : consultaLocaliza).focus();
+    }
+
+    for (const boton of botonesModo) {
+        boton.addEventListener('click', async () => {
+            const nuevoModo = boton.dataset.modo;
+            if (!nuevoModo || nuevoModo === modo) return;
+            modo = nuevoModo; ponerModoActivo();
+            totalGuardados = 0;
+            $('contadorGuardados').textContent = 'Guardados: 0';
+            $('ultimosLista').innerHTML = '';
+            $('ultimosContenedor').classList.add('d-none-forzada');
+            await cargarListaTomas();
+        });
+    }
+    $('btnCapturar').addEventListener('click', () => mostrarVentana('capturar'));
+    $('btnConsultar').addEventListener('click', () => mostrarVentana('consultar'));
+    selectToma.addEventListener('change', cargarToma);
+    $('btnGuardar').addEventListener('click', guardarConteo);
+    $('btnBuscar').addEventListener('click', consultarConteos);
+    $('btnLimpiar').addEventListener('click', () => {
+        consultaLocaliza.value = ''; consultaCodigo.value = '';
+        resultadoConsulta.classList.add('d-none-forzada'); listaConteos.innerHTML = '';
+        mensaje(mensajeConsulta, ''); consultaLocaliza.focus();
+    });
+
+    localiza.addEventListener('input', () => {
+        localiza.value = localiza.value.toUpperCase();
+        invalidarLocalizacion(); limpiarArticulo();
+    });
+    localiza.addEventListener('keydown', async event => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        await validarLocalizacion(true);
+    });
+    localiza.addEventListener('blur', () => {
+        if (!secuencia) return;
+        // Blur solo valida el campo; si es inválido y se intentó ir al artículo,
+        // el evento focus del artículo devuelve el foco a localización.
+        void validarLocalizacion();
+    });
+    codigo.addEventListener('focus', async () => {
+        if (!secuencia) return;
+        if (!(await validarLocalizacion()) && document.activeElement === codigo) localiza.focus();
+    });
+    codigo.addEventListener('input', () => {
+        articuloResuelto = '';
+        $('descripcionArticulo').textContent = 'Escanee un artículo o código de barras.';
+        $('descripcionArticulo').classList.add('text-muted');
+        $('metaArticulo').textContent = '';
+    });
+    codigo.addEventListener('keydown', async event => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault(); await resolverArticulo();
+    });
+    cantidad.addEventListener('keydown', async event => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault(); await guardarConteo();
+    });
+    batch.addEventListener('keydown', async event => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault(); await guardarConteo();
+    });
+    consultaLocaliza.addEventListener('keydown', event => {
+        if (event.key === 'Enter') { event.preventDefault(); void consultarConteos(); }
+    });
+    consultaCodigo.addEventListener('keydown', event => {
+        if (event.key === 'Enter') { event.preventDefault(); void consultarConteos(); }
+    });
+    ponerModoActivo(); mostrarVentana('capturar'); void cargarListaTomas();
+})();
+</script>
 }
