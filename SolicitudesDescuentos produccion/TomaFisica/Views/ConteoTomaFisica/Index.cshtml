@@ -1,4 +1,4 @@
-﻿@{
+@{
     ViewData["Title"] = "Conteo Toma Física";
 }
 
@@ -12,267 +12,82 @@
 
     .toma-card {
         border: 1px solid #dee2e6;
-        border-radius: 8px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, .06);
-        overflow: hidden;
+        border-radius: 7px;
+        box-shadow: 0 2px 8px rgba(0,0,0,.05);
         margin-bottom: 8px;
     }
 
-    .toma-card .card-body {
-        padding: 10px;
-    }
-
-    .toma-header {
-        margin-bottom: 8px;
-    }
-
-    .toma-header h2 {
-        margin: 0;
-        font-size: 1.15rem;
-    }
+        .toma-card .card-body {
+            padding: 10px;
+        }
 
     .toma-ventanas {
         display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
-        gap: 3px;
-        margin-bottom: 8px;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 4px;
+        margin-bottom: 7px;
     }
 
     .toma-ventana-btn {
-        width: 100%;
-        min-width: 0;
-        padding: 7px 4px;
+        min-height: 38px;
+        padding: 6px;
         border: 1px solid #dc3545;
         border-radius: 4px;
         background: #fff;
         color: #dc3545;
-        font-size: .82rem;
+        font-size: .8rem;
         font-weight: 700;
-        text-align: center;
         text-decoration: none;
-        white-space: nowrap;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
-    .toma-ventana-btn:hover,
-    .toma-ventana-btn:focus,
-    .toma-ventana-btn.activo {
-        color: #fff;
-        background: #dc3545;
-        border-color: #dc3545;
-    }
+        .toma-ventana-btn.activo,
+        .toma-ventana-btn:hover,
+        .toma-ventana-btn:focus {
+            background: #dc3545;
+            color: #fff;
+        }
 
     .campo-label {
         display: block;
-        margin: 0 0 3px 2px;
-        color: #495057;
-        font-size: .69rem;
-        font-weight: 700;
-    }
-
-    .form-control,
-    .form-select {
-        min-height: 38px;
-        font-size: 16px;
-        border-radius: 3px;
-    }
-
-    .toma-info-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 3px;
-        margin-top: 7px;
-    }
-
-    .toma-info-item {
-        min-width: 0;
-        padding: 5px 6px;
-        border: 1px solid #dee2e6;
-        border-radius: 3px;
-        background: #f8f9fa;
-    }
-
-    .toma-info-etiqueta {
-        color: #6c757d;
-        font-size: .62rem;
-        font-weight: 700;
-        line-height: 1.1;
-    }
-
-    .toma-info-valor {
-        margin-top: 2px;
-        font-size: .78rem;
-        font-weight: 700;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .captura-grid {
-        display: grid;
-        grid-template-columns: minmax(92px, .8fr) minmax(155px, 1.45fr);
-        gap: 3px;
-        align-items: end;
-    }
-
-    .captura-grid-secundario {
-        display: grid;
-        grid-template-columns: minmax(100px, .9fr) minmax(145px, 1.3fr);
-        gap: 3px;
-        align-items: end;
-        margin-top: 4px;
-    }
-
-    .captura-descripcion {
-        width: 100%;
-        margin-top: 4px;
-        padding: 6px;
-        border: 1px solid #dee2e6;
-        border-radius: 3px;
-        background: #f8f9fa;
-        min-height: 34px;
-        font-size: .76rem;
-        line-height: 1.2;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .captura-meta {
-        margin-top: 3px;
-        color: #6c757d;
-        font-size: .66rem;
-        line-height: 1.2;
-    }
-
-    .captura-acciones {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 3px;
-        margin-top: 6px;
-    }
-
-    .btn-guardar {
-        min-height: 42px;
-        font-weight: 700;
-        font-size: .9rem;
-    }
-
-    .mensaje {
-        margin-top: 6px;
-        min-height: 0;
-        font-size: .72rem;
-        font-weight: 600;
-        line-height: 1.2;
-    }
-
-    .mensaje:empty {
-        display: none;
-    }
-
-    .mensaje.error {
-        color: #dc3545;
-    }
-
-    .mensaje.ok {
-        color: #198754;
-    }
-
-    .contador {
-        min-width: 95px;
-        text-align: center;
-        font-size: .75rem;
-        font-weight: 700;
-        white-space: nowrap;
-    }
-
-    .ultimos-titulo,
-    .consulta-titulo {
-        margin-top: 8px;
         margin-bottom: 3px;
         color: #495057;
         font-size: .68rem;
         font-weight: 700;
     }
 
-    .ultimos-lista,
-    .consulta-lista {
-        display: flex;
-        flex-direction: column;
-        gap: 3px;
+    .form-control,
+    .form-select {
+        min-height: 39px;
+        font-size: 16px;
     }
 
-    .ultimo-item {
+    .info-grid {
         display: grid;
-        grid-template-columns: minmax(72px, .8fr) minmax(100px, 1.2fr) minmax(70px, .7fr);
-        gap: 3px;
-        align-items: center;
+        grid-template-columns: repeat(4, minmax(0,1fr));
+        gap: 4px;
+        margin-top: 7px;
+    }
+
+    .info-item {
         padding: 5px 6px;
-        border: 1px solid #e5e7eb;
-        border-radius: 3px;
-        background: #fff;
-        font-size: .7rem;
-    }
-
-    .ultimo-item > div {
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .ultimo-item .cantidad {
-        text-align: right;
-        font-weight: 700;
-    }
-
-    .instruccion {
-        color: #6c757d;
-        font-size: .7rem;
-        line-height: 1.25;
-        margin-bottom: 6px;
-    }
-
-    .consulta-filtros {
-        display: grid;
-        grid-template-columns: minmax(95px, .8fr) minmax(155px, 1.4fr);
-        gap: 3px;
-        align-items: end;
-    }
-
-    .consulta-acciones {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 3px;
-        margin-top: 5px;
-    }
-
-    .consulta-acciones .btn {
-        min-height: 38px;
-        font-size: .78rem;
-        font-weight: 700;
-    }
-
-    .consulta-item {
         border: 1px solid #dee2e6;
         border-radius: 4px;
-        padding: 6px;
-        background: #fff;
-    }
-
-    .consulta-item-encabezado {
-        display: grid;
-        grid-template-columns: minmax(72px, .65fr) minmax(105px, 1fr) auto;
-        gap: 4px;
-        align-items: center;
-    }
-
-    .consulta-item-localiza {
-        font-size: .68rem;
-        font-weight: 700;
-        color: #495057;
-    }
-
-    .consulta-item-articulo {
+        background: #f8f9fa;
         min-width: 0;
+    }
+
+    .info-label {
+        color: #6c757d;
+        font-size: .6rem;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+
+    .info-value {
+        margin-top: 2px;
         font-size: .76rem;
         font-weight: 700;
         overflow: hidden;
@@ -280,20 +95,160 @@
         white-space: nowrap;
     }
 
-    .consulta-item-descripcion {
+    .captura-principal {
+        display: grid;
+        grid-template-columns: minmax(110px,.8fr) minmax(180px,1.6fr);
+        gap: 5px;
+        align-items: end;
+    }
+
+    .captura-secundaria {
+        display: grid;
+        grid-template-columns: minmax(95px,.65fr) minmax(150px,1fr) minmax(160px,1.15fr);
+        gap: 5px;
+        align-items: end;
+        margin-top: 5px;
+    }
+
+    .descripcion-articulo {
+        margin-top: 5px;
+        padding: 6px;
+        min-height: 36px;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        background: #f8f9fa;
+        font-size: .76rem;
+    }
+
+    .meta-articulo {
         margin-top: 3px;
         color: #6c757d;
-        font-size: .68rem;
-        line-height: 1.2;
+        font-size: .66rem;
+    }
+
+    .mensaje {
+        min-height: 0;
+        margin-top: 6px;
+        font-size: .74rem;
+        font-weight: 600;
+    }
+
+        .mensaje:empty {
+            display: none;
+        }
+
+        .mensaje.ok {
+            color: #198754;
+        }
+
+        .mensaje.error {
+            color: #dc3545;
+        }
+
+    .captura-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 6px;
+    }
+
+    .instruccion {
+        color: #6c757d;
+        font-size: .7rem;
+    }
+
+    .btn-guardar {
+        min-height: 30px;
+        padding: 4px 8px;
+        font-weight: 700;
+        font-size: .72rem;
+    }
+
+    .ultimos-lista,
+    .consulta-lista {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin-top: 5px;
+    }
+
+    .ultimo-item {
+        display: grid;
+        grid-template-columns: minmax(90px,.8fr) minmax(145px,1.3fr) minmax(70px,.6fr);
+        gap: 6px;
+        padding: 7px 8px;
+        border: 1px solid #e5e7eb;
+        border-radius: 4px;
+        font-size: .88rem;
+        line-height: 1.25;
+    }
+
+        .ultimo-item .cantidad {
+            text-align: right;
+            font-weight: 800;
+            font-size: .95rem;
+        }
+
+    #ultimosContenedor > .small {
+        font-size: .84rem !important;
+    }
+
+    .consulta-filtros {
+        display: grid;
+        grid-template-columns: minmax(110px,.8fr) minmax(180px,1.6fr);
+        gap: 5px;
+        align-items: end;
+    }
+
+    .consulta-acciones {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 5px;
+        margin-top: 6px;
+    }
+
+    .consulta-item {
+        padding: 7px;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        background: #fff;
+    }
+
+    .consulta-cabecera {
+        display: grid;
+        grid-template-columns: minmax(80px,.7fr) minmax(120px,1.2fr) auto;
+        gap: 5px;
+        align-items: center;
+    }
+
+    .consulta-localiza,
+    .consulta-articulo {
+        font-weight: 700;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
     }
 
+    .consulta-localiza {
+        font-size: .68rem;
+    }
+
+    .consulta-articulo {
+        font-size: .76rem;
+    }
+
+    .consulta-descripcion,
+    .consulta-extra {
+        margin-top: 3px;
+        color: #6c757d;
+        font-size: .66rem;
+    }
+
     .consulta-conteos {
         display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
-        gap: 3px;
+        grid-template-columns: repeat(3,1fr);
+        gap: 4px;
         margin-top: 5px;
     }
 
@@ -305,10 +260,10 @@
         text-align: center;
     }
 
-    .consulta-conteo.activo {
-        border-color: #dc3545;
-        background: #fff5f5;
-    }
+        .consulta-conteo.activo {
+            border-color: #dc3545;
+            background: #fff5f5;
+        }
 
     .consulta-conteo-label {
         color: #6c757d;
@@ -317,31 +272,8 @@
     }
 
     .consulta-conteo-valor {
-        margin-top: 1px;
         font-size: .78rem;
         font-weight: 700;
-    }
-
-    .consulta-extra {
-        margin-top: 4px;
-        color: #6c757d;
-        font-size: .62rem;
-    }
-
-    .btn-eliminar-conteo {
-        padding: 4px 7px;
-        font-size: .65rem;
-        font-weight: 700;
-        white-space: nowrap;
-    }
-
-    .sin-resultados {
-        padding: 10px 6px;
-        border: 1px dashed #ced4da;
-        border-radius: 3px;
-        color: #6c757d;
-        font-size: .72rem;
-        text-align: center;
     }
 
     .d-none-forzada {
@@ -354,1882 +286,908 @@
             margin-bottom: 12px;
         }
 
-        .toma-card {
-            border-radius: 4px;
-            margin-bottom: 5px;
-        }
-
         .toma-card .card-body {
-            padding: 5px 3px;
-        }
-
-        .toma-header {
-            margin-bottom: 5px;
-        }
-
-        .toma-header h2 {
-            font-size: .95rem;
-        }
-
-        .toma-ventanas {
-            gap: 2px;
-            margin-bottom: 5px;
+            padding: 6px 4px;
         }
 
         .toma-ventana-btn {
-            padding: 6px 2px;
-            border-radius: 3px;
-            font-size: .70rem;
+            font-size: .69rem;
+            padding: 5px 2px;
+        }
+
+        .info-grid {
+            grid-template-columns: 1fr 1fr;
+            gap: 3px;
+        }
+
+        .captura-principal,
+        .consulta-filtros {
+            gap: 3px;
+        }
+
+        .captura-secundaria {
+            grid-template-columns: minmax(75px,.55fr) minmax(120px,.9fr) minmax(125px,1fr);
+            gap: 3px;
         }
 
         .campo-label {
-            font-size: .62rem;
-        }
-
-        .form-control,
-        .form-select {
-            height: 37px;
-            min-height: 37px;
-            padding: 3px 4px;
-            border-radius: 2px;
-            font-size: 16px;
-        }
-
-        .toma-info-grid {
-            gap: 2px;
-            margin-top: 5px;
-        }
-
-        .toma-info-item {
-            padding: 4px 5px;
-        }
-
-        .toma-info-etiqueta {
-            font-size: .58rem;
-        }
-
-        .toma-info-valor {
-            font-size: .70rem;
-        }
-
-        .captura-grid,
-        .captura-grid-secundario,
-        .consulta-filtros {
-            gap: 2px;
-        }
-
-        .captura-descripcion {
-            margin-top: 2px;
-            padding: 5px;
-            min-height: 31px;
-            font-size: .70rem;
-        }
-
-        .captura-meta {
             font-size: .61rem;
-        }
-
-        .btn-guardar {
-            min-height: 40px;
-            font-size: .84rem;
-        }
-
-        .mensaje {
-            font-size: .66rem;
-        }
-
-        .contador {
-            min-width: 82px;
-            font-size: .67rem;
-        }
-
-        .instruccion {
-            font-size: .64rem;
-            margin-bottom: 4px;
-        }
-
-        .ultimo-item {
-            padding: 4px 5px;
-            font-size: .65rem;
-            grid-template-columns: minmax(62px, .75fr) minmax(92px, 1.2fr) minmax(60px, .65fr);
         }
 
         .consulta-item {
             padding: 5px;
         }
 
-        .consulta-item-encabezado {
-            grid-template-columns: minmax(58px, .58fr) minmax(90px, 1fr) auto;
-            gap: 2px;
-        }
-
-        .consulta-item-articulo {
-            font-size: .70rem;
-        }
-
-        .consulta-item-descripcion {
-            font-size: .62rem;
-        }
-
-        .consulta-conteo-valor {
-            font-size: .72rem;
-        }
-
-        .btn-eliminar-conteo {
-            font-size: .60rem;
-            padding: 4px 5px;
+        .consulta-cabecera {
+            grid-template-columns: minmax(65px,.65fr) minmax(100px,1fr) auto;
+            gap: 3px;
         }
     }
 
-    @@media (max-width: 390px) {
-        .captura-grid,
+    @@media (max-width: 430px) {
+        .captura-principal,
         .consulta-filtros {
-            grid-template-columns: minmax(82px, .72fr) minmax(145px, 1.35fr);
+            grid-template-columns: minmax(90px,.72fr) minmax(145px,1.28fr);
         }
 
-        .captura-grid-secundario {
-            grid-template-columns: minmax(90px, .8fr) minmax(135px, 1.25fr);
+        .captura-secundaria {
+            grid-template-columns: 1fr 1fr;
         }
 
-        .toma-card .card-body {
-            padding-left: 2px;
-            padding-right: 2px;
-        }
+            .captura-secundaria > div:last-child {
+                grid-column: 1 / -1;
+            }
     }
 </style>
 
 <div class="toma-page">
+    <h2 class="h5 mb-2">Conteo Toma Física</h2>
 
-    <div class="toma-header">
-        <h2>Conteo Toma Física</h2>
+    <div class="toma-ventanas" id="botonesModo">
+        <button type="button" class="toma-ventana-btn activo" data-modo="1">Conteo 1</button>
+        <button type="button" class="toma-ventana-btn" data-modo="2">Conteo 2</button>
+        <button type="button" class="toma-ventana-btn" data-modo="3">Verificación</button>
     </div>
 
-    <!-- Modo de conteo -->
     <div class="toma-ventanas">
-        <button type="button"
-                class="toma-ventana-btn activo"
-                data-modo="1">
-            Conteo 1
-        </button>
-
-        <button type="button"
-                class="toma-ventana-btn"
-                data-modo="2">
-            Conteo 2
-        </button>
-
-        <button type="button"
-                class="toma-ventana-btn"
-                data-modo="3">
-            Verificación
-        </button>
+        <button type="button" id="btnCapturar" class="toma-ventana-btn activo">Capturar</button>
+        <button type="button" id="btnConsultar" class="toma-ventana-btn">Consultar</button>
+        <a asp-controller="TomaFisica" asp-action="Menu" class="toma-ventana-btn">Volver</a>
     </div>
 
-    <!-- Igual que Códigos de barras: Capturar / Consultar / Volver -->
-    <div class="toma-ventanas">
-        <button type="button"
-                id="btnVentanaCapturar"
-                class="toma-ventana-btn activo">
-            Capturar
-        </button>
-
-        <button type="button"
-                id="btnVentanaConsultar"
-                class="toma-ventana-btn">
-            Consultar
-        </button>
-
-        <a asp-controller="TomaFisica"
-           asp-action="Menu"
-           class="toma-ventana-btn">
-            Volver
-        </a>
-    </div>
-
-    <form id="formAntiforgery" class="d-none">
+    <form id="formToken" class="d-none">
         @Html.AntiForgeryToken()
     </form>
 
-    <!-- Toma seleccionada: compartida entre Capturar y Consultar -->
     <div class="card toma-card">
         <div class="card-body">
-
-            <label for="selectToma"
-                   class="campo-label">
-                Toma física
-            </label>
-
-            <select id="selectToma"
-                    class="form-select">
-                <option value="">
-                    Cargando tomas...
-                </option>
+            <label for="selectToma" class="campo-label">Toma física</label>
+            <select id="selectToma" class="form-select">
+                <option value="">Cargando tomas...</option>
             </select>
 
-            <div id="mensajeToma"
-                 class="mensaje"></div>
+            <div id="mensajeToma" class="mensaje"></div>
 
-            <div id="infoToma"
-                 class="toma-info-grid d-none-forzada">
-
-                <div class="toma-info-item">
-                    <div class="toma-info-etiqueta">
-                        Secuencia
-                    </div>
-                    <div id="infoSecuencia"
-                         class="toma-info-valor"></div>
+            <div id="infoToma" class="info-grid d-none-forzada">
+                <div class="info-item">
+                    <div class="info-label">Secuencia</div>
+                    <div id="infoSecuencia" class="info-value"></div>
                 </div>
-
-                <div class="toma-info-item">
-                    <div class="toma-info-etiqueta">
-                        Bodega
-                    </div>
-                    <div id="infoBodega"
-                         class="toma-info-valor"></div>
+                <div class="info-item">
+                    <div class="info-label">Bodega</div>
+                    <div id="infoBodega" class="info-value"></div>
                 </div>
-
-                <div class="toma-info-item">
-                    <div class="toma-info-etiqueta">
-                        Tipo / Estado
-                    </div>
-                    <div id="infoTipo"
-                         class="toma-info-valor"></div>
+                <div class="info-item">
+                    <div class="info-label">Tipo / Estado</div>
+                    <div id="infoTipo" class="info-value"></div>
                 </div>
-
-                <div class="toma-info-item">
-                    <div class="toma-info-etiqueta">
-                        Tipo inventario
-                    </div>
-                    <div id="infoTipoInventario"
-                         class="toma-info-valor"></div>
+                <div class="info-item">
+                    <div class="info-label">Observación</div>
+                    <div id="infoObservacion" class="info-value"></div>
                 </div>
-
             </div>
-
         </div>
     </div>
 
-    <!-- CAPTURAR -->
     <div id="panelCapturar">
-        <div id="panelCaptura"
-             class="card toma-card d-none-forzada">
+        <div id="cardCaptura" class="card toma-card d-none-forzada">
             <div class="card-body">
-
-                <div class="d-flex justify-content-between align-items-center gap-2">
+                <div class="captura-top">
                     <div class="instruccion">
-                        Localización → Enter → artículo/barra → Enter → cantidad → Enter.
+                        Localización → artículo/código de barras → cantidad. Origen y batch son opcionales.
                     </div>
-
-                    <div id="contadorGuardados"
-                         class="badge bg-success contador">
-                        Guardados: 0
-                    </div>
+                    <span id="contadorGuardados" class="badge bg-success">Guardados: 0</span>
                 </div>
 
-                <div class="captura-grid">
-
+                <div class="captura-principal">
                     <div>
-                        <label for="localiza"
-                               class="campo-label">
-                            Localización
-                        </label>
-
-                        <input type="text"
-                               id="localiza"
+                        <label for="localiza" class="campo-label">Localización</label>
+                        <input id="localiza"
+                               type="text"
+                               maxlength="15"
                                class="form-control text-uppercase"
-                               maxlength="8"
                                autocomplete="off"
                                autocapitalize="characters"
                                spellcheck="false"
-                               placeholder="Localiza" />
+                               placeholder="Localización" />
                     </div>
-
                     <div>
-                        <label for="codigo"
-                               class="campo-label">
-                            Artículo / Código barras
-                        </label>
-
-                        <input type="text"
-                               id="codigo"
-                               class="form-control"
+                        <label for="codigo" class="campo-label">Artículo / Código de barras</label>
+                        <input id="codigo"
+                               type="text"
                                maxlength="100"
+                               class="form-control"
                                autocomplete="off"
                                spellcheck="false"
                                placeholder="Escanee o digite" />
                     </div>
-
                 </div>
 
-                <div id="descripcionArticulo"
-                     class="captura-descripcion text-muted">
+                <div id="descripcionArticulo" class="descripcion-articulo text-muted">
                     Escanee un artículo o código de barras.
                 </div>
+                <div id="metaArticulo" class="meta-articulo"></div>
 
-                <div id="metaArticulo"
-                     class="captura-meta"></div>
-
-                <div class="captura-grid-secundario">
-
+                <div class="captura-secundaria">
                     <div>
-                        <label for="cantidad"
-                               class="campo-label">
-                            Cantidad
-                        </label>
-
-                        <input type="text"
-                               id="cantidad"
-                               class="form-control"
+                        <label for="cantidad" class="campo-label">Cantidad</label>
+                        <input id="cantidad"
+                               type="text"
                                inputmode="decimal"
+                               class="form-control"
                                autocomplete="off"
                                placeholder="0" />
                     </div>
-
                     <div>
-                        <label for="batch"
-                               class="campo-label">
-                            Batch (opcional)
-                        </label>
-
-                        <input type="text"
-                               id="batch"
-                               class="form-control text-uppercase"
+                        <label for="origen" class="campo-label">Origen (opcional)</label>
+                        <select id="origen" class="form-select">
+                            <option value="">Sin origen</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="batch" class="campo-label">Batch (opcional)</label>
+                        <input id="batch"
+                               type="text"
                                maxlength="30"
+                               class="form-control text-uppercase"
                                autocomplete="off"
                                autocapitalize="characters"
                                spellcheck="false"
                                placeholder="Batch" />
                     </div>
-
                 </div>
 
-                <div class="captura-acciones">
-                    <button type="button"
-                            id="btnGuardar"
-                            class="btn btn-danger btn-guardar">
-                        Guardar conteo
-                    </button>
+                <button id="btnGuardar" type="button" class="btn btn-danger btn-guardar">
+                    Guardar conteo
+                </button>
+
+                <div id="mensajeCaptura" class="mensaje"></div>
+
+                <div id="ultimosContenedor" class="d-none-forzada mt-2">
+                    <div class="small fw-bold text-muted">Capturas de esta sesión</div>
+                    <div id="ultimosLista" class="ultimos-lista"></div>
                 </div>
-
-                <div id="mensajeCaptura"
-                     class="mensaje"></div>
-
-                <div id="ultimosContenedor"
-                     class="d-none-forzada">
-
-                    <div class="ultimos-titulo">
-                        Capturas de esta sesión
-                    </div>
-
-                    <div id="ultimosLista"
-                         class="ultimos-lista"></div>
-
-                </div>
-
             </div>
         </div>
     </div>
 
-    <!-- CONSULTAR -->
-    <div id="panelConsultar"
-         class="d-none-forzada">
-
+    <div id="panelConsultar" class="d-none-forzada">
         <div class="card toma-card">
             <div class="card-body">
-
-                <div class="instruccion">
-                    Puede consultar por localización, artículo o código de barras.
-                    Si deja ambos filtros vacíos se muestran hasta 200 registros.
+                <div class="instruccion mb-2">
+                    Filtre por localización, artículo o código de barras. Sin filtros se muestran hasta 200 registros.
                 </div>
 
                 <div class="consulta-filtros">
-
                     <div>
-                        <label for="consultaLocaliza"
-                               class="campo-label">
-                            Localización
-                        </label>
-
-                        <input type="text"
-                               id="consultaLocaliza"
+                        <label for="consultaLocaliza" class="campo-label">Localización</label>
+                        <input id="consultaLocaliza"
+                               type="text"
+                               maxlength="15"
                                class="form-control text-uppercase"
-                               maxlength="8"
                                autocomplete="off"
-                               autocapitalize="characters"
-                               spellcheck="false"
                                placeholder="Opcional" />
                     </div>
-
                     <div>
-                        <label for="consultaCodigo"
-                               class="campo-label">
-                            Artículo / Código barras
-                        </label>
-
-                        <input type="text"
-                               id="consultaCodigo"
-                               class="form-control"
+                        <label for="consultaCodigo" class="campo-label">Artículo / Código de barras</label>
+                        <input id="consultaCodigo"
+                               type="text"
                                maxlength="100"
+                               class="form-control"
                                autocomplete="off"
-                               spellcheck="false"
                                placeholder="Opcional" />
                     </div>
-
                 </div>
 
                 <div class="consulta-acciones">
-                    <button type="button"
-                            id="btnBuscarConteos"
-                            class="btn btn-danger">
-                        Consultar
-                    </button>
-
-                    <button type="button"
-                            id="btnLimpiarConsulta"
-                            class="btn btn-outline-secondary">
-                        Limpiar
-                    </button>
+                    <button id="btnBuscar" type="button" class="btn btn-danger">Consultar</button>
+                    <button id="btnLimpiar" type="button" class="btn btn-outline-secondary">Limpiar</button>
                 </div>
 
-                <div id="mensajeConsulta"
-                     class="mensaje"></div>
+                <div id="mensajeConsulta" class="mensaje"></div>
 
-                <div id="resultadoConsulta"
-                     class="d-none-forzada">
-
-                    <div id="tituloResultado"
-                         class="consulta-titulo"></div>
-
-                    <div id="listaConteos"
-                         class="consulta-lista"></div>
-
-                </div>
-
-            </div>
-        </div>
-    </div>
-
-</div>
-
-<!-- Modal eliminar conteo -->
-<div class="modal fade"
-     id="modalEliminarConteo"
-     tabindex="-1"
-     aria-labelledby="modalEliminarConteoLabel"
-     aria-hidden="true">
-
-    <div class="modal-dialog modal-sm modal-dialog-centered">
-        <div class="modal-content">
-
-            <div class="modal-header py-2">
-                <h6 class="modal-title"
-                    id="modalEliminarConteoLabel">
-                    Eliminar conteo
-                </h6>
-
-                <button type="button"
-                        class="btn-close"
-                        data-bs-dismiss="modal"
-                        aria-label="Cerrar"></button>
-            </div>
-
-            <div class="modal-body py-2">
-
-                <div class="small mb-1">
-                    Conteo:
-                    <strong id="modalModo"></strong>
-                </div>
-
-                <div class="small mb-1">
-                    Localización:
-                    <strong id="modalLocaliza"></strong>
-                </div>
-
-                <div class="small mb-1">
-                    Artículo:
-                    <strong id="modalArticulo"></strong>
-                </div>
-
-                <div class="small">
-                    Cantidad:
-                    <strong id="modalCantidad"></strong>
-                </div>
-
-                <div class="small text-danger mt-2">
-                    Se limpiará únicamente este conteo.
-                    La fila de INV_DETTOMAFIS no será eliminada.
+                <div id="resultadoConsulta" class="d-none-forzada mt-2">
+                    <div id="tituloResultado" class="small fw-bold text-muted"></div>
+                    <div id="listaConteos" class="consulta-lista"></div>
                 </div>
             </div>
-
-            <div class="modal-footer py-2">
-                <button type="button"
-                        class="btn btn-sm btn-secondary"
-                        data-bs-dismiss="modal">
-                    Cancelar
-                </button>
-
-                <button type="button"
-                        id="btnConfirmarEliminar"
-                        class="btn btn-sm btn-danger">
-                    Eliminar
-                </button>
-            </div>
-
         </div>
     </div>
 </div>
 
 @section Scripts {
-<script>
-(() => {
-    const urlListarTomas =
-        '@Url.Action("ListarTomas", "ConteoTomaFisica")';
-
-    const urlCargarToma =
-        '@Url.Action("CargarToma", "ConteoTomaFisica")';
-
-    const urlResolverArticulo =
-        '@Url.Action("ResolverArticulo", "ConteoTomaFisica")';
-
-    const urlGuardarConteo =
-        '@Url.Action("GuardarConteo", "ConteoTomaFisica")';
-
-    const urlConsultarConteos =
-        '@Url.Action("ConsultarConteos", "ConteoTomaFisica")';
-
-    const urlEliminarConteo =
-        '@Url.Action("EliminarConteo", "ConteoTomaFisica")';
-
-    const token =
-        document.querySelector(
-            '#formAntiforgery input[name="__RequestVerificationToken"]'
-        )?.value ?? '';
-
-    const botonesModo =
-        [...document.querySelectorAll('[data-modo]')];
-
-    const btnVentanaCapturar =
-        document.getElementById('btnVentanaCapturar');
-
-    const btnVentanaConsultar =
-        document.getElementById('btnVentanaConsultar');
-
-    const panelCapturar =
-        document.getElementById('panelCapturar');
-
-    const panelConsultar =
-        document.getElementById('panelConsultar');
-
-    const selectToma =
-        document.getElementById('selectToma');
-
-    const mensajeToma =
-        document.getElementById('mensajeToma');
-
-    const infoToma =
-        document.getElementById('infoToma');
-
-    const infoSecuencia =
-        document.getElementById('infoSecuencia');
-
-    const infoBodega =
-        document.getElementById('infoBodega');
-
-    const infoTipo =
-        document.getElementById('infoTipo');
-
-    const infoTipoInventario =
-        document.getElementById('infoTipoInventario');
-
-    const panelCaptura =
-        document.getElementById('panelCaptura');
-
-    const localiza =
-        document.getElementById('localiza');
-
-    const codigo =
-        document.getElementById('codigo');
-
-    const cantidad =
-        document.getElementById('cantidad');
-
-    const batch =
-        document.getElementById('batch');
-
-    const descripcionArticulo =
-        document.getElementById('descripcionArticulo');
-
-    const metaArticulo =
-        document.getElementById('metaArticulo');
-
-    const btnGuardar =
-        document.getElementById('btnGuardar');
-
-    const mensajeCaptura =
-        document.getElementById('mensajeCaptura');
-
-    const contadorGuardados =
-        document.getElementById('contadorGuardados');
-
-    const ultimosContenedor =
-        document.getElementById('ultimosContenedor');
-
-    const ultimosLista =
-        document.getElementById('ultimosLista');
-
-    const consultaLocaliza =
-        document.getElementById('consultaLocaliza');
-
-    const consultaCodigo =
-        document.getElementById('consultaCodigo');
-
-    const btnBuscarConteos =
-        document.getElementById('btnBuscarConteos');
-
-    const btnLimpiarConsulta =
-        document.getElementById('btnLimpiarConsulta');
-
-    const mensajeConsulta =
-        document.getElementById('mensajeConsulta');
-
-    const resultadoConsulta =
-        document.getElementById('resultadoConsulta');
-
-    const tituloResultado =
-        document.getElementById('tituloResultado');
-
-    const listaConteos =
-        document.getElementById('listaConteos');
-
-    const modalElemento =
-        document.getElementById('modalEliminarConteo');
-
-    const modalModo =
-        document.getElementById('modalModo');
-
-    const modalLocaliza =
-        document.getElementById('modalLocaliza');
-
-    const modalArticulo =
-        document.getElementById('modalArticulo');
-
-    const modalCantidad =
-        document.getElementById('modalCantidad');
-
-    const btnConfirmarEliminar =
-        document.getElementById('btnConfirmarEliminar');
-
-    const modalEliminar =
-        modalElemento && window.bootstrap
-            ? new bootstrap.Modal(modalElemento)
-            : null;
-
-    let modo = '1';
-    let ventana = 'capturar';
-    let secuencia = 0;
-    let articuloResuelto = '';
-    let totalGuardados = 0;
-    let guardando = false;
-    let eliminando = false;
-
-    let eliminarSeleccion = {
-        localiza: '',
-        codigoArticulo: '',
-        cantidad: null
-    };
-
-    function nombreModo() {
-        if (modo === '1')
-            return 'Conteo 1';
-
-        if (modo === '2')
-            return 'Conteo 2';
-
-        return 'Verificación';
-    }
-
-    function valorVisible(valor) {
-        return valor === null ||
-               valor === undefined
-            ? '-'
-            : valor;
-    }
-
-    function textoError(response, fallback) {
-        return response?.mensaje ??
-            response?.detalle ??
-            fallback;
-    }
-
-    function mostrarMensaje(
-        elemento,
-        texto,
-        tipo = '') {
-
-        elemento.textContent = texto ?? '';
-        elemento.classList.remove('error', 'ok');
-
-        if (tipo)
-            elemento.classList.add(tipo);
-    }
-
-    function mostrarVentana(nombre) {
-        ventana = nombre;
-
-        const capturar =
-            nombre === 'capturar';
-
-        panelCapturar.classList.toggle(
-            'd-none-forzada',
-            !capturar);
-
-        panelConsultar.classList.toggle(
-            'd-none-forzada',
-            capturar);
-
-        btnVentanaCapturar.classList.toggle(
-            'activo',
-            capturar);
-
-        btnVentanaConsultar.classList.toggle(
-            'activo',
-            !capturar);
-
-        requestAnimationFrame(() => {
-            if (capturar) {
-                if (secuencia)
-                    localiza.focus();
-            }
-            else {
-                consultaLocaliza.focus();
-
-                if (secuencia)
-                    consultarConteos();
-            }
-        });
-    }
-
-    function limpiarArticulo() {
-        articuloResuelto = '';
-        codigo.value = '';
-        cantidad.value = '';
-        batch.value = '';
-
-        descripcionArticulo.textContent =
-            'Escanee un artículo o código de barras.';
-
-        descripcionArticulo.classList.add(
-            'text-muted');
-
-        metaArticulo.textContent = '';
-    }
-
-    function ocultarCaptura() {
-        secuencia = 0;
-
-        panelCaptura.classList.add(
-            'd-none-forzada');
-
-        infoToma.classList.add(
-            'd-none-forzada');
-
-        resultadoConsulta.classList.add(
-            'd-none-forzada');
-
-        listaConteos.innerHTML = '';
-
-        limpiarArticulo();
-    }
-
-    function ponerModoActivo() {
-        for (const boton of botonesModo) {
-            boton.classList.toggle(
-                'activo',
-                boton.dataset.modo === modo);
-        }
-    }
-
-    async function cargarListaTomas() {
-        ocultarCaptura();
-
-        selectToma.disabled = true;
-
-        selectToma.innerHTML =
-            '<option value="">Cargando tomas...</option>';
-
-        mostrarMensaje(
-            mensajeToma,
-            '');
-
-        try {
-            const response = await fetch(
-                `${urlListarTomas}?modo=${encodeURIComponent(modo)}`,
-                {
-                    headers: {
-                        'Accept': 'application/json'
-                    }
-                });
-
-            const data = await response.json();
-
-            if (!response.ok ||
-                data.ok !== true) {
-                throw new Error(
-                    textoError(
-                        data,
-                        'No fue posible cargar las tomas.'));
+    <script>
+        (() => {
+            const urlListarTomas = '@Url.Action("ListarTomas", "ConteoTomaFisica")';
+            const urlCargarToma = '@Url.Action("CargarToma", "ConteoTomaFisica")';
+            const urlResolverArticulo = '@Url.Action("ResolverArticulo", "ConteoTomaFisica")';
+            const urlGuardarConteo = '@Url.Action("GuardarConteo", "ConteoTomaFisica")';
+            const urlConsultarConteos = '@Url.Action("ConsultarConteos", "ConteoTomaFisica")';
+            const urlEliminarConteo = '@Url.Action("EliminarConteo", "ConteoTomaFisica")';
+
+            const token = document.querySelector('#formToken input[name="__RequestVerificationToken"]')?.value ?? '';
+            const botonesModo = Array.from(document.querySelectorAll('[data-modo]'));
+            const btnCapturar = document.getElementById('btnCapturar');
+            const btnConsultar = document.getElementById('btnConsultar');
+            const selectToma = document.getElementById('selectToma');
+            const mensajeToma = document.getElementById('mensajeToma');
+            const infoToma = document.getElementById('infoToma');
+            const cardCaptura = document.getElementById('cardCaptura');
+            const panelCapturar = document.getElementById('panelCapturar');
+            const panelConsultar = document.getElementById('panelConsultar');
+
+            const localiza = document.getElementById('localiza');
+            const codigo = document.getElementById('codigo');
+            const cantidad = document.getElementById('cantidad');
+            const origen = document.getElementById('origen');
+            const batch = document.getElementById('batch');
+            const btnGuardar = document.getElementById('btnGuardar');
+            const mensajeCaptura = document.getElementById('mensajeCaptura');
+            const descripcionArticulo = document.getElementById('descripcionArticulo');
+            const metaArticulo = document.getElementById('metaArticulo');
+            const contadorGuardados = document.getElementById('contadorGuardados');
+            const ultimosContenedor = document.getElementById('ultimosContenedor');
+            const ultimosLista = document.getElementById('ultimosLista');
+
+            const consultaLocaliza = document.getElementById('consultaLocaliza');
+            const consultaCodigo = document.getElementById('consultaCodigo');
+            const btnBuscar = document.getElementById('btnBuscar');
+            const btnLimpiar = document.getElementById('btnLimpiar');
+            const mensajeConsulta = document.getElementById('mensajeConsulta');
+            const resultadoConsulta = document.getElementById('resultadoConsulta');
+            const tituloResultado = document.getElementById('tituloResultado');
+            const listaConteos = document.getElementById('listaConteos');
+
+            let modo = '1';
+            let secuencia = 0;
+            let articuloResuelto = '';
+            let guardando = false;
+            let totalGuardados = 0;
+
+            function mostrarMensaje(elemento, texto, clase = '') {
+                elemento.textContent = texto ?? '';
+                elemento.className = 'mensaje';
+                if (clase) elemento.classList.add(clase);
             }
 
-            selectToma.innerHTML =
-                '<option value="">Seleccione una toma</option>';
-
-            const tomas =
-                data.tomas ?? [];
-
-            for (const toma of tomas) {
-                const option =
-                    document.createElement('option');
-
-                option.value =
-                    toma.secuencia;
-
-                const bodega =
-                    toma.desBodega
-                        ? `${toma.codBodega} - ${toma.desBodega}`
-                        : toma.codBodega;
-
-                option.textContent =
-                    `${toma.secuencia} | ${bodega} | Tipo ${toma.tipo}`;
-
-                selectToma.appendChild(option);
+            async function leerJson(response) {
+                try { return await response.json(); }
+                catch { return null; }
             }
 
-            if (tomas.length === 0) {
-                mostrarMensaje(
-                    mensajeToma,
-                    data.mensaje ??
-                    'No hay tomas disponibles para este conteo.',
-                    'error');
-            }
-        }
-        catch (error) {
-            selectToma.innerHTML =
-                '<option value="">Sin datos</option>';
-
-            mostrarMensaje(
-                mensajeToma,
-                error.message ??
-                'No fue posible cargar las tomas.',
-                'error');
-        }
-        finally {
-            selectToma.disabled = false;
-        }
-    }
-
-    async function cargarToma() {
-        const valor =
-            Number.parseInt(
-                selectToma.value,
-                10);
-
-        if (!Number.isFinite(valor) ||
-            valor <= 0) {
-            ocultarCaptura();
-            mostrarMensaje(mensajeToma, '');
-            return;
-        }
-
-        secuencia = valor;
-
-        mostrarMensaje(
-            mensajeToma,
-            'Cargando toma...');
-
-        try {
-            const response = await fetch(
-                `${urlCargarToma}?secuencia=${encodeURIComponent(secuencia)}&modo=${encodeURIComponent(modo)}`,
-                {
-                    headers: {
-                        'Accept': 'application/json'
-                    }
-                });
-
-            const data = await response.json();
-
-            if (!response.ok ||
-                data.ok !== true) {
-                throw new Error(
-                    textoError(
-                        data,
-                        'No fue posible cargar la toma.'));
+            function errorServidor(data, porDefecto) {
+                if (!data) return porDefecto;
+                if (data.detalle) return `${data.mensaje ?? porDefecto} ${data.detalle}`;
+                return data.mensaje ?? porDefecto;
             }
 
-            const toma = data.toma;
-
-            infoSecuencia.textContent =
-                toma.secuencia ?? '';
-
-            infoBodega.textContent =
-                `${toma.codBodega ?? ''}` +
-                (toma.desBodega
-                    ? ` - ${toma.desBodega}`
-                    : '');
-
-            infoTipo.textContent =
-                `Tipo ${toma.tipo ?? ''} / Estado ${toma.estado ?? ''}`;
-
-            infoTipoInventario.textContent =
-                toma.tipoInventario || '-';
-
-            infoToma.classList.remove(
-                'd-none-forzada');
-
-            panelCaptura.classList.remove(
-                'd-none-forzada');
-
-            mostrarMensaje(
-                mensajeToma,
-                `Toma lista. ${nombreModo()}.`,
-                'ok');
-
-            limpiarArticulo();
-
-            if (ventana === 'capturar') {
-                localiza.focus();
-                localiza.select();
-            }
-            else {
-                await consultarConteos();
-            }
-        }
-        catch (error) {
-            ocultarCaptura();
-
-            mostrarMensaje(
-                mensajeToma,
-                error.message ??
-                'No fue posible cargar la toma.',
-                'error');
-        }
-    }
-
-    async function resolverArticulo() {
-        if (!secuencia) {
-            mostrarMensaje(
-                mensajeCaptura,
-                'Seleccione una toma física.',
-                'error');
-
-            return false;
-        }
-
-        const localizaValor =
-            localiza.value
-                .trim()
-                .toUpperCase();
-
-        const codigoValor =
-            codigo.value.trim();
-
-        if (!localizaValor) {
-            mostrarMensaje(
-                mensajeCaptura,
-                'Digite la localización.',
-                'error');
-
-            localiza.focus();
-            return false;
-        }
-
-        if (!codigoValor) {
-            mostrarMensaje(
-                mensajeCaptura,
-                'Escanee o digite el artículo.',
-                'error');
-
-            codigo.focus();
-            return false;
-        }
-
-        codigo.disabled = true;
-
-        mostrarMensaje(
-            mensajeCaptura,
-            'Validando artículo...');
-
-        try {
-            const url =
-                `${urlResolverArticulo}` +
-                `?secuencia=${encodeURIComponent(secuencia)}` +
-                `&modo=${encodeURIComponent(modo)}` +
-                `&localiza=${encodeURIComponent(localizaValor)}` +
-                `&codigo=${encodeURIComponent(codigoValor)}`;
-
-            const response = await fetch(
-                url,
-                {
-                    headers: {
-                        'Accept': 'application/json'
-                    }
-                });
-
-            const data =
-                await response.json();
-
-            if (!response.ok ||
-                data.ok !== true) {
-                throw new Error(
-                    textoError(
-                        data,
-                        'No se pudo validar el artículo.'));
+            function nombreModo() {
+                if (modo === '1') return 'Conteo 1';
+                if (modo === '2') return 'Conteo 2';
+                return 'Verificación';
             }
 
-            articuloResuelto =
-                data.codigoArticulo ?? '';
-
-            codigo.value =
-                articuloResuelto;
-
-            descripcionArticulo.classList.remove(
-                'text-muted');
-
-            descripcionArticulo.textContent =
-                `${articuloResuelto}` +
-                (data.descripcion
-                    ? ` - ${data.descripcion}`
-                    : '');
-
-            const partesMeta = [];
-
-            if (data.medida)
-                partesMeta.push(
-                    `Medida: ${data.medida}`);
-
-            if (data.existeDetalle)
-                partesMeta.push(
-                    'Registro existente');
-            else
-                partesMeta.push(
-                    'Nuevo registro');
-
-            if (data.conteoActual !== null &&
-                data.conteoActual !== undefined) {
-                partesMeta.push(
-                    `Conteo actual: ${data.conteoActual}`);
+            function valorVisible(valor) {
+                return valor === null || valor === undefined || valor === ''
+                    ? '-'
+                    : valor;
             }
 
-            metaArticulo.textContent =
-                partesMeta.join(' · ');
+            function ponerModoActivo() {
+                for (const boton of botonesModo) {
+                    boton.classList.toggle('activo', boton.dataset.modo === modo);
+                }
+            }
 
-            if (data.cantidadEscaneada !== null &&
-                data.cantidadEscaneada !== undefined) {
-                cantidad.value =
-                    data.cantidadEscaneada;
-            }
-            else if (data.conteoActual !== null &&
-                     data.conteoActual !== undefined) {
-                cantidad.value =
-                    data.conteoActual;
-            }
-            else {
+            function limpiarArticulo() {
+                articuloResuelto = '';
+                codigo.value = '';
                 cantidad.value = '';
+                origen.value = '';
+                batch.value = '';
+                descripcionArticulo.textContent = 'Escanee un artículo o código de barras.';
+                descripcionArticulo.classList.add('text-muted');
+                metaArticulo.textContent = '';
+                mostrarMensaje(mensajeCaptura, '');
             }
 
-            if (data.batch)
-                batch.value =
-                    data.batch;
+            function limpiarTomaSeleccionada() {
+                secuencia = 0;
+                infoToma.classList.add('d-none-forzada');
+                cardCaptura.classList.add('d-none-forzada');
+                document.getElementById('infoSecuencia').textContent = '';
+                document.getElementById('infoBodega').textContent = '';
+                document.getElementById('infoTipo').textContent = '';
+                document.getElementById('infoObservacion').textContent = '';
+                origen.innerHTML = '<option value="">Sin origen</option>';
+                localiza.value = '';
+                limpiarArticulo();
+                resultadoConsulta.classList.add('d-none-forzada');
+                listaConteos.innerHTML = '';
+            }
 
-            mostrarMensaje(
-                mensajeCaptura,
-                'Artículo válido.',
-                'ok');
+            function cargarOrigenes(origenes) {
+                origen.innerHTML = '<option value="">Sin origen</option>';
 
-            cantidad.focus();
-            cantidad.select();
+                for (const item of (origenes ?? [])) {
+                    if (item.origen === null || item.origen === undefined) continue;
+                    const option = document.createElement('option');
+                    option.value = item.origen.toString();
+                    option.textContent = item.descripcion
+                        ? `${item.origen} - ${item.descripcion}`
+                        : item.origen.toString();
+                    origen.appendChild(option);
+                }
+            }
 
-            return true;
-        }
-        catch (error) {
-            articuloResuelto = '';
+            async function cargarListaTomas() {
+                limpiarTomaSeleccionada();
+                selectToma.disabled = true;
+                selectToma.innerHTML = '<option value="">Cargando tomas...</option>';
+                mostrarMensaje(mensajeToma, '');
 
-            descripcionArticulo.textContent =
-                'Escanee un artículo o código de barras.';
+                try {
+                    const response = await fetch(
+                        `${urlListarTomas}?modo=${encodeURIComponent(modo)}`,
+                        { headers: { 'Accept': 'application/json' } });
+                    const data = await leerJson(response);
 
-            descripcionArticulo.classList.add(
-                'text-muted');
-
-            metaArticulo.textContent = '';
-
-            mostrarMensaje(
-                mensajeCaptura,
-                error.message ??
-                'No se pudo validar el artículo.',
-                'error');
-
-            codigo.focus();
-            codigo.select();
-
-            return false;
-        }
-        finally {
-            codigo.disabled = false;
-        }
-    }
-
-    function agregarUltimo(data) {
-        const item =
-            document.createElement('div');
-
-        item.className =
-            'ultimo-item';
-
-        const loc =
-            document.createElement('div');
-
-        loc.textContent =
-            data.localiza ?? '';
-
-        const art =
-            document.createElement('div');
-
-        art.textContent =
-            data.codigoArticulo ?? '';
-
-        const cant =
-            document.createElement('div');
-
-        cant.className =
-            'cantidad';
-
-        cant.textContent =
-            data.cantidad ?? '';
-
-        item.appendChild(loc);
-        item.appendChild(art);
-        item.appendChild(cant);
-
-        ultimosLista.prepend(item);
-
-        while (
-            ultimosLista.children.length > 8) {
-            ultimosLista
-                .lastElementChild
-                ?.remove();
-        }
-
-        ultimosContenedor.classList.remove(
-            'd-none-forzada');
-    }
-
-    async function guardarConteo() {
-        if (guardando)
-            return;
-
-        if (!secuencia) {
-            mostrarMensaje(
-                mensajeCaptura,
-                'Seleccione una toma física.',
-                'error');
-
-            return;
-        }
-
-        if (!articuloResuelto) {
-            const valido =
-                await resolverArticulo();
-
-            if (!valido)
-                return;
-        }
-
-        const localizaValor =
-            localiza.value
-                .trim()
-                .toUpperCase();
-
-        const codigoValor =
-            codigo.value.trim();
-
-        const cantidadValor =
-            cantidad.value.trim();
-
-        const batchValor =
-            batch.value
-                .trim()
-                .toUpperCase();
-
-        if (!cantidadValor) {
-            mostrarMensaje(
-                mensajeCaptura,
-                'Digite la cantidad.',
-                'error');
-
-            cantidad.focus();
-            return;
-        }
-
-        guardando = true;
-        btnGuardar.disabled = true;
-
-        mostrarMensaje(
-            mensajeCaptura,
-            'Guardando conteo...');
-
-        try {
-            const formData =
-                new FormData();
-
-            formData.append(
-                '__RequestVerificationToken',
-                token);
-
-            formData.append(
-                'secuencia',
-                secuencia.toString());
-
-            formData.append(
-                'modo',
-                modo);
-
-            formData.append(
-                'localiza',
-                localizaValor);
-
-            formData.append(
-                'codigo',
-                codigoValor);
-
-            formData.append(
-                'cantidad',
-                cantidadValor);
-
-            formData.append(
-                'batch',
-                batchValor);
-
-            const response = await fetch(
-                urlGuardarConteo,
-                {
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                        'Accept': 'application/json'
+                    if (!response.ok || data?.ok !== true) {
+                        throw new Error(errorServidor(data, 'No fue posible cargar las tomas.'));
                     }
-                });
 
-            const data =
-                await response.json();
+                    selectToma.innerHTML = '<option value="">Seleccione una toma física</option>';
 
-            if (!response.ok ||
-                data.ok !== true) {
-                throw new Error(
-                    textoError(
-                        data,
-                        'No se pudo guardar el conteo.'));
+                    for (const toma of (data.tomas ?? [])) {
+                        const option = document.createElement('option');
+                        option.value = toma.secuencia ?? '';
+                        const bodega = toma.desBodega
+                            ? `${toma.codBodega} - ${toma.desBodega}`
+                            : (toma.codBodega ?? '');
+                        option.textContent = `${toma.secuencia} | ${bodega} | Tipo ${toma.tipo ?? ''}`;
+                        selectToma.appendChild(option);
+                    }
+
+                    if (!(data.tomas ?? []).length) {
+                        mostrarMensaje(
+                            mensajeToma,
+                            data.mensaje ?? `No hay tomas disponibles para ${nombreModo()}.`,
+                            'error');
+                    }
+
+                    selectToma.disabled = false;
+                }
+                catch (error) {
+                    selectToma.innerHTML = '<option value="">Sin tomas</option>';
+                    mostrarMensaje(mensajeToma, error?.message ?? 'No fue posible cargar las tomas.', 'error');
+                }
+                finally {
+                    selectToma.disabled = false;
+                }
             }
 
-            totalGuardados++;
-
-            contadorGuardados.textContent =
-                `Guardados: ${totalGuardados}`;
-
-            agregarUltimo(data);
-
-            mostrarMensaje(
-                mensajeCaptura,
-                `${data.mensaje} ${data.codigoArticulo} = ${data.cantidad}`,
-                'ok');
-
-            /*
-             * Para handheld se conserva la localización.
-             * El cursor vuelve al artículo para continuar pistoleando.
-             */
-            articuloResuelto = '';
-            codigo.value = '';
-            cantidad.value = '';
-            batch.value = '';
-
-            descripcionArticulo.textContent =
-                'Escanee un artículo o código de barras.';
-
-            descripcionArticulo.classList.add(
-                'text-muted');
-
-            metaArticulo.textContent = '';
-
-            codigo.focus();
-        }
-        catch (error) {
-            mostrarMensaje(
-                mensajeCaptura,
-                error.message ??
-                'No se pudo guardar el conteo.',
-                'error');
-        }
-        finally {
-            guardando = false;
-            btnGuardar.disabled = false;
-        }
-    }
-
-    function crearConteo(
-        etiqueta,
-        valor,
-        activo) {
-
-        const contenedor =
-            document.createElement('div');
-
-        contenedor.className =
-            'consulta-conteo' +
-            (activo ? ' activo' : '');
-
-        const label =
-            document.createElement('div');
-
-        label.className =
-            'consulta-conteo-label';
-
-        label.textContent =
-            etiqueta;
-
-        const valorElemento =
-            document.createElement('div');
-
-        valorElemento.className =
-            'consulta-conteo-valor';
-
-        valorElemento.textContent =
-            valorVisible(valor);
-
-        contenedor.appendChild(label);
-        contenedor.appendChild(valorElemento);
-
-        return contenedor;
-    }
-
-    function renderizarConteos(data) {
-        listaConteos.innerHTML = '';
-
-        const filas =
-            data.filas ?? [];
-
-        tituloResultado.textContent =
-            `${nombreModo()} · Registros: ${filas.length}` +
-            (data.limitado
-                ? ' · Máximo 200'
-                : '');
-
-        if (filas.length === 0) {
-            const vacio =
-                document.createElement('div');
-
-            vacio.className =
-                'sin-resultados';
-
-            vacio.textContent =
-                'No se encontraron conteos con los filtros indicados.';
-
-            listaConteos.appendChild(vacio);
-
-            resultadoConsulta.classList.remove(
-                'd-none-forzada');
-
-            return;
-        }
-
-        for (const fila of filas) {
-            const item =
-                document.createElement('div');
-
-            item.className =
-                'consulta-item';
-
-            const encabezado =
-                document.createElement('div');
-
-            encabezado.className =
-                'consulta-item-encabezado';
-
-            const loc =
-                document.createElement('div');
-
-            loc.className =
-                'consulta-item-localiza';
-
-            loc.textContent =
-                fila.localiza ?? '';
-
-            const art =
-                document.createElement('div');
-
-            art.className =
-                'consulta-item-articulo';
-
-            art.textContent =
-                fila.codigoArticulo ?? '';
-
-            const eliminar =
-                document.createElement('button');
-
-            eliminar.type =
-                'button';
-
-            eliminar.className =
-                'btn btn-outline-danger btn-eliminar-conteo';
-
-            eliminar.textContent =
-                modo === '1'
-                    ? 'Eliminar C1'
-                    : modo === '2'
-                        ? 'Eliminar C2'
-                        : 'Eliminar Verif.';
-
-            eliminar.disabled =
-                fila.puedeEliminar !== true;
-
-            eliminar.addEventListener(
-                'click',
-                () => abrirEliminar(fila));
-
-            encabezado.appendChild(loc);
-            encabezado.appendChild(art);
-            encabezado.appendChild(eliminar);
-
-            const descripcion =
-                document.createElement('div');
-
-            descripcion.className =
-                'consulta-item-descripcion';
-
-            descripcion.textContent =
-                fila.descripcion || '-';
-
-            const conteos =
-                document.createElement('div');
-
-            conteos.className =
-                'consulta-conteos';
-
-            conteos.appendChild(
-                crearConteo(
-                    'Conteo 1',
-                    fila.conteo1,
-                    modo === '1'));
-
-            conteos.appendChild(
-                crearConteo(
-                    'Conteo 2',
-                    fila.conteo2,
-                    modo === '2'));
-
-            conteos.appendChild(
-                crearConteo(
-                    'Verificación',
-                    fila.conteo3,
-                    modo === '3'));
-
-            const extra =
-                document.createElement('div');
-
-            extra.className =
-                'consulta-extra';
-
-            const datosExtra = [];
-
-            if (fila.batch)
-                datosExtra.push(
-                    `Batch: ${fila.batch}`);
-
-            if (fila.fechaLote)
-                datosExtra.push(
-                    `Fecha lote: ${new Date(fila.fechaLote).toLocaleDateString()}`);
-
-            extra.textContent =
-                datosExtra.length
-                    ? datosExtra.join(' · ')
-                    : 'Sin batch';
-
-            item.appendChild(encabezado);
-            item.appendChild(descripcion);
-            item.appendChild(conteos);
-            item.appendChild(extra);
-
-            listaConteos.appendChild(item);
-        }
-
-        resultadoConsulta.classList.remove(
-            'd-none-forzada');
-    }
-
-    async function consultarConteos() {
-        if (!secuencia) {
-            resultadoConsulta.classList.add(
-                'd-none-forzada');
-
-            mostrarMensaje(
-                mensajeConsulta,
-                'Seleccione una toma física.',
-                'error');
-
-            return;
-        }
-
-        const localizaValor =
-            consultaLocaliza.value
-                .trim()
-                .toUpperCase();
-
-        const codigoValor =
-            consultaCodigo.value.trim();
-
-        mostrarMensaje(
-            mensajeConsulta,
-            'Consultando...');
-
-        resultadoConsulta.classList.add(
-            'd-none-forzada');
-
-        try {
-            const url =
-                `${urlConsultarConteos}` +
-                `?secuencia=${encodeURIComponent(secuencia)}` +
-                `&modo=${encodeURIComponent(modo)}` +
-                `&localiza=${encodeURIComponent(localizaValor)}` +
-                `&codigo=${encodeURIComponent(codigoValor)}`;
-
-            const response =
-                await fetch(
-                    url,
-                    {
-                        headers: {
-                            'Accept': 'application/json'
-                        }
-                    });
-
-            const data =
-                await response.json();
-
-            if (!response.ok ||
-                data.ok !== true) {
-                throw new Error(
-                    textoError(
-                        data,
-                        'No fue posible consultar los conteos.'));
-            }
-
-            renderizarConteos(data);
-
-            mostrarMensaje(
-                mensajeConsulta,
-                data.limitado
-                    ? 'Consulta completada. Se muestran los primeros 200 registros.'
-                    : 'Consulta completada.',
-                'ok');
-        }
-        catch (error) {
-            listaConteos.innerHTML = '';
-
-            resultadoConsulta.classList.add(
-                'd-none-forzada');
-
-            mostrarMensaje(
-                mensajeConsulta,
-                error.message ??
-                'No fue posible consultar los conteos.',
-                'error');
-        }
-    }
-
-    function abrirEliminar(fila) {
-        eliminarSeleccion = {
-            localiza:
-                fila.localiza ?? '',
-            codigoArticulo:
-                fila.codigoArticulo ?? '',
-            cantidad:
-                fila.conteoActual
-        };
-
-        modalModo.textContent =
-            nombreModo();
-
-        modalLocaliza.textContent =
-            eliminarSeleccion.localiza;
-
-        modalArticulo.textContent =
-            eliminarSeleccion.codigoArticulo;
-
-        modalCantidad.textContent =
-            valorVisible(
-                eliminarSeleccion.cantidad);
-
-        if (modalEliminar) {
-            modalEliminar.show();
-        }
-        else {
-            /*
-             * Fallback por si Bootstrap JS no está cargado.
-             */
-            if (window.confirm(
-                `¿Eliminar ${nombreModo()} de ${eliminarSeleccion.codigoArticulo}?`)) {
-                confirmarEliminar();
-            }
-        }
-    }
-
-    async function confirmarEliminar() {
-        if (eliminando)
-            return;
-
-        if (!secuencia ||
-            !eliminarSeleccion.localiza ||
-            !eliminarSeleccion.codigoArticulo) {
-            return;
-        }
-
-        eliminando = true;
-        btnConfirmarEliminar.disabled = true;
-
-        try {
-            const formData =
-                new FormData();
-
-            formData.append(
-                '__RequestVerificationToken',
-                token);
-
-            formData.append(
-                'secuencia',
-                secuencia.toString());
-
-            formData.append(
-                'modo',
-                modo);
-
-            formData.append(
-                'localiza',
-                eliminarSeleccion.localiza);
-
-            formData.append(
-                'codigoArticulo',
-                eliminarSeleccion.codigoArticulo);
-
-            const response =
-                await fetch(
-                    urlEliminarConteo,
-                    {
-                        method: 'POST',
-                        body: formData,
-                        headers: {
-                            'Accept': 'application/json'
-                        }
-                    });
-
-            const data =
-                await response.json();
-
-            if (!response.ok ||
-                data.ok !== true) {
-                throw new Error(
-                    textoError(
-                        data,
-                        'No fue posible eliminar el conteo.'));
-            }
-
-            modalEliminar?.hide();
-
-            mostrarMensaje(
-                mensajeConsulta,
-                data.mensaje ??
-                'Conteo eliminado.',
-                'ok');
-
-            await consultarConteos();
-        }
-        catch (error) {
-            modalEliminar?.hide();
-
-            mostrarMensaje(
-                mensajeConsulta,
-                error.message ??
-                'No fue posible eliminar el conteo.',
-                'error');
-        }
-        finally {
-            eliminando = false;
-            btnConfirmarEliminar.disabled = false;
-        }
-    }
-
-    for (const boton of botonesModo) {
-        boton.addEventListener(
-            'click',
-            async () => {
-                const nuevoModo =
-                    boton.dataset.modo;
-
-                if (!nuevoModo ||
-                    nuevoModo === modo) {
+            async function cargarToma() {
+                const valor = Number.parseInt(selectToma.value, 10);
+
+                if (!Number.isFinite(valor) || valor <= 0) {
+                    limpiarTomaSeleccionada();
                     return;
                 }
 
-                modo = nuevoModo;
-                ponerModoActivo();
+                secuencia = valor;
+                cardCaptura.classList.add('d-none-forzada');
+                infoToma.classList.add('d-none-forzada');
+                mostrarMensaje(mensajeToma, 'Cargando toma...');
 
-                totalGuardados = 0;
+                try {
+                    const response = await fetch(
+                        `${urlCargarToma}?secuencia=${encodeURIComponent(secuencia)}&modo=${encodeURIComponent(modo)}`,
+                        { headers: { 'Accept': 'application/json' } });
+                    const data = await leerJson(response);
 
-                contadorGuardados.textContent =
-                    'Guardados: 0';
+                    if (!response.ok || data?.ok !== true) {
+                        throw new Error(errorServidor(data, 'No fue posible cargar la toma.'));
+                    }
 
-                ultimosLista.innerHTML = '';
+                    const toma = data.toma ?? {};
+                    document.getElementById('infoSecuencia').textContent = toma.secuencia ?? '';
+                    document.getElementById('infoBodega').textContent =
+                        `${toma.codBodega ?? ''}${toma.desBodega ? ` - ${toma.desBodega}` : ''}`;
+                    document.getElementById('infoTipo').textContent =
+                        `Tipo ${toma.tipo ?? ''} / ${toma.estado ?? ''}`;
+                    document.getElementById('infoObservacion').textContent = toma.observacion || '-';
 
-                ultimosContenedor.classList.add(
-                    'd-none-forzada');
+                    cargarOrigenes(data.origenes);
+                    infoToma.classList.remove('d-none-forzada');
+                    cardCaptura.classList.remove('d-none-forzada');
+                    mostrarMensaje(
+                        mensajeToma,
+                        `${nombreModo()} listo. Registros visibles: ${toma.detallesVisibles ?? 0}.`,
+                        'ok');
 
-                resultadoConsulta.classList.add(
-                    'd-none-forzada');
-
-                await cargarListaTomas();
-            });
-    }
-
-    btnVentanaCapturar.addEventListener(
-        'click',
-        () => mostrarVentana('capturar'));
-
-    btnVentanaConsultar.addEventListener(
-        'click',
-        () => mostrarVentana('consultar'));
-
-    selectToma.addEventListener(
-        'change',
-        cargarToma);
-
-    localiza.addEventListener(
-        'input',
-        () => {
-            localiza.value =
-                localiza.value.toUpperCase();
-        });
-
-    batch.addEventListener(
-        'input',
-        () => {
-            batch.value =
-                batch.value.toUpperCase();
-        });
-
-    consultaLocaliza.addEventListener(
-        'input',
-        () => {
-            consultaLocaliza.value =
-                consultaLocaliza.value.toUpperCase();
-        });
-
-    localiza.addEventListener(
-        'keydown',
-        event => {
-            if (event.key !== 'Enter')
-                return;
-
-            event.preventDefault();
-
-            if (!localiza.value.trim()) {
-                mostrarMensaje(
-                    mensajeCaptura,
-                    'Digite la localización.',
-                    'error');
-
-                return;
+                    localiza.focus();
+                }
+                catch (error) {
+                    limpiarTomaSeleccionada();
+                    selectToma.value = '';
+                    mostrarMensaje(mensajeToma, error?.message ?? 'No fue posible cargar la toma.', 'error');
+                }
             }
 
-            codigo.focus();
-            codigo.select();
-        });
+            async function resolverArticulo() {
+                if (!secuencia) {
+                    mostrarMensaje(mensajeCaptura, 'Seleccione una toma física.', 'error');
+                    return false;
+                }
 
-    codigo.addEventListener(
-        'keydown',
-        async event => {
-            if (event.key !== 'Enter')
-                return;
+                const loc = localiza.value.trim().toUpperCase();
+                const cod = codigo.value.trim();
 
-            event.preventDefault();
+                if (!loc) {
+                    mostrarMensaje(mensajeCaptura, 'Digite la localización.', 'error');
+                    localiza.focus();
+                    return false;
+                }
 
-            await resolverArticulo();
-        });
+                if (!cod) {
+                    mostrarMensaje(mensajeCaptura, 'Escanee o digite el artículo.', 'error');
+                    codigo.focus();
+                    return false;
+                }
 
-    cantidad.addEventListener(
-        'keydown',
-        async event => {
-            if (event.key !== 'Enter')
-                return;
+                localiza.value = loc;
+                codigo.disabled = true;
+                mostrarMensaje(mensajeCaptura, 'Validando artículo...');
 
-            event.preventDefault();
+                try {
+                    const url = `${urlResolverArticulo}` +
+                        `?secuencia=${encodeURIComponent(secuencia)}` +
+                        `&modo=${encodeURIComponent(modo)}` +
+                        `&localiza=${encodeURIComponent(loc)}` +
+                        `&codigo=${encodeURIComponent(cod)}`;
 
-            await guardarConteo();
-        });
+                    const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
+                    const data = await leerJson(response);
 
-    batch.addEventListener(
-        'keydown',
-        async event => {
-            if (event.key !== 'Enter')
-                return;
+                    if (!response.ok || data?.ok !== true) {
+                        throw new Error(errorServidor(data, 'No se pudo validar el artículo.'));
+                    }
 
-            event.preventDefault();
+                    articuloResuelto = data.codigoArticulo ?? '';
+                    codigo.value = articuloResuelto;
+                    descripcionArticulo.classList.remove('text-muted');
+                    descripcionArticulo.textContent =
+                        `${articuloResuelto}${data.descripcion ? ` - ${data.descripcion}` : ''}`;
 
-            await guardarConteo();
-        });
+                    const meta = [];
+                    if (data.medida) meta.push(`Medida: ${data.medida}`);
+                    meta.push(data.existeDetalle ? 'Registro existente' : 'Nuevo registro');
+                    if (data.conteoActual !== null && data.conteoActual !== undefined) {
+                        meta.push(`Conteo actual: ${data.conteoActual}`);
+                    }
+                    if (data.desOrigen) meta.push(`Origen: ${data.desOrigen}`);
+                    metaArticulo.textContent = meta.join(' · ');
 
-    consultaLocaliza.addEventListener(
-        'keydown',
-        async event => {
-            if (event.key !== 'Enter')
-                return;
+                    if (data.cantidadEscaneada !== null && data.cantidadEscaneada !== undefined) {
+                        cantidad.value = data.cantidadEscaneada;
+                    }
+                    else if (data.conteoActual !== null && data.conteoActual !== undefined) {
+                        cantidad.value = data.conteoActual;
+                    }
+                    else {
+                        cantidad.value = '';
+                    }
 
-            event.preventDefault();
+                    origen.value = data.origen === null || data.origen === undefined
+                        ? ''
+                        : data.origen.toString();
+                    batch.value = data.batch ?? '';
 
-            consultaCodigo.focus();
-            consultaCodigo.select();
-        });
+                    mostrarMensaje(mensajeCaptura, 'Artículo válido.', 'ok');
+                    cantidad.focus();
+                    cantidad.select();
+                    return true;
+                }
+                catch (error) {
+                    articuloResuelto = '';
+                    descripcionArticulo.textContent = 'Escanee un artículo o código de barras.';
+                    descripcionArticulo.classList.add('text-muted');
+                    metaArticulo.textContent = '';
+                    mostrarMensaje(mensajeCaptura, error?.message ?? 'No se pudo validar el artículo.', 'error');
+                    codigo.focus();
+                    codigo.select();
+                    return false;
+                }
+                finally {
+                    codigo.disabled = false;
+                }
+            }
 
-    consultaCodigo.addEventListener(
-        'keydown',
-        async event => {
-            if (event.key !== 'Enter')
-                return;
+            function agregarUltimo(data) {
+                const row = document.createElement('div');
+                row.className = 'ultimo-item';
 
-            event.preventDefault();
+                const loc = document.createElement('div');
+                loc.textContent = data.localiza ?? '';
+                const art = document.createElement('div');
+                art.textContent = data.codigoArticulo ?? '';
+                const cant = document.createElement('div');
+                cant.className = 'cantidad';
+                cant.textContent = data.cantidad ?? '';
 
-            await consultarConteos();
-        });
+                row.append(loc, art, cant);
+                ultimosLista.prepend(row);
 
-    btnGuardar.addEventListener(
-        'click',
-        guardarConteo);
+                while (ultimosLista.children.length > 8) {
+                    ultimosLista.lastElementChild?.remove();
+                }
 
-    btnBuscarConteos.addEventListener(
-        'click',
-        consultarConteos);
+                ultimosContenedor.classList.remove('d-none-forzada');
+            }
 
-    btnLimpiarConsulta.addEventListener(
-        'click',
-        async () => {
-            consultaLocaliza.value = '';
-            consultaCodigo.value = '';
+            async function guardarConteo() {
+                if (guardando) return;
 
-            if (secuencia)
-                await consultarConteos();
-        });
+                if (!secuencia) {
+                    mostrarMensaje(mensajeCaptura, 'Seleccione una toma física.', 'error');
+                    return;
+                }
 
-    btnConfirmarEliminar.addEventListener(
-        'click',
-        confirmarEliminar);
+                if (!articuloResuelto) {
+                    const valido = await resolverArticulo();
+                    if (!valido) return;
+                }
 
-    ponerModoActivo();
-    mostrarVentana('capturar');
-    cargarListaTomas();
-})();
-</script>
+                const loc = localiza.value.trim().toUpperCase();
+                const cod = codigo.value.trim();
+                const cant = cantidad.value.trim();
+                const origenValor = origen.value.trim();
+                const batchValor = batch.value.trim().toUpperCase();
+
+                if (!cant) {
+                    mostrarMensaje(mensajeCaptura, 'Digite la cantidad.', 'error');
+                    cantidad.focus();
+                    return;
+                }
+
+                guardando = true;
+                btnGuardar.disabled = true;
+                mostrarMensaje(mensajeCaptura, 'Guardando conteo...');
+
+                const formData = new FormData();
+                formData.append('__RequestVerificationToken', token);
+                formData.append('secuencia', secuencia.toString());
+                formData.append('modo', modo);
+                formData.append('localiza', loc);
+                formData.append('codigo', cod);
+                formData.append('cantidad', cant);
+                formData.append('origen', origenValor);
+                formData.append('batch', batchValor);
+
+                try {
+                    const response = await fetch(urlGuardarConteo, {
+                        method: 'POST',
+                        body: formData,
+                        headers: { 'Accept': 'application/json' }
+                    });
+                    const data = await leerJson(response);
+
+                    if (!response.ok || data?.ok !== true) {
+                        throw new Error(errorServidor(data, 'No se pudo guardar el conteo.'));
+                    }
+
+                    totalGuardados++;
+                    contadorGuardados.textContent = `Guardados: ${totalGuardados}`;
+                    agregarUltimo(data);
+                    mostrarMensaje(
+                        mensajeCaptura,
+                        `${data.mensaje ?? 'Conteo guardado.'} ${data.codigoArticulo ?? ''} = ${data.cantidad ?? ''}`,
+                        'ok');
+
+                    articuloResuelto = '';
+                    codigo.value = '';
+                    cantidad.value = '';
+                    origen.value = '';
+                    batch.value = '';
+                    descripcionArticulo.textContent = 'Escanee un artículo o código de barras.';
+                    descripcionArticulo.classList.add('text-muted');
+                    metaArticulo.textContent = '';
+                    codigo.focus();
+                }
+                catch (error) {
+                    mostrarMensaje(mensajeCaptura, error?.message ?? 'No se pudo guardar el conteo.', 'error');
+                }
+                finally {
+                    guardando = false;
+                    btnGuardar.disabled = false;
+                }
+            }
+
+            function crearConteo(etiqueta, valor, activo) {
+                const c = document.createElement('div');
+                c.className = `consulta-conteo${activo ? ' activo' : ''}`;
+
+                const l = document.createElement('div');
+                l.className = 'consulta-conteo-label';
+                l.textContent = etiqueta;
+
+                const v = document.createElement('div');
+                v.className = 'consulta-conteo-valor';
+                v.textContent = valorVisible(valor);
+
+                c.append(l, v);
+                return c;
+            }
+
+            function renderizarConteos(data) {
+                listaConteos.innerHTML = '';
+                const filas = data.filas ?? [];
+                tituloResultado.textContent =
+                    `${nombreModo()} · Registros: ${filas.length}${data.limitado ? ' · Máximo 200' : ''}`;
+
+                if (!filas.length) {
+                    const vacio = document.createElement('div');
+                    vacio.className = 'text-muted small border rounded p-2 text-center';
+                    vacio.textContent = 'No se encontraron conteos con los filtros indicados.';
+                    listaConteos.appendChild(vacio);
+                    resultadoConsulta.classList.remove('d-none-forzada');
+                    return;
+                }
+
+                for (const fila of filas) {
+                    const item = document.createElement('div');
+                    item.className = 'consulta-item';
+
+                    const cabecera = document.createElement('div');
+                    cabecera.className = 'consulta-cabecera';
+
+                    const loc = document.createElement('div');
+                    loc.className = 'consulta-localiza';
+                    loc.textContent = fila.localiza ?? '';
+
+                    const art = document.createElement('div');
+                    art.className = 'consulta-articulo';
+                    art.textContent = fila.codigoArticulo ?? '';
+
+                    const eliminar = document.createElement('button');
+                    eliminar.type = 'button';
+                    eliminar.className = 'btn btn-outline-danger btn-sm';
+                    eliminar.textContent = modo === '1'
+                        ? 'Eliminar C1'
+                        : modo === '2'
+                            ? 'Eliminar C2'
+                            : 'Eliminar Verif.';
+                    eliminar.disabled = fila.puedeEliminar !== true;
+                    eliminar.addEventListener('click', () => eliminarConteo(fila));
+
+                    cabecera.append(loc, art, eliminar);
+
+                    const descripcion = document.createElement('div');
+                    descripcion.className = 'consulta-descripcion';
+                    descripcion.textContent = fila.descripcion || '-';
+
+                    const conteos = document.createElement('div');
+                    conteos.className = 'consulta-conteos';
+                    conteos.append(
+                        crearConteo('Conteo 1', fila.conteo1, modo === '1'),
+                        crearConteo('Conteo 2', fila.conteo2, modo === '2'),
+                        crearConteo('Verificación', fila.conteo3, modo === '3'));
+
+                    const extra = document.createElement('div');
+                    extra.className = 'consulta-extra';
+                    const extras = [];
+
+                    if (fila.origen !== null && fila.origen !== undefined) {
+                        extras.push(
+                            fila.desOrigen
+                                ? `Origen: ${fila.origen} - ${fila.desOrigen}`
+                                : `Origen: ${fila.origen}`);
+                    }
+
+                    if (fila.batch) extras.push(`Batch: ${fila.batch}`);
+                    if (fila.fechaLote) extras.push(`Fecha lote: ${new Date(fila.fechaLote).toLocaleDateString()}`);
+                    extra.textContent = extras.length ? extras.join(' · ') : 'Sin origen / batch';
+
+                    item.append(cabecera, descripcion, conteos, extra);
+                    listaConteos.appendChild(item);
+                }
+
+                resultadoConsulta.classList.remove('d-none-forzada');
+            }
+
+            async function consultarConteos() {
+                if (!secuencia) {
+                    mostrarMensaje(mensajeConsulta, 'Seleccione una toma física.', 'error');
+                    resultadoConsulta.classList.add('d-none-forzada');
+                    return;
+                }
+
+                const loc = consultaLocaliza.value.trim().toUpperCase();
+                const cod = consultaCodigo.value.trim();
+                mostrarMensaje(mensajeConsulta, 'Consultando...');
+                resultadoConsulta.classList.add('d-none-forzada');
+
+                try {
+                    const url = `${urlConsultarConteos}` +
+                        `?secuencia=${encodeURIComponent(secuencia)}` +
+                        `&modo=${encodeURIComponent(modo)}` +
+                        `&localiza=${encodeURIComponent(loc)}` +
+                        `&codigo=${encodeURIComponent(cod)}`;
+
+                    const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
+                    const data = await leerJson(response);
+
+                    if (!response.ok || data?.ok !== true) {
+                        throw new Error(errorServidor(data, 'No fue posible consultar los conteos.'));
+                    }
+
+                    renderizarConteos(data);
+                    mostrarMensaje(
+                        mensajeConsulta,
+                        data.limitado
+                            ? 'Consulta completada. Se muestran los primeros 200 registros.'
+                            : 'Consulta completada.',
+                        'ok');
+                }
+                catch (error) {
+                    listaConteos.innerHTML = '';
+                    resultadoConsulta.classList.add('d-none-forzada');
+                    mostrarMensaje(mensajeConsulta, error?.message ?? 'No fue posible consultar.', 'error');
+                }
+            }
+
+            async function eliminarConteo(fila) {
+                const etiqueta = nombreModo();
+                const articulo = fila.codigoArticulo ?? '';
+                const loc = fila.localiza ?? '';
+
+                if (!window.confirm(`¿Eliminar ${etiqueta} de ${articulo} en ${loc}?`)) {
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('__RequestVerificationToken', token);
+                formData.append('secuencia', secuencia.toString());
+                formData.append('modo', modo);
+                formData.append('localiza', loc);
+                formData.append('codigoArticulo', articulo);
+
+                try {
+                    const response = await fetch(urlEliminarConteo, {
+                        method: 'POST',
+                        body: formData,
+                        headers: { 'Accept': 'application/json' }
+                    });
+                    const data = await leerJson(response);
+
+                    if (!response.ok || data?.ok !== true) {
+                        throw new Error(errorServidor(data, 'No fue posible eliminar el conteo.'));
+                    }
+
+                    mostrarMensaje(mensajeConsulta, data.mensaje ?? 'Conteo eliminado.', 'ok');
+                    await consultarConteos();
+                }
+                catch (error) {
+                    mostrarMensaje(mensajeConsulta, error?.message ?? 'No fue posible eliminar el conteo.', 'error');
+                }
+            }
+
+            function mostrarVentana(nombre) {
+                const capturar = nombre === 'capturar';
+                panelCapturar.classList.toggle('d-none-forzada', !capturar);
+                panelConsultar.classList.toggle('d-none-forzada', capturar);
+                btnCapturar.classList.toggle('activo', capturar);
+                btnConsultar.classList.toggle('activo', !capturar);
+
+                if (capturar && secuencia) {
+                    localiza.focus();
+                }
+                else if (!capturar && secuencia) {
+                    consultaLocaliza.focus();
+                }
+            }
+
+            for (const boton of botonesModo) {
+                boton.addEventListener('click', async () => {
+                    const nuevoModo = boton.dataset.modo;
+                    if (!nuevoModo || nuevoModo === modo) return;
+
+                    modo = nuevoModo;
+                    ponerModoActivo();
+                    totalGuardados = 0;
+                    contadorGuardados.textContent = 'Guardados: 0';
+                    ultimosLista.innerHTML = '';
+                    ultimosContenedor.classList.add('d-none-forzada');
+                    await cargarListaTomas();
+                });
+            }
+
+            btnCapturar.addEventListener('click', () => mostrarVentana('capturar'));
+            btnConsultar.addEventListener('click', () => mostrarVentana('consultar'));
+            selectToma.addEventListener('change', cargarToma);
+            btnGuardar.addEventListener('click', guardarConteo);
+            btnBuscar.addEventListener('click', consultarConteos);
+
+            btnLimpiar.addEventListener('click', () => {
+                consultaLocaliza.value = '';
+                consultaCodigo.value = '';
+                resultadoConsulta.classList.add('d-none-forzada');
+                listaConteos.innerHTML = '';
+                mostrarMensaje(mensajeConsulta, '');
+                consultaLocaliza.focus();
+            });
+
+            localiza.addEventListener('input', () => {
+                localiza.value = localiza.value.toUpperCase();
+                limpiarArticulo();
+            });
+
+            localiza.addEventListener('keydown', event => {
+                if (event.key !== 'Enter') return;
+                event.preventDefault();
+                codigo.focus();
+            });
+
+            codigo.addEventListener('input', () => {
+                articuloResuelto = '';
+                descripcionArticulo.textContent = 'Escanee un artículo o código de barras.';
+                descripcionArticulo.classList.add('text-muted');
+                metaArticulo.textContent = '';
+            });
+
+            codigo.addEventListener('keydown', async event => {
+                if (event.key !== 'Enter') return;
+                event.preventDefault();
+                await resolverArticulo();
+            });
+
+            cantidad.addEventListener('keydown', async event => {
+                if (event.key !== 'Enter') return;
+                event.preventDefault();
+                await guardarConteo();
+            });
+
+            batch.addEventListener('keydown', async event => {
+                if (event.key !== 'Enter') return;
+                event.preventDefault();
+                await guardarConteo();
+            });
+
+            consultaLocaliza.addEventListener('keydown', event => {
+                if (event.key !== 'Enter') return;
+                event.preventDefault();
+                consultarConteos();
+            });
+
+            consultaCodigo.addEventListener('keydown', event => {
+                if (event.key !== 'Enter') return;
+                event.preventDefault();
+                consultarConteos();
+            });
+
+            ponerModoActivo();
+            mostrarVentana('capturar');
+            cargarListaTomas();
+        })();
+    </script>
 }

@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -30,17 +30,13 @@ public class ConteoTomaFisicaController : Controller
     }
 
     /*
-     * La forma pdactext_lote trabaja por "modo de conteo":
-     *
-     * 1 = Conteo 1
-     * 2 = Conteo 2
-     * 3 = Conteo de verificación
-     *
-     * Reglas tomadas de la forma:
-     * - Conteo 1: no restringe TIPO, salvo que TIPO='D' no permite actualizar.
-     * - Conteo 2: solamente tomas TIPO 2 o 3.
-     * - Conteo 3: solamente tomas TIPO 3.
-     * - El detalle solo se puede actualizar cuando ESTADO='L'.
+     * Reglas combinadas de pdactext y pdactext_lote:
+     *  - modo 1: Conteo 1
+     *  - modo 2: Conteo 2; solamente tomas TIPO 2 o 3
+     *  - modo 3: Verificación; solamente tomas TIPO 3
+     *  - solamente se modifica cuando ESTADO = L
+     *  - TIPO = D no es modificable desde esta pantalla
+     *  - LOCALIZA 001 se excluye de la captura
      */
     [HttpGet]
     public async Task<IActionResult> ListarTomas(
@@ -67,23 +63,15 @@ public class ConteoTomaFisicaController : Controller
             return StatusCode(500, new
             {
                 ok = false,
-                mensaje =
-                    "No se encuentra configurada la compañía o sucursal del usuario."
+                mensaje = "No se encuentra configurada la compañía o sucursal del usuario."
             });
         }
 
-        /*
-         * INV_TOMAFIS no necesita tener SUCURSAL en el modelo.
-         * La sucursal se valida por la bodega, igual que la forma valida:
-         *
-         * INV_BODEGA.COD_CIA
-         * INV_BODEGA.COD_BODEGA
-         * INV_BODEGA.SUCURSAL
-         */
         var bodegasSucursal = await _context.INV_BODEGAs
             .AsNoTracking()
             .Where(x =>
                 x.COD_CIA != null &&
+                x.COD_BODEGA != null &&
                 x.SUCURSAL != null &&
                 x.COD_CIA.Trim() == codCia &&
                 x.SUCURSAL.Trim() == codSucursal)
@@ -106,8 +94,7 @@ public class ConteoTomaFisicaController : Controller
             {
                 ok = true,
                 tomas = Array.Empty<object>(),
-                mensaje =
-                    $"No existen bodegas para CIA {codCia}, sucursal {codSucursal}."
+                mensaje = $"No existen bodegas para CIA {codCia}, sucursal {codSucursal}."
             });
         }
 
@@ -160,10 +147,7 @@ public class ConteoTomaFisicaController : Controller
         var tomas = tomasDb.Select(x =>
         {
             var codBodega = (x.COD_BODEGA ?? "").Trim();
-
-            descripcionesBodega.TryGetValue(
-                codBodega,
-                out var desBodega);
+            descripcionesBodega.TryGetValue(codBodega, out var desBodega);
 
             return new
             {
@@ -215,12 +199,6 @@ public class ConteoTomaFisicaController : Controller
                 x.LOCALIZA != null &&
                 x.LOCALIZA.Trim() != LotePredeterminado);
 
-        /*
-         * La forma aplica:
-         * CONTEO1 >= 0 / CONTEO2 >= 0 / CONTEO3 >= 0
-         * y LOCALIZA <> '001'
-         * según el modo.
-         */
         if (modoKey == "1")
         {
             queryDetalles = queryDetalles.Where(x =>
@@ -240,9 +218,25 @@ public class ConteoTomaFisicaController : Controller
                 x.CONTEO3.Value >= 0);
         }
 
-        var detallesVisibles =
-            await queryDetalles.CountAsync(
-                cancellationToken);
+        var detallesVisibles = await queryDetalles
+            .CountAsync(cancellationToken);
+
+        /*
+         * pdactext incorpora ORIGEN y su LOV se alimenta de INV_ORIGEN.
+         * La tabla ya existe en el DbContext, por eso se combina aquí.
+         */
+        var origenes = await _context.INV_ORIGENs
+            .AsNoTracking()
+            .Where(x => x.ORIGEN.HasValue)
+            .OrderBy(x => x.ORIGEN)
+            .Select(x => new
+            {
+                origen = x.ORIGEN,
+                descripcion = x.DESCRIPCION == null
+                    ? ""
+                    : x.DESCRIPCION.Trim()
+            })
+            .ToListAsync(cancellationToken);
 
         return Json(new
         {
@@ -258,25 +252,11 @@ public class ConteoTomaFisicaController : Controller
                 tipo = (toma.TIPO ?? "").Trim(),
                 observacion = (toma.OBSERVACION ?? "").Trim(),
                 detallesVisibles
-            }
+            },
+            origenes
         });
     }
 
-    /*
-     * Resuelve lo que se pistoleó.
-     *
-     * Igual que TraduceBar de la forma:
-     * - Si existe en INV_ARTIC_CODBAR, devuelve COD_ARTICULO.
-     * - Si no existe como código de barras, usa el valor tal como artículo.
-     *
-     * También conserva el formato de captura ARTICULO%CANTIDAD.
-     * En la forma el delimitador proviene de configuración y el valor por
-     * defecto es '%'. Aquí puede configurarse en:
-     *
-     * TomaFisica:DELIMITADOR
-     *
-     * Si no existe, se utiliza '%'.
-     */
     [HttpGet]
     public async Task<IActionResult> ResolverArticulo(
         int secuencia,
@@ -303,11 +283,10 @@ public class ConteoTomaFisicaController : Controller
         var modoKey = validacion.Modo!;
         var localizaKey = Normalizar(localiza);
 
-        var validacionLocaliza =
-            await ValidarLocalizacionAsync(
-                toma,
-                localizaKey,
-                cancellationToken);
+        var validacionLocaliza = await ValidarLocalizacionAsync(
+            toma,
+            localizaKey,
+            cancellationToken);
 
         if (!validacionLocaliza.Ok)
         {
@@ -318,8 +297,7 @@ public class ConteoTomaFisicaController : Controller
             });
         }
 
-        var interpretacion = InterpretarCodigoEscaneado(
-            codigo);
+        var interpretacion = InterpretarCodigoEscaneado(codigo);
 
         if (!interpretacion.Ok)
         {
@@ -340,8 +318,7 @@ public class ConteoTomaFisicaController : Controller
             return NotFound(new
             {
                 ok = false,
-                mensaje =
-                    $"El código {interpretacion.Codigo} no corresponde a un artículo existente."
+                mensaje = $"El código {interpretacion.Codigo} no corresponde a un artículo existente."
             });
         }
 
@@ -353,17 +330,44 @@ public class ConteoTomaFisicaController : Controller
                 x.LOCALIZA != null &&
                 x.COD_ARTICULO != null &&
                 x.LOCALIZA.Trim().ToUpper() == localizaKey &&
-                x.COD_ARTICULO.Trim().ToUpper() ==
-                articulo.CodigoNormalizado)
+                x.COD_ARTICULO.Trim().ToUpper() == articulo.CodigoNormalizado)
             .Select(x => new
             {
                 x.CONTEO1,
                 x.CONTEO2,
                 x.CONTEO3,
+                x.ORIGEN,
                 x.BATCH,
                 x.FECHALOTE
             })
             .FirstOrDefaultAsync(cancellationToken);
+
+        string desOrigen = "";
+
+        if (detalle?.ORIGEN is byte origenActual)
+        {
+            var origenDb = await _context.INV_ORIGENs
+                .AsNoTracking()
+                .Where(x => x.ORIGEN.HasValue && x.ORIGEN.Value == origenActual)
+                .Select(x => new
+                {
+                    x.ORIGEN,
+                    x.DESCRIPCION
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            // pdactext valida también el origen al consultar el registro.
+            if (origenDb == null)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = $"El origen {origenActual} asociado al detalle no existe en INV_ORIGEN."
+                });
+            }
+
+            desOrigen = (origenDb.DESCRIPCION ?? "").Trim();
+        }
 
         decimal? conteoActual = modoKey switch
         {
@@ -379,13 +383,14 @@ public class ConteoTomaFisicaController : Controller
             codigoArticulo = articulo.Codigo,
             descripcion = articulo.Descripcion,
             medida = articulo.Medida,
-            cantidadEscaneada =
-                interpretacion.Cantidad,
+            cantidadEscaneada = interpretacion.Cantidad,
             existeDetalle = detalle != null,
             conteoActual,
             conteo1 = detalle?.CONTEO1,
             conteo2 = detalle?.CONTEO2,
             conteo3 = detalle?.CONTEO3,
+            origen = detalle?.ORIGEN,
+            desOrigen,
             batch = (detalle?.BATCH ?? "").Trim(),
             fechaLote = detalle?.FECHALOTE
         });
@@ -399,6 +404,7 @@ public class ConteoTomaFisicaController : Controller
         string? localiza,
         string? codigo,
         string? cantidad,
+        string? origen,
         string? batch,
         CancellationToken cancellationToken)
     {
@@ -420,11 +426,10 @@ public class ConteoTomaFisicaController : Controller
         var modoKey = validacion.Modo!;
         var localizaKey = Normalizar(localiza);
 
-        var validacionLocaliza =
-            await ValidarLocalizacionAsync(
-                toma,
-                localizaKey,
-                cancellationToken);
+        var validacionLocaliza = await ValidarLocalizacionAsync(
+            toma,
+            localizaKey,
+            cancellationToken);
 
         if (!validacionLocaliza.Ok)
         {
@@ -435,8 +440,7 @@ public class ConteoTomaFisicaController : Controller
             });
         }
 
-        var interpretacion = InterpretarCodigoEscaneado(
-            codigo);
+        var interpretacion = InterpretarCodigoEscaneado(codigo);
 
         if (!interpretacion.Ok)
         {
@@ -451,30 +455,25 @@ public class ConteoTomaFisicaController : Controller
 
         if (!string.IsNullOrWhiteSpace(cantidad))
         {
-            if (!TryParseCantidad(
-                    cantidad,
-                    out cantidadFinal))
+            if (!TryParseCantidad(cantidad, out cantidadFinal))
             {
                 return BadRequest(new
                 {
                     ok = false,
-                    mensaje =
-                        "La cantidad digitada no es válida."
+                    mensaje = "La cantidad digitada no es válida."
                 });
             }
         }
         else if (interpretacion.Cantidad.HasValue)
         {
-            cantidadFinal =
-                interpretacion.Cantidad.Value;
+            cantidadFinal = interpretacion.Cantidad.Value;
         }
         else
         {
             return BadRequest(new
             {
                 ok = false,
-                mensaje =
-                    "Debe indicar la cantidad del conteo."
+                mensaje = "Debe indicar la cantidad del conteo."
             });
         }
 
@@ -483,8 +482,7 @@ public class ConteoTomaFisicaController : Controller
             return BadRequest(new
             {
                 ok = false,
-                mensaje =
-                    "La cantidad no puede ser negativa."
+                mensaje = "La cantidad no puede ser negativa."
             });
         }
 
@@ -498,23 +496,66 @@ public class ConteoTomaFisicaController : Controller
             return NotFound(new
             {
                 ok = false,
-                mensaje =
-                    $"El código {interpretacion.Codigo} no corresponde a un artículo existente."
+                mensaje = $"El código {interpretacion.Codigo} no corresponde a un artículo existente."
             });
         }
 
+        /*
+         * Validación de ORIGEN tomada de pdactext:
+         * SELECT DESCRIPCION FROM INV_ORIGEN WHERE ORIGEN = :ORIGEN
+         */
+        byte? origenReal = null;
+        string desOrigen = "";
+        var origenKey = (origen ?? "").Trim();
+
+        if (!string.IsNullOrWhiteSpace(origenKey))
+        {
+            if (!byte.TryParse(
+                    origenKey,
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out var origenNumero))
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = "El origen digitado no es válido."
+                });
+            }
+
+            var origenDb = await _context.INV_ORIGENs
+                .AsNoTracking()
+                .Where(x =>
+                    x.ORIGEN.HasValue &&
+                    x.ORIGEN.Value == origenNumero)
+                .Select(x => new
+                {
+                    x.ORIGEN,
+                    x.DESCRIPCION
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (origenDb == null)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = $"El origen {origenKey} no existe."
+                });
+            }
+
+            origenReal = origenDb.ORIGEN;
+            desOrigen = (origenDb.DESCRIPCION ?? "").Trim();
+        }
+
+        /*
+         * Validación de BATCH tomada de pdactext_lote:
+         * SELECT FECHA FROM PNORDENES WHERE BATCH = :BATCH
+         */
         string? batchReal = null;
         DateTime? fechaLote = null;
-
         var batchKey = Normalizar(batch);
 
-        /*
-         * WHEN-VALIDATE-ITEM de BATCH en la forma:
-         * SELECT FECHA FROM PNORDENES WHERE BATCH = :BATCH
-         *
-         * Si viene vacío, no se valida.
-         */
-        /*
         if (!string.IsNullOrWhiteSpace(batchKey))
         {
             var orden = await _context.PNORDENEs
@@ -534,15 +575,14 @@ public class ConteoTomaFisicaController : Controller
                 return BadRequest(new
                 {
                     ok = false,
-                    mensaje =
-                        $"El batch {batchKey} no existe."
+                    mensaje = $"El batch {batchKey} no existe."
                 });
             }
 
             batchReal = (orden.BATCH ?? "").Trim();
             fechaLote = orden.FECHA;
         }
-        */
+
         var detalle = await _context.INV_DETTOMAFIs
             .FirstOrDefaultAsync(x =>
                 x.SECUENCIA == secuencia &&
@@ -550,8 +590,7 @@ public class ConteoTomaFisicaController : Controller
                 x.LOCALIZA != null &&
                 x.COD_ARTICULO != null &&
                 x.LOCALIZA.Trim().ToUpper() == localizaKey &&
-                x.COD_ARTICULO.Trim().ToUpper() ==
-                articulo.CodigoNormalizado,
+                x.COD_ARTICULO.Trim().ToUpper() == articulo.CodigoNormalizado,
                 cancellationToken);
 
         var esNuevo = detalle == null;
@@ -580,9 +619,6 @@ public class ConteoTomaFisicaController : Controller
             _context.INV_DETTOMAFIs.Add(detalle);
         }
 
-        /*
-         * El campo digitado depende del parámetro CONTEO de la forma.
-         */
         if (modoKey == "1")
             detalle.CONTEO1 = cantidadFinal;
         else if (modoKey == "2")
@@ -590,32 +626,22 @@ public class ConteoTomaFisicaController : Controller
         else
             detalle.CONTEO3 = cantidadFinal;
 
+        detalle.ORIGEN = origenReal;
         detalle.BATCH = batchReal;
         detalle.FECHALOTE = fechaLote;
 
         /*
-         * Replica ACTUALIZA_CONTEO del FMB.
-         *
-         * TIPO P/1:
-         *   pcant = CONTEO1
-         *   actualiza CONTEO1
-         *
-         * TIPO 2:
-         *   pcant = NVL(CONTEO2, CONTEO1)
-         *   actualiza CONTEO1 y CONTEO2
-         *
-         * TIPO 3:
-         *   pcant = NVL(CONTEO3, CONTEO2)
-         *   actualiza CONTEO2 y CONTEO3
+         * Réplica de ACTUALIZA_CONTEO de ambas Forms.
+         * La forma recibe el modo de conteo activo (1, 2 o 3),
+         * no el tipo del encabezado de la toma.
          */
         AplicarActualizaConteo(
             detalle,
-            (toma.TIPO ?? "").Trim());
+            modoKey);
 
         try
         {
-            await _context.SaveChangesAsync(
-                cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
         }
         catch (DbUpdateException ex)
         {
@@ -624,10 +650,8 @@ public class ConteoTomaFisicaController : Controller
             return StatusCode(500, new
             {
                 ok = false,
-                mensaje =
-                    "No fue posible guardar el conteo.",
-                detalle =
-                    ex.GetBaseException().Message
+                mensaje = "No fue posible guardar el conteo.",
+                detalle = ex.GetBaseException().Message
             });
         }
 
@@ -642,15 +666,16 @@ public class ConteoTomaFisicaController : Controller
         return Json(new
         {
             ok = true,
-            mensaje =
-                esNuevo
-                    ? "Conteo registrado."
-                    : "Conteo actualizado.",
+            mensaje = esNuevo
+                ? "Conteo registrado."
+                : "Conteo actualizado.",
             codigoArticulo = articulo.Codigo,
             descripcion = articulo.Descripcion,
             medida = articulo.Medida,
             localiza = localizaKey,
             lote = LotePredeterminado,
+            origen = detalle.ORIGEN,
+            desOrigen,
             batch = detalle.BATCH,
             fechaLote = detalle.FECHALOTE,
             cantidad = conteoGuardado,
@@ -661,19 +686,6 @@ public class ConteoTomaFisicaController : Controller
         });
     }
 
-
-    /*
-     * Consulta los conteos existentes de una toma.
-     *
-     * Se puede filtrar por:
-     * - localización
-     * - artículo
-     * - código de barras
-     *
-     * Siempre se excluye LOCALIZA='001', igual que la pantalla de captura.
-     * La consulta muestra CONTEO1, CONTEO2 y CONTEO3, pero la opción
-     * "Eliminar" únicamente limpia el conteo correspondiente al modo activo.
-     */
     [HttpGet]
     public async Task<IActionResult> ConsultarConteos(
         int secuencia,
@@ -698,7 +710,6 @@ public class ConteoTomaFisicaController : Controller
 
         var toma = validacion.Toma!;
         var modoKey = validacion.Modo!;
-
         var localizaKey = Normalizar(localiza);
         var codigoEntrada = (codigo ?? "").Trim();
 
@@ -707,9 +718,25 @@ public class ConteoTomaFisicaController : Controller
             return BadRequest(new
             {
                 ok = false,
-                mensaje =
-                    "La localización 001 no se procesa en esta pantalla."
+                mensaje = "La localización 001 no se procesa en esta pantalla."
             });
+        }
+
+        if (!string.IsNullOrWhiteSpace(localizaKey))
+        {
+            var validacionLocaliza = await ValidarLocalizacionAsync(
+                toma,
+                localizaKey,
+                cancellationToken);
+
+            if (!validacionLocaliza.Ok)
+            {
+                return BadRequest(new
+                {
+                    ok = false,
+                    mensaje = validacionLocaliza.Mensaje
+                });
+            }
         }
 
         string? articuloKey = null;
@@ -726,8 +753,7 @@ public class ConteoTomaFisicaController : Controller
                 return NotFound(new
                 {
                     ok = false,
-                    mensaje =
-                        $"El código {codigoEntrada} no corresponde a un artículo existente."
+                    mensaje = $"El código {codigoEntrada} no corresponde a un artículo existente."
                 });
             }
 
@@ -756,14 +782,11 @@ public class ConteoTomaFisicaController : Controller
                 x.COD_ARTICULO.Trim().ToUpper() == articuloKey);
         }
 
-        /*
-         * Se limita la respuesta para que una consulta sin filtros
-         * no cargue miles de filas en un handheld.
-         */
-        var detalles = await query
+        // Se lee 201 para saber si realmente hay más de 200.
+        var detallesDb = await query
             .OrderBy(x => x.LOCALIZA)
             .ThenBy(x => x.COD_ARTICULO)
-            .Take(200)
+            .Take(201)
             .Select(x => new
             {
                 x.LOCALIZA,
@@ -771,10 +794,14 @@ public class ConteoTomaFisicaController : Controller
                 x.CONTEO1,
                 x.CONTEO2,
                 x.CONTEO3,
+                x.ORIGEN,
                 x.BATCH,
                 x.FECHALOTE
             })
             .ToListAsync(cancellationToken);
+
+        var limitado = detallesDb.Count > 200;
+        var detalles = detallesDb.Take(200).ToList();
 
         var codigosArticulo = detalles
             .Select(x => Normalizar(x.COD_ARTICULO))
@@ -791,8 +818,7 @@ public class ConteoTomaFisicaController : Controller
                 .AsNoTracking()
                 .Where(x =>
                     x.COD_ARTICULO != null &&
-                    codigosArticulo.Contains(
-                        x.COD_ARTICULO.Trim().ToUpper()))
+                    codigosArticulo.Contains(x.COD_ARTICULO.Trim().ToUpper()))
                 .Select(x => new
                 {
                     x.COD_ARTICULO,
@@ -810,6 +836,36 @@ public class ConteoTomaFisicaController : Controller
                     StringComparer.OrdinalIgnoreCase);
         }
 
+        var codigosOrigen = detalles
+            .Where(x => x.ORIGEN.HasValue)
+            .Select(x => x.ORIGEN.Value)
+            .Distinct()
+            .ToList();
+
+        var descripcionesOrigen = new Dictionary<byte, string>();
+
+        if (codigosOrigen.Count > 0)
+        {
+            var origenesDb = await _context.INV_ORIGENs
+                .AsNoTracking()
+                .Where(x =>
+                    x.ORIGEN.HasValue &&
+                    codigosOrigen.Contains(x.ORIGEN.Value))
+                .Select(x => new
+                {
+                    x.ORIGEN,
+                    x.DESCRIPCION
+                })
+                .ToListAsync(cancellationToken);
+
+            descripcionesOrigen = origenesDb
+                .Where(x => x.ORIGEN.HasValue)
+                .GroupBy(x => x.ORIGEN.Value)
+                .ToDictionary(
+                    x => x.Key,
+                    x => (x.First().DESCRIPCION ?? "").Trim());
+        }
+
         var filas = detalles.Select(x =>
         {
             var codArticulo = (x.COD_ARTICULO ?? "").Trim();
@@ -818,6 +874,15 @@ public class ConteoTomaFisicaController : Controller
             descripciones.TryGetValue(
                 Normalizar(codArticulo),
                 out var descripcion);
+
+            string desOrigen = "";
+
+            if (x.ORIGEN.HasValue)
+            {
+                descripcionesOrigen.TryGetValue(
+                    x.ORIGEN.Value,
+                    out desOrigen);
+            }
 
             decimal? conteoActual = modoKey switch
             {
@@ -836,6 +901,8 @@ public class ConteoTomaFisicaController : Controller
                 conteo2 = x.CONTEO2,
                 conteo3 = x.CONTEO3,
                 conteoActual,
+                origen = x.ORIGEN,
+                desOrigen = desOrigen ?? "",
                 batch = (x.BATCH ?? "").Trim(),
                 fechaLote = x.FECHALOTE,
                 puedeEliminar = conteoActual.HasValue
@@ -847,23 +914,11 @@ public class ConteoTomaFisicaController : Controller
             ok = true,
             modo = modoKey,
             cantidad = filas.Count,
-            limitado = filas.Count >= 200,
+            limitado,
             filas
         });
     }
 
-    /*
-     * "Eliminar conteo" NO elimina la fila de INV_DETTOMAFIS.
-     *
-     * Solo pone en NULL el conteo correspondiente al modo activo:
-     *
-     * modo 1 -> CONTEO1 = NULL
-     * modo 2 -> CONTEO2 = NULL
-     * modo 3 -> CONTEO3 = NULL
-     *
-     * Los demás conteos, CAN_EXISTE, COSTO, BATCH, FECHALOTE,
-     * ORIGEN, RESERVA, etc. se conservan.
-     */
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> EliminarConteo(
@@ -898,16 +953,14 @@ public class ConteoTomaFisicaController : Controller
             return BadRequest(new
             {
                 ok = false,
-                mensaje =
-                    "La localización y el artículo son obligatorios."
+                mensaje = "La localización y el artículo son obligatorios."
             });
         }
 
-        var validacionLocaliza =
-            await ValidarLocalizacionAsync(
-                toma,
-                localizaKey,
-                cancellationToken);
+        var validacionLocaliza = await ValidarLocalizacionAsync(
+            toma,
+            localizaKey,
+            cancellationToken);
 
         if (!validacionLocaliza.Ok)
         {
@@ -933,8 +986,7 @@ public class ConteoTomaFisicaController : Controller
             return NotFound(new
             {
                 ok = false,
-                mensaje =
-                    "El registro de conteo ya no existe."
+                mensaje = "El registro de conteo ya no existe."
             });
         }
 
@@ -949,8 +1001,7 @@ public class ConteoTomaFisicaController : Controller
                 return BadRequest(new
                 {
                     ok = false,
-                    mensaje =
-                        "El Conteo 1 ya está vacío."
+                    mensaje = "El Conteo 1 ya está vacío."
                 });
             }
 
@@ -965,8 +1016,7 @@ public class ConteoTomaFisicaController : Controller
                 return BadRequest(new
                 {
                     ok = false,
-                    mensaje =
-                        "El Conteo 2 ya está vacío."
+                    mensaje = "El Conteo 2 ya está vacío."
                 });
             }
 
@@ -981,8 +1031,7 @@ public class ConteoTomaFisicaController : Controller
                 return BadRequest(new
                 {
                     ok = false,
-                    mensaje =
-                        "El Conteo de Verificación ya está vacío."
+                    mensaje = "El Conteo de Verificación ya está vacío."
                 });
             }
 
@@ -991,8 +1040,7 @@ public class ConteoTomaFisicaController : Controller
 
         try
         {
-            await _context.SaveChangesAsync(
-                cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
         }
         catch (DbUpdateException ex)
         {
@@ -1001,10 +1049,8 @@ public class ConteoTomaFisicaController : Controller
             return StatusCode(500, new
             {
                 ok = false,
-                mensaje =
-                    "No fue posible eliminar el conteo.",
-                detalle =
-                    ex.GetBaseException().Message
+                mensaje = "No fue posible eliminar el conteo.",
+                detalle = ex.GetBaseException().Message
             });
         }
 
@@ -1022,18 +1068,16 @@ public class ConteoTomaFisicaController : Controller
         });
     }
 
-    private async Task<TomaValidacionResult>
-        ObtenerTomaValidaAsync(
-            int secuencia,
-            string? modo,
-            CancellationToken cancellationToken)
+    private async Task<TomaValidacionResult> ObtenerTomaValidaAsync(
+        int secuencia,
+        string? modo,
+        CancellationToken cancellationToken)
     {
         var modoKey = NormalizarModo(modo);
 
         if (modoKey == null)
         {
-            return TomaValidacionResult.Fallo(
-                "Modo de conteo inválido.");
+            return TomaValidacionResult.Fallo("Modo de conteo inválido.");
         }
 
         var codCia = ObtenerCodCia();
@@ -1060,8 +1104,7 @@ public class ConteoTomaFisicaController : Controller
                 $"No existe la toma física {secuencia} para la compañía {codCia}.");
         }
 
-        var codBodega =
-            (toma.COD_BODEGA ?? "").Trim();
+        var codBodega = (toma.COD_BODEGA ?? "").Trim();
 
         if (string.IsNullOrWhiteSpace(codBodega))
         {
@@ -1089,19 +1132,12 @@ public class ConteoTomaFisicaController : Controller
         var estado = Normalizar(toma.ESTADO);
         var tipo = Normalizar(toma.TIPO);
 
-        /*
-         * WHEN-NEW-BLOCK-INSTANCE del FMB:
-         * solo permite actualizar el detalle cuando ESTADO='L'.
-         */
         if (estado != "L")
         {
             return TomaValidacionResult.Fallo(
                 $"La toma {secuencia} no está lista para conteo. Estado actual: {estado}.");
         }
 
-        /*
-         * La forma deshabilita Insert/Update/Delete del detalle si TIPO='D'.
-         */
         if (tipo == "D")
         {
             return TomaValidacionResult.Fallo(
@@ -1129,11 +1165,10 @@ public class ConteoTomaFisicaController : Controller
             modoKey);
     }
 
-    private async Task<ValidacionSimpleResult>
-        ValidarLocalizacionAsync(
-            INV_TOMAFI toma,
-            string localizaKey,
-            CancellationToken cancellationToken)
+    private async Task<ValidacionSimpleResult> ValidarLocalizacionAsync(
+        INV_TOMAFI toma,
+        string localizaKey,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(localizaKey))
         {
@@ -1141,20 +1176,14 @@ public class ConteoTomaFisicaController : Controller
                 "Debe indicar la localización.");
         }
 
-        /*
-         * La forma consulta detalles con LOCALIZA <> '001'.
-         */
         if (localizaKey == LotePredeterminado)
         {
             return ValidacionSimpleResult.Fallo(
                 "La localización 001 no se procesa en esta pantalla.");
         }
 
-        var codCia =
-            (toma.COD_CIA ?? "").Trim();
-
-        var codBodega =
-            (toma.COD_BODEGA ?? "").Trim();
+        var codCia = (toma.COD_CIA ?? "").Trim();
+        var codBodega = (toma.COD_BODEGA ?? "").Trim();
 
         var existe = await _context.INV_LOCs
             .AsNoTracking()
@@ -1176,24 +1205,17 @@ public class ConteoTomaFisicaController : Controller
         return ValidacionSimpleResult.Exito();
     }
 
-    private async Task<ArticuloResuelto?>
-        ResolverArticuloAsync(
-            string codCia,
-            string codigoEntrada,
-            CancellationToken cancellationToken)
+    private async Task<ArticuloResuelto?> ResolverArticuloAsync(
+        string codCia,
+        string codigoEntrada,
+        CancellationToken cancellationToken)
     {
         var codigoKey = Normalizar(codigoEntrada);
 
         if (string.IsNullOrWhiteSpace(codigoKey))
             return null;
 
-        /*
-         * TraduceBar:
-         * si existe como código de barras, se utiliza su COD_ARTICULO.
-         * Si no existe, se intenta utilizar el valor como COD_ARTICULO.
-         */
-        var articuloPorBarra = await _context
-            .INV_ARTIC_CODBARs
+        var articuloPorBarra = await _context.INV_ARTIC_CODBARs
             .AsNoTracking()
             .Where(x =>
                 x.COD_CIA != null &&
@@ -1203,10 +1225,9 @@ public class ConteoTomaFisicaController : Controller
             .Select(x => x.COD_ARTICULO)
             .FirstOrDefaultAsync(cancellationToken);
 
-        var articuloKey =
-            !string.IsNullOrWhiteSpace(articuloPorBarra)
-                ? Normalizar(articuloPorBarra)
-                : codigoKey;
+        var articuloKey = !string.IsNullOrWhiteSpace(articuloPorBarra)
+            ? Normalizar(articuloPorBarra)
+            : codigoKey;
 
         var articulo = await _context.INV_ARTICULOs
             .AsNoTracking()
@@ -1224,27 +1245,21 @@ public class ConteoTomaFisicaController : Controller
         if (articulo == null)
             return null;
 
-        var codigoReal =
-            (articulo.COD_ARTICULO ?? "").Trim();
+        var codigoReal = (articulo.COD_ARTICULO ?? "").Trim();
 
         return new ArticuloResuelto
         {
             Codigo = codigoReal,
-            CodigoNormalizado =
-                Normalizar(codigoReal),
-            Descripcion =
-                (articulo.DESCRIPCION ?? "").Trim(),
-            Medida =
-                (articulo.MEDIDA ?? "").Trim()
+            CodigoNormalizado = Normalizar(codigoReal),
+            Descripcion = (articulo.DESCRIPCION ?? "").Trim(),
+            Medida = (articulo.MEDIDA ?? "").Trim()
         };
     }
 
-    private CodigoInterpretadoResult
-        InterpretarCodigoEscaneado(
-            string? codigo)
+    private CodigoInterpretadoResult InterpretarCodigoEscaneado(
+        string? codigo)
     {
-        var entrada =
-            (codigo ?? "").Trim();
+        var entrada = (codigo ?? "").Trim();
 
         if (string.IsNullOrWhiteSpace(entrada))
         {
@@ -1252,44 +1267,30 @@ public class ConteoTomaFisicaController : Controller
                 "Debe escanear o digitar el artículo.");
         }
 
-        /*
-         * El FMB hace REPLACE(',', '.') antes de interpretar la cantidad.
-         * Esto permite cantidades decimales recibidas con coma.
-         */
+        // Ambas Forms reemplazan coma por punto antes de procesar cantidad.
         entrada = entrada.Replace(',', '.');
 
-        var delimitador =
-            _configuration[
-                "TomaFisica:DELIMITADOR"]?.Trim();
+        var delimitador = _configuration["TomaFisica:DELIMITADOR"]?.Trim();
 
         if (string.IsNullOrWhiteSpace(delimitador))
             delimitador = "%";
 
-        var posicion =
-            entrada.IndexOf(
-                delimitador,
-                StringComparison.Ordinal);
+        var posicion = entrada.IndexOf(
+            delimitador,
+            StringComparison.Ordinal);
 
         if (posicion > 0)
         {
-            var codigoParte =
-                entrada[..posicion].Trim();
+            var codigoParte = entrada[..posicion].Trim();
+            var cantidadParte = entrada[(posicion + delimitador.Length)..].Trim();
 
-            var cantidadParte =
-                entrada[
-                    (posicion + delimitador.Length)..]
-                .Trim();
-
-            if (string.IsNullOrWhiteSpace(
-                    codigoParte))
+            if (string.IsNullOrWhiteSpace(codigoParte))
             {
                 return CodigoInterpretadoResult.Fallo(
                     "El código del artículo está vacío.");
             }
 
-            if (!TryParseCantidad(
-                    cantidadParte,
-                    out var cantidad))
+            if (!TryParseCantidad(cantidadParte, out var cantidad))
             {
                 return CodigoInterpretadoResult.Fallo(
                     $"La cantidad incluida en el código ({cantidadParte}) no es válida.");
@@ -1307,71 +1308,51 @@ public class ConteoTomaFisicaController : Controller
 
     private static void AplicarActualizaConteo(
         INV_DETTOMAFI detalle,
-        string? tipoToma)
+        string? modoConteo)
     {
-        var tipo = Normalizar(tipoToma);
-
+        var modo = Normalizar(modoConteo);
         decimal cantidad;
 
-        if (tipo == "2")
+        if (modo == "2")
         {
-            cantidad =
-                detalle.CONTEO2 ??
-                detalle.CONTEO1 ??
-                0;
-
+            cantidad = detalle.CONTEO2 ?? detalle.CONTEO1 ?? 0;
             detalle.CONTEO1 = cantidad;
             detalle.CONTEO2 = cantidad;
         }
-        else if (tipo == "3")
+        else if (modo == "3")
         {
-            cantidad =
-                detalle.CONTEO3 ??
-                detalle.CONTEO2 ??
-                0;
-
+            cantidad = detalle.CONTEO3 ?? detalle.CONTEO2 ?? 0;
             detalle.CONTEO2 = cantidad;
             detalle.CONTEO3 = cantidad;
         }
         else
         {
-            cantidad =
-                detalle.CONTEO1 ?? 0;
-
+            cantidad = detalle.CONTEO1 ?? 0;
             detalle.CONTEO1 = cantidad;
         }
     }
 
     private string ObtenerCodCia()
     {
-        var claim =
-            User.FindFirst("CodCia")
-                ?.Value
-                ?.Trim();
+        var claim = User.FindFirst("CodCia")?.Value?.Trim();
 
         if (!string.IsNullOrWhiteSpace(claim))
             return claim;
 
-        return _configuration[
-            "TomaFisica:COD_CIA"]?.Trim() ?? "";
+        return _configuration["TomaFisica:COD_CIA"]?.Trim() ?? "";
     }
 
     private string ObtenerCodSucursal()
     {
-        var claim =
-            User.FindFirst("CodSucursal")
-                ?.Value
-                ?.Trim();
+        var claim = User.FindFirst("CodSucursal")?.Value?.Trim();
 
         if (!string.IsNullOrWhiteSpace(claim))
             return claim;
 
-        return _configuration[
-            "TomaFisica:COD_SUCURSAL"]?.Trim() ?? "";
+        return _configuration["TomaFisica:COD_SUCURSAL"]?.Trim() ?? "";
     }
 
-    private static string? NormalizarModo(
-        string? modo)
+    private static string? NormalizarModo(string? modo)
     {
         var valor = Normalizar(modo);
 
@@ -1386,21 +1367,18 @@ public class ConteoTomaFisicaController : Controller
     {
         cantidad = 0;
 
-        var normalizado =
-            (valor ?? "")
-                .Trim()
-                .Replace(',', '.');
+        var normalizado = (valor ?? "")
+            .Trim()
+            .Replace(',', '.');
 
         return decimal.TryParse(
             normalizado,
-            NumberStyles.Number |
-            NumberStyles.AllowDecimalPoint,
+            NumberStyles.Number | NumberStyles.AllowDecimalPoint,
             CultureInfo.InvariantCulture,
             out cantidad);
     }
 
-    private static string Normalizar(
-        string? valor)
+    private static string Normalizar(string? valor)
     {
         return (valor ?? "")
             .Trim()
@@ -1429,8 +1407,7 @@ public class ConteoTomaFisicaController : Controller
             };
         }
 
-        public static TomaValidacionResult Fallo(
-            string mensaje)
+        public static TomaValidacionResult Fallo(string mensaje)
         {
             return new TomaValidacionResult
             {
@@ -1453,8 +1430,7 @@ public class ConteoTomaFisicaController : Controller
             };
         }
 
-        public static ValidacionSimpleResult Fallo(
-            string mensaje)
+        public static ValidacionSimpleResult Fallo(string mensaje)
         {
             return new ValidacionSimpleResult
             {
@@ -1483,8 +1459,7 @@ public class ConteoTomaFisicaController : Controller
             };
         }
 
-        public static CodigoInterpretadoResult Fallo(
-            string mensaje)
+        public static CodigoInterpretadoResult Fallo(string mensaje)
         {
             return new CodigoInterpretadoResult
             {
