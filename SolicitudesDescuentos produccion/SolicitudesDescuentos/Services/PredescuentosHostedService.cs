@@ -10,6 +10,7 @@ public class PredescuentosHostedService : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<PredescuentosHostedService> _logger;
     private readonly DescuentosWorkerOptions _options;
+    private const int CommandTimeoutSeconds = 900;
 
     public PredescuentosHostedService(
         IServiceScopeFactory scopeFactory,
@@ -25,16 +26,21 @@ public class PredescuentosHostedService : BackgroundService
     {
         _logger.LogInformation("PredescuentosHostedService iniciado.");
 
-        // El procedimiento se ejecuta al finalizar CADA ciclo, incluso cuando
-        // no se hayan generado archivos o la carga de descuentos haya fallado.
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                using var scope = _scopeFactory.CreateScope();
-                var service = scope.ServiceProvider.GetRequiredService<IDescuentosBatchService>();
-
-                await service.ProcesarPendientesAsync(stoppingToken);
+                // Mantener el bloqueo también durante la llamada al procedimiento.
+                using var jobLock = CrossProcessJobLock.TryAcquire("PredescuentosHostedService");
+                if (jobLock.Acquired)
+                {
+                    await EjecutarCicloAsync(stoppingToken);
+                }
+                else
+                {
+                    _logger.LogInformation(
+                        "[JOB DESCUENTOS] Ciclo omitido: otra instancia está en ejecución.");
+                }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -42,45 +48,15 @@ public class PredescuentosHostedService : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex,
-                    "Error procesando solicitudes pendientes. Se intentará actualizar PREDESCLASEORACLE igualmente.");
+                _logger.LogError(ex, "[JOB DESCUENTOS] Error inesperado.");
             }
 
-            if (stoppingToken.IsCancellationRequested)
-                break;
-
-            // Scope y OracleContext nuevos para no depender del estado de la
-            // transaccion o del DbContext del procesamiento de archivos.
             try
             {
-                using var scopeOracle = _scopeFactory.CreateScope();
-                var oracleContext = scopeOracle.ServiceProvider.GetRequiredService<OracleContext>();
-
-                _logger.LogInformation(
-                    "Ejecutando BG_INTUSER.GENERAR_PREDESCLASEORACLE (ciclo de descuentos).");
-
-                await oracleContext.Database.ExecuteSqlRawAsync(
-                    "BEGIN BG_INTUSER.GENERAR_PREDESCLASEORACLE; END;",
+                // Se respeta appsettings.json, que NO se modifica.
+                await Task.Delay(
+                    TimeSpan.FromSeconds(Math.Max(1, _options.IntervalSeconds)),
                     stoppingToken);
-
-                _logger.LogInformation(
-                    "BG_INTUSER.GENERAR_PREDESCLASEORACLE finalizó correctamente.");
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex,
-                    "Falló BG_INTUSER.GENERAR_PREDESCLASEORACLE. Se volverá a intentar en el siguiente ciclo.");
-            }
-
-            try
-            {
-                // Evita un bucle continuo si el intervalo está mal configurado.
-                var intervalo = TimeSpan.FromSeconds(Math.Max(1, _options.IntervalSeconds));
-                await Task.Delay(intervalo, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -89,5 +65,49 @@ public class PredescuentosHostedService : BackgroundService
         }
 
         _logger.LogInformation("PredescuentosHostedService detenido.");
+    }
+
+    private async Task EjecutarCicloAsync(CancellationToken stoppingToken)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var service = scope.ServiceProvider.GetRequiredService<IDescuentosBatchService>();
+            await service.ProcesarPendientesAsync(stoppingToken);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Error procesando solicitudes pendientes. Se actualizará PREDESCLASEORACLE igualmente.");
+        }
+
+        stoppingToken.ThrowIfCancellationRequested();
+
+        // Se ejecuta también cuando no hubo solicitudes ni archivos.
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var oracleContext = scope.ServiceProvider.GetRequiredService<OracleContext>();
+            oracleContext.Database.SetCommandTimeout(CommandTimeoutSeconds);
+
+            _logger.LogInformation("Ejecutando BG_INTUSER.GENERAR_PREDESCLASEORACLE.");
+            await oracleContext.Database.ExecuteSqlRawAsync(
+                "BEGIN BG_INTUSER.GENERAR_PREDESCLASEORACLE; END;",
+                stoppingToken);
+            _logger.LogInformation("BG_INTUSER.GENERAR_PREDESCLASEORACLE finalizó correctamente.");
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Falló BG_INTUSER.GENERAR_PREDESCLASEORACLE. Se reintentará en el siguiente ciclo.");
+        }
     }
 }

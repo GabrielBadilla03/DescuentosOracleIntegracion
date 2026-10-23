@@ -23,156 +23,89 @@ string ResolverRutaProyecto(string? ruta)
     if (Path.IsPathRooted(ruta))
         return Path.GetFullPath(ruta);
 
-    return Path.GetFullPath(
-        Path.Combine(
-            contentRoot,
-            ruta));
+    return Path.GetFullPath(Path.Combine(contentRoot, ruta));
 }
 
 // Resolver wallet Oracle
-var oracleConnection =
-    builder.Configuration.GetConnectionString("Oracle");
-
+var oracleConnection = builder.Configuration.GetConnectionString("Oracle");
 if (!string.IsNullOrWhiteSpace(oracleConnection))
 {
-    oracleConnection =
-        oracleConnection.Replace(
-            "{ContentRoot}",
-            contentRoot);
-
-    builder.Configuration[
-        "ConnectionStrings:Oracle"] =
-        oracleConnection;
+    oracleConnection = oracleConnection.Replace("{ContentRoot}", contentRoot);
+    builder.Configuration["ConnectionStrings:Oracle"] = oracleConnection;
 }
 
 // Resolver llave privada SFTP
-var privateKeyPath =
-    builder.Configuration[
-        "DescuentosSftp:PrivateKeyPath"];
-
+var privateKeyPath = builder.Configuration["DescuentosSftp:PrivateKeyPath"];
 if (!string.IsNullOrWhiteSpace(privateKeyPath))
 {
-    builder.Configuration[
-        "DescuentosSftp:PrivateKeyPath"] =
-        ResolverRutaProyecto(
-            privateKeyPath);
+    builder.Configuration["DescuentosSftp:PrivateKeyPath"] = ResolverRutaProyecto(privateKeyPath);
 }
 
-builder.Services.AddControllersWithViews();
+// Las acciones de ReportesCobros y SeguimientoFacturas requieren PRICE_EDITOR,
+// tanto en navegación como en accesos directos por URL, AJAX, Excel y PDF.
+builder.Services.AddControllersWithViews(options =>
+{
+    options.Conventions.Add(new PriceEditorControllersConvention());
+});
 
 builder.Services.AddDbContext<LancoDbContext>(options =>
 {
     options.UseOracle(
         builder.Configuration.GetConnectionString("LANCO"),
-        oracleOptions =>
-        {
-            oracleOptions.UseOracleSQLCompatibility("11");
-        });
+        oracleOptions => oracleOptions.UseOracleSQLCompatibility("11"));
 });
 
 builder.Services.AddDbContext<OracleContext>(options =>
-    options.UseOracle(
-        builder.Configuration.GetConnectionString("Oracle")));
+    options.UseOracle(builder.Configuration.GetConnectionString("Oracle")));
 
 builder.Services.AddDbContext<LancoTiendasContext>(options =>
-    options.UseOracle(
-        builder.Configuration.GetConnectionString("LANCOTIENDAS")));
+    options.UseOracle(builder.Configuration.GetConnectionString("LANCOTIENDAS")));
 
 builder.Services.Configure<TiendasDescuentosWorkerOptions>(
-    builder.Configuration.GetSection(
-        "TiendasDescuentosWorker"));
-
-builder.Services.AddScoped<
-    ITiendasDescuentosService,
-    TiendasDescuentosService>();
-
-builder.Services.AddHostedService<
-    TiendasDescuentosHostedService>();
+    builder.Configuration.GetSection("TiendasDescuentosWorker"));
+builder.Services.AddScoped<ITiendasDescuentosService, TiendasDescuentosService>();
+builder.Services.AddHostedService<TiendasDescuentosHostedService>();
 
 builder.Services.Configure<DescuentosWorkerOptions>(
-    builder.Configuration.GetSection(
-        "DescuentosWorker"));
-
+    builder.Configuration.GetSection("DescuentosWorker"));
 builder.Services.Configure<DescuentosSftpOptions>(
-    builder.Configuration.GetSection(
-        "DescuentosSftp"));
+    builder.Configuration.GetSection("DescuentosSftp"));
 
-builder.Services.AddScoped<
-    IArchivosDescuentosService,
-    ArchivosDescuentosService>();
+builder.Services.AddScoped<IArchivosDescuentosService, ArchivosDescuentosService>();
+builder.Services.AddScoped<IDescuentosBatchService, DescuentosBatchService>();
+builder.Services.AddHostedService<PredescuentosHostedService>();
 
-builder.Services.AddScoped<
-    IDescuentosBatchService,
-    DescuentosBatchService>();
+builder.Services.AddSingleton<ISftpFingerprintProvider, SftpFingerprintProvider>();
+builder.Services.AddHostedService<SftpFingerprintStartupService>();
 
-builder.Services.AddHostedService<
-    PredescuentosHostedService>();
-
-builder.Services.AddSingleton<
-    ISftpFingerprintProvider,
-    SftpFingerprintProvider>();
-
-builder.Services.AddHostedService<
-    SftpFingerprintStartupService>();
-
-builder.Services
-    .AddAuthentication(
-        CookieAuthenticationDefaults.AuthenticationScheme)
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {
-        options.LoginPath =
-            "/Account/Login";
-
-        options.LogoutPath =
-            "/Account/Logout";
-
-        options.AccessDeniedPath =
-            "/Account/AccessDenied";
-
-        options.ExpireTimeSpan =
-            TimeSpan.FromMinutes(30);
-
-        options.SlidingExpiration =
-            true;
-
-        options.Cookie.HttpOnly =
-            true;
-
-        options.Cookie.IsEssential =
-            true;
-
-        options.Cookie.SameSite =
-            SameSiteMode.Lax;
-
-        options.Cookie.SecurePolicy =
-            CookieSecurePolicy.SameAsRequest;
+        options.LoginPath = "/Account/Login";
+        options.LogoutPath = "/Account/Logout";
+        options.AccessDeniedPath = "/Account/AccessDenied";
+        options.ExpireTimeSpan = TimeSpan.FromMinutes(30);
+        options.SlidingExpiration = true;
+        options.Cookie.HttpOnly = true;
+        options.Cookie.IsEssential = true;
+        options.Cookie.SameSite = SameSiteMode.Lax;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
     });
 
 builder.Services.AddAuthorization(options =>
 {
-    options.AddPolicy(
-        "CanEditPrice",
-        policy =>
-            policy
-                .RequireAuthenticatedUser()
-                .RequireRole("PRICE_EDITOR"));
+    options.AddPolicy("CanEditPrice", policy =>
+        policy.RequireAuthenticatedUser().RequireRole("PRICE_EDITOR"));
 
-    options.FallbackPolicy =
-        new AuthorizationPolicyBuilder()
-            .RequireAuthenticatedUser()
-            .Build();
+    options.FallbackPolicy = new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser().Build();
 });
 
-builder.Services.AddHttpClient(
-    "BlancoAuth",
-    client =>
-    {
-        client.BaseAddress =
-            new Uri("https://sales.blanco.group");
-
-        client.Timeout =
-            TimeSpan.FromSeconds(30);
-    });
+builder.Services.AddHttpClient("BlancoAuth", client =>
+{
+    client.BaseAddress = new Uri("https://sales.blanco.group");
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
 
 builder.Services.Configure<FormOptions>(options =>
 {
@@ -180,9 +113,7 @@ builder.Services.Configure<FormOptions>(options =>
 });
 
 builder.Services.AddMemoryCache();
-
-QuestPDF.Settings.License =
-    LicenseType.Community;
+QuestPDF.Settings.License = LicenseType.Community;
 
 var app = builder.Build();
 
@@ -194,15 +125,12 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
-
 app.UseRouting();
-
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllerRoute(
     name: "default",
-    pattern:
-        "{controller=Predescuentos}/{action=Index}/{id?}");
+    pattern: "{controller=Predescuentos}/{action=Index}/{id?}");
 
 app.Run();

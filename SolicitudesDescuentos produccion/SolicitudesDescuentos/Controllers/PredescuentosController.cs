@@ -1181,173 +1181,168 @@ namespace SolicitudesDescuentos.Controllers
 
 
 
+        // Los descuentos precalculados se guardan en LCR_3; las operaciones
+        // de ART_NO_PROMO siguen utilizando CR_3 y NO deben alterarse.
+        private const string OrganizacionPredesclase = "LCR_3";
+        private const string OrganizacionNoPromo = "CR_3";
+
+        // La vista envía "Descuento Fijo" o "Descuento Promocional".
+        // Evitamos mezclar las dos familias de descuentos al traer/copiar.
+        private static string? TipoPredesclase(string? tipoDescuento)
+        {
+            var valor = (tipoDescuento ?? "").Trim();
+            if (valor.Equals("Descuento Fijo", StringComparison.OrdinalIgnoreCase) ||
+                valor.Equals("CLIENTE", StringComparison.OrdinalIgnoreCase) ||
+                valor.Equals("Fijo", StringComparison.OrdinalIgnoreCase))
+                return "CLIENTE";
+            if (valor.Equals("Descuento Promocional", StringComparison.OrdinalIgnoreCase) ||
+                valor.Equals("PROMOCION", StringComparison.OrdinalIgnoreCase) ||
+                valor.Equals("Promocional", StringComparison.OrdinalIgnoreCase))
+                return "PROMOCION";
+            return null;
+        }
+
         [HttpGet]
-        public async Task<IActionResult> GetDescuentosCliente(string codCliente, string? codCia)
+        public async Task<IActionResult> GetDescuentosCliente(
+            string codCliente, string? codCia, string? tipoDescuento)
         {
             if (string.IsNullOrWhiteSpace(codCliente))
                 return Json(Array.Empty<object>());
 
-            const string orgKey = "CR_3";
+            var tipo = TipoPredesclase(tipoDescuento);
+            if (tipo == null)
+                return BadRequest(new { error = true, message = "Debe indicar un tipo de descuento válido." });
 
             var clienteTrim = codCliente.Trim();
-
             try
             {
-                // 1) Traer descuentos (SIN JOIN)
+                // El resumen es independiente por tipo y organización.
+                // Se mantienen las exclusiones de ART_NO_PROMO de CR_3.
                 var baseRows = await _OracleContext.PREDESCLASEORACLEs.AsNoTracking()
                     .Where(d =>
-                        d.ORGANIZATION_CODE != null && d.ORGANIZATION_CODE.Trim() == "CR_3" &&
-                        d.IDCLIENTE != null && d.IDCLIENTE.Trim() == clienteTrim &&
-
-                        // Si el detalle es por artículo, no devolverlo si está ACTIVO en ART_NO_PROMO.
-                        // Los detalles por línea/clase se conservan; al expandirse los artículos
-                        // también se vuelve a aplicar la exclusión.
-                        (
-                            d.ITEM_NUMBER == null ||
-                            d.ITEM_NUMBER.Trim() == "" ||
-                            !_OracleContext.ART_NO_PROMOs.AsNoTracking().Any(np =>
-                                np.BU_NAME != null &&
-                                np.ORGANIZATION_CODE != null &&
-                                np.ITEM_NUMBER != null &&
-                                np.ESTADO != null &&
-                                np.BU_NAME.Trim().ToUpper() == "LANCO_CR" &&
-                                np.ORGANIZATION_CODE.Trim().ToUpper() == orgKey &&
-                                np.ITEM_NUMBER.Trim().ToUpper() == d.ITEM_NUMBER.Trim().ToUpper() &&
-                                np.ESTADO.Trim().ToUpper() == "ACTIVO"
-                            )
-                        )
-                    )
-                    .Select(d => new
-                    {
+                        d.ORGANIZATION_CODE == OrganizacionPredesclase &&
+                        d.IDCLIENTE == clienteTrim &&
+                        d.RULE_DISCOUNT_NAME == tipo &&
+                        (d.ITEM_NUMBER == null || d.ITEM_NUMBER.Trim() == "" ||
+                         !_OracleContext.ART_NO_PROMOs.AsNoTracking().Any(np =>
+                            np.BU_NAME != null && np.ORGANIZATION_CODE != null &&
+                            np.ITEM_NUMBER != null && np.ESTADO != null &&
+                            np.BU_NAME.Trim().ToUpper() == "LANCO_CR" &&
+                            np.ORGANIZATION_CODE.Trim().ToUpper() == OrganizacionNoPromo &&
+                            np.ITEM_NUMBER.Trim().ToUpper() == d.ITEM_NUMBER.Trim().ToUpper() &&
+                            np.ESTADO.Trim().ToUpper() == "ACTIVO")))
+                    .Select(d => new {
                         CodLinea = d.CATEGORY_CODE,
                         CodArticulo = d.ITEM_NUMBER,
                         Valor = d.PORCENTAJE,
                         Clase = d.SUBCATEGORY_CODE
                     })
-                    .OrderBy(x => x.CodLinea)
-                    .ToListAsync();
+                    .OrderBy(d => d.CodLinea)
+                    .ToListAsync(HttpContext.RequestAborted);
 
                 if (baseRows.Count == 0)
                     return Json(Array.Empty<object>());
 
-                // 2) Traer descripciones de línea por IN (chunk 900)
-                var codLineas = baseRows
-                    .Select(x => (x.CodLinea ?? "").Trim())
-                    .Where(x => !string.IsNullOrWhiteSpace(x))
-                    .Distinct()
-                    .ToList();
-
+                var codLineas = baseRows.Select(x => (x.CodLinea ?? "").Trim())
+                    .Where(x => x.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
                 var dictLineas = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
                 const int chunkSize = 900;
-                for (int i = 0; i < codLineas.Count; i += chunkSize)
+                for (var i = 0; i < codLineas.Count; i += chunkSize)
                 {
                     var chunk = codLineas.Skip(i).Take(chunkSize).ToList();
-
-                    var lineasChunk = await _OracleContext.INV_LINEAs.AsNoTracking()
+                    var rows = await _OracleContext.INV_LINEAs.AsNoTracking()
                         .Where(l => l.CATEGORY_CODE != null && chunk.Contains(l.CATEGORY_CODE.Trim()))
-                        .Select(l => new
-                        {
-                            Cod = l.CATEGORY_CODE,
-                            Nombre = l.CATEGORY_NAME
-                        })
-                        .ToListAsync();
-
-                    foreach (var l in lineasChunk)
-                    {
-                        var key = (l.Cod ?? "").Trim().ToUpperInvariant();
-                        if (!dictLineas.ContainsKey(key))
-                            dictLineas[key] = (l.Nombre ?? "").Trim();
-                    }
+                        .Select(l => new { l.CATEGORY_CODE, l.CATEGORY_NAME })
+                        .ToListAsync(HttpContext.RequestAborted);
+                    foreach (var row in rows)
+                        dictLineas.TryAdd((row.CATEGORY_CODE ?? "").Trim(),
+                            (row.CATEGORY_NAME ?? "").Trim());
                 }
 
-                // 3) Armar salida final en memoria
-                var descuentos = baseRows.Select(d =>
+                return Json(baseRows.Select(d =>
                 {
-                    var codLinea = (d.CodLinea ?? "").Trim();
-                    var key = codLinea.ToUpperInvariant();
-
-                    dictLineas.TryGetValue(key, out var desLinea);
-
-                    return new
-                    {
-                        codLinea,
-                        desLinea = desLinea ?? "",
+                    var linea = (d.CodLinea ?? "").Trim();
+                    dictLineas.TryGetValue(linea, out var nombre);
+                    return new {
+                        codLinea = linea,
+                        desLinea = nombre ?? "",
                         codArticulo = (d.CodArticulo ?? "").Trim(),
                         tipo = "P",
                         valor = d.Valor,
                         claseart = (d.Clase ?? "").Trim()
                     };
-                }).ToList();
-
-                return Json(descuentos);
+                }).ToList());
             }
             catch (Exception ex)
             {
+                // No exponer detalles internos de Oracle al navegador.
                 Response.StatusCode = 500;
-                return Json(new { error = true, message = ex.Message });
+                return Json(new { error = true, message = "No se pudo consultar PREDESCLASEORACLE." });
             }
         }
 
-
         [HttpGet]
-        public JsonResult GetDescuentosCombinados(string clienteOrigen, string clienteDestino)
+        public async Task<IActionResult> GetDescuentosCombinados(
+            string clienteOrigen, string clienteDestino, string? tipoDescuento)
         {
-            if (string.IsNullOrWhiteSpace(clienteOrigen) || string.IsNullOrWhiteSpace(clienteDestino))
+            if (string.IsNullOrWhiteSpace(clienteOrigen) ||
+                string.IsNullOrWhiteSpace(clienteDestino))
+                return Json(Array.Empty<object>());
+
+            var tipo = TipoPredesclase(tipoDescuento);
+            if (tipo == null)
+                return BadRequest(new { error = true, message = "Debe indicar un tipo de descuento válido." });
+
+            // Leer exclusivamente el tipo seleccionado y evitar duplicados
+            // por clasificaciones de INV_LINEA en el JOIN original.
+            var descuentosOrigen = await _OracleContext.PREDESCLASEORACLEs.AsNoTracking()
+                .Where(d => d.ORGANIZATION_CODE == OrganizacionPredesclase &&
+                    d.IDCLIENTE == clienteOrigen.Trim() &&
+                    d.RULE_DISCOUNT_NAME == tipo &&
+                    (d.ITEM_NUMBER == null || d.ITEM_NUMBER.Trim() == "" ||
+                     !_OracleContext.ART_NO_PROMOs.AsNoTracking().Any(np =>
+                        np.BU_NAME != null && np.ORGANIZATION_CODE != null &&
+                        np.ITEM_NUMBER != null && np.ESTADO != null &&
+                        np.BU_NAME.Trim().ToUpper() == "LANCO_CR" &&
+                        np.ORGANIZATION_CODE.Trim().ToUpper() == OrganizacionNoPromo &&
+                        np.ITEM_NUMBER.Trim().ToUpper() == d.ITEM_NUMBER.Trim().ToUpper() &&
+                        np.ESTADO.Trim().ToUpper() == "ACTIVO")))
+                .Select(d => new {
+                    codLinea = d.CATEGORY_CODE,
+                    codArticulo = d.ITEM_NUMBER,
+                    valor = d.PORCENTAJE,
+                    Claseart = d.SUBCATEGORY_CODE
+                })
+                .ToListAsync(HttpContext.RequestAborted);
+
+            var codLineas = descuentosOrigen
+                .Select(x => (x.codLinea ?? "").Trim())
+                .Where(x => x.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            var nombres = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < codLineas.Count; i += 900)
             {
-                return Json(new List<object>());
+                var parte = codLineas.Skip(i).Take(900).ToList();
+                var filas = await _OracleContext.INV_LINEAs.AsNoTracking()
+                    .Where(x => x.CATEGORY_CODE != null && parte.Contains(x.CATEGORY_CODE.Trim()))
+                    .Select(x => new { x.CATEGORY_CODE, x.CATEGORY_NAME })
+                    .ToListAsync(HttpContext.RequestAborted);
+                foreach (var row in filas)
+                    nombres.TryAdd((row.CATEGORY_CODE ?? "").Trim(),
+                        (row.CATEGORY_NAME ?? "").Trim());
             }
 
-            // 1) Armas la consulta hasta antes del select "final"
-            var query = from d in _OracleContext.PREDESCLASEORACLEs.AsNoTracking()
-                        join l in _OracleContext.INV_LINEAs.AsNoTracking()
-                            on d.CATEGORY_CODE equals l.CATEGORY_CODE into gj
-                        from l in gj.DefaultIfEmpty()
-                        where d.IDCLIENTE == clienteOrigen
-                           && (
-                                d.ITEM_NUMBER == null ||
-                                d.ITEM_NUMBER.Trim() == "" ||
-                                !_OracleContext.ART_NO_PROMOs.AsNoTracking().Any(np =>
-                                    np.BU_NAME != null &&
-                                    np.ORGANIZATION_CODE != null &&
-                                    np.ITEM_NUMBER != null &&
-                                    np.ESTADO != null &&
-                                    np.BU_NAME.Trim().ToUpper() == "LANCO_CR" &&
-                                    np.ORGANIZATION_CODE.Trim().ToUpper() == "CR_3" &&
-                                    np.ITEM_NUMBER.Trim().ToUpper() == d.ITEM_NUMBER.Trim().ToUpper() &&
-                                    np.ESTADO.Trim().ToUpper() == "ACTIVO"
-                                )
-                              )
-                        select new { d, l };
-
-            // 2) A partir de aquí pasás a memoria con AsEnumerable()
-            var descuentosOrigen = query
-                .AsEnumerable() // 👉 desde aquí ya NO es SQL, es LINQ to Objects
-                .Select(x => new
-                {
-                    codLinea = x.d.CATEGORY_CODE,
-                    desLinea = x.l?.CATEGORY_NAME ?? "",
-
-                    codArticulo = string.IsNullOrWhiteSpace(x.d.ITEM_NUMBER)
-                                    ? " "
-                                    : x.d.ITEM_NUMBER,
-
-                    // En Oracle solo tenemos PORCENTAJE, asumimos tipo porcentual
+            return Json(descuentosOrigen.Select(d => {
+                var linea = (d.codLinea ?? "").Trim();
+                nombres.TryGetValue(linea, out var nombre);
+                return new {
+                    codLinea = linea,
+                    desLinea = nombre ?? "",
+                    codArticulo = (d.codArticulo ?? "").Trim(),
                     tipo = "P",
-                    valor = x.d.PORCENTAJE,
-
-                    Claseart = string.IsNullOrWhiteSpace(x.d.SUBCATEGORY_CODE)
-                                    ? " "
-                                    : x.d.SUBCATEGORY_CODE
-                })
-                // 3) Ordenar por codLinea numéricamente si se puede
-                .OrderBy(d =>
-                {
-                    return int.TryParse(d.codLinea, out var num) ? num : int.MaxValue;
-                })
-                .ToList();
-
-            return Json(descuentosOrigen);
+                    valor = d.valor,
+                    Claseart = (d.Claseart ?? "").Trim()
+                };
+            }).OrderBy(d => int.TryParse(d.codLinea, out var n) ? n : int.MaxValue).ToList());
         }
 
 

@@ -57,7 +57,12 @@
         const botones = acciones.map(([selector]) =>
             barra.querySelector(`button[data-bs-target="${selector}"]`));
 
-        if (botones.some(b => !b)) return;
+        if (botones.some(b => !b)) {
+            // Un usuario sin PRICE_EDITOR solo debe ver Consultar clientes
+            // y Nueva solicitud. La autorización real se exige en el servidor.
+            botonReportesOriginal?.closest('.col-auto')?.remove();
+            return;
+        }
 
         const bloqueArticulos = document.createElement('div');
         bloqueArticulos.className = 'col-auto dropdown';
