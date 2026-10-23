@@ -1,0 +1,324 @@
+@model SolicitudesDescuentos.ModelsOracle.ViewModels.ConsultaClientesDescuentosVm
+@using System.Globalization
+
+@{
+    ViewData["Title"] = "Consultar descuentos por cliente";
+    var etiquetaCliente = string.IsNullOrWhiteSpace(Model.NombreCliente)
+        ? Model.Cliente
+        : $"{Model.NombreCliente} ({Model.Cliente})";
+}
+
+<div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-3">
+    <div>
+        <h2 class="mb-1">Consultar descuentos por cliente</h2>
+        <p class="text-muted mb-0">Resumen de descuentos por línea, clase y artículo (PREDESCLASEORACLE).</p>
+    </div>
+    <a asp-controller="Predescuentos" asp-action="Index" class="btn btn-outline-secondary">
+        Volver a solicitudes
+    </a>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(Model.Advertencia))
+{
+    <div class="alert alert-danger" role="alert">@Model.Advertencia</div>
+}
+
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-light fw-semibold">Filtros de consulta</div>
+    <div class="card-body">
+        <form method="get" asp-controller="ConsultaClientes" asp-action="Index" id="formConsultaClientes" autocomplete="off">
+            <div class="row g-3 align-items-end">
+                <div class="col-12 col-lg-4">
+                    <label class="form-label" for="buscarClienteConsulta">Buscar cliente (nombre o código)</label>
+                    <input class="form-control" id="buscarClienteConsulta" type="search"
+                           placeholder="Escribí 2 o más caracteres"
+                           value="@etiquetaCliente" autocomplete="off" />
+                    <input type="hidden" id="idClienteConsulta" name="idCliente" value="@Model.Cliente" />
+                </div>
+                <div class="col-12 col-lg-4">
+                    <label class="form-label" for="selectClienteConsulta">Cliente seleccionado</label>
+                    <select class="form-select" id="selectClienteConsulta" aria-label="Elegir cliente">
+                        @if (!string.IsNullOrEmpty(Model.Cliente))
+                        {
+                            <option value="@Model.Cliente" selected>@etiquetaCliente</option>
+                        }
+                        else
+                        {
+                            <option value="">-- Buscá y elegí un cliente --</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-12 col-lg-4">
+                    <label class="form-label" for="tipoConsulta">Tipo de descuento</label>
+                    <select class="form-select" id="tipoConsulta" name="tipo">
+                        <option value="" selected="@(Model.Tipo == "")">Todos</option>
+                        <option value="CLIENTE" selected="@(Model.Tipo == "CLIENTE")">Descuento Fijo</option>
+                        <option value="PROMOCION" selected="@(Model.Tipo == "PROMOCION")">Descuento Promocional</option>
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-4">
+                    <label class="form-label" for="lineaConsulta">Línea</label>
+                    <select class="form-select" id="lineaConsulta" name="linea"
+                            data-selected="@Model.Linea">
+                        <option value="">Todas las líneas</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-4">
+                    <label class="form-label" for="claseConsulta">Clase</label>
+                    <select class="form-select" id="claseConsulta" name="clase"
+                            data-selected="@Model.Clase">
+                        <option value="">Todas las clases</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-4">
+                    <label class="form-label" for="articuloConsulta">Artículo (código o descripción)</label>
+                    <input type="search" id="articuloConsulta" name="articulo" class="form-control"
+                           list="articulosOpcionesConsulta" value="@Model.Articulo"
+                           placeholder="Buscar artículo" />
+                    <datalist id="articulosOpcionesConsulta"></datalist>
+                    <div class="form-text">Elegí el código sugerido. Al consultarlo se muestran también línea y clase aplicables.</div>
+                </div>
+            </div>
+            <div class="d-flex flex-wrap gap-2 mt-3">
+                <button class="btn btn-danger px-4" type="submit">Consultar descuentos</button>
+                <a asp-controller="ConsultaClientes" asp-action="Index" class="btn btn-outline-secondary">Limpiar filtros</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@if (!Model.Consultado)
+{
+    <div class="alert alert-info">Seleccioná un cliente para consultar sus descuentos.</div>
+}
+else
+{
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div>
+            <h5 class="mb-0">Cliente @Model.Cliente <span class="fw-normal">@Model.NombreCliente</span></h5>
+            <span class="text-muted">@Model.Total registro(s) encontrados · página @Model.Pagina de @Model.TotalPaginas</span>
+        </div>
+        @if (Model.IncluyeCobertura)
+        {
+            <span class="badge text-bg-light border">Incluye descuentos heredados de línea y clase</span>
+        }
+    </div>
+
+    @if (Model.Total == 0 && string.IsNullOrEmpty(Model.Advertencia))
+    {
+        <div class="alert alert-warning">Este cliente no tiene descuentos que coincidan con los filtros seleccionados.</div>
+    }
+    else if (Model.Descuentos.Count > 0)
+    {
+        <div class="table-responsive border rounded shadow-sm">
+            <table class="table table-striped table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th scope="col">Tipo</th>
+                        <th scope="col">Nivel</th>
+                        <th scope="col">Línea</th>
+                        <th scope="col">Clase</th>
+                        <th scope="col">Artículo</th>
+                        <th scope="col" class="text-end">Descuento</th>
+                        <th scope="col">Inicio</th>
+                        <th scope="col">Vencimiento</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var descuento in Model.Descuentos)
+                {
+                    <tr>
+                        <td>
+                            <span class="badge @(descuento.Tipo == "PROMOCION" ? "text-bg-warning" : "text-bg-primary")">
+                                @descuento.TipoMostrado
+                            </span>
+                        </td>
+                        <td>@descuento.Nivel</td>
+                        <td>
+                            <strong>@descuento.Categoria</strong>
+                            @if (!string.IsNullOrEmpty(descuento.NombreLinea))
+                            {
+                                <div class="small text-muted">@descuento.NombreLinea</div>
+                            }
+                        </td>
+                        <td>
+                            @if (!string.IsNullOrEmpty(descuento.Subcategoria))
+                            {
+                                <strong>@descuento.Subcategoria</strong>
+                                @if (!string.IsNullOrEmpty(descuento.NombreClase))
+                                {
+                                    <div class="small text-muted">@descuento.NombreClase</div>
+                                }
+                            }
+                            else
+                            {
+                                <span class="text-muted">—</span>
+                            }
+                        </td>
+                        <td>
+                            @if (!string.IsNullOrEmpty(descuento.Articulo))
+                            {
+                                <strong>@descuento.Articulo</strong>
+                                @if (!string.IsNullOrEmpty(descuento.NombreArticulo))
+                                {
+                                    <div class="small text-muted">@descuento.NombreArticulo</div>
+                                }
+                            }
+                            else
+                            {
+                                <span class="text-muted">—</span>
+                            }
+                        </td>
+                        <td class="text-end fw-semibold">@descuento.Porcentaje.ToString("0.##", CultureInfo.InvariantCulture)%</td>
+                        <td>@(descuento.Inicio?.ToString("dd/MM/yyyy") ?? "—")</td>
+                        <td>@(descuento.Fin?.ToString("dd/MM/yyyy") ?? "Sin vencimiento")</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    @if (Model.TotalPaginas > 1)
+    {
+        <nav aria-label="Páginas de descuentos" class="d-flex justify-content-end mt-3">
+            <ul class="pagination">
+                <li class="page-item @(Model.Pagina <= 1 ? "disabled" : "")">
+                    <a class="page-link" href="@Url.Action("Index", "ConsultaClientes", new { idCliente = Model.Cliente, tipo = Model.Tipo, linea = Model.Linea, clase = Model.Clase, articulo = Model.Articulo, pagina = Model.Pagina - 1 })">Anterior</a>
+                </li>
+                <li class="page-item disabled"><span class="page-link">@Model.Pagina / @Model.TotalPaginas</span></li>
+                <li class="page-item @(Model.Pagina >= Model.TotalPaginas ? "disabled" : "")">
+                    <a class="page-link" href="@Url.Action("Index", "ConsultaClientes", new { idCliente = Model.Cliente, tipo = Model.Tipo, linea = Model.Linea, clase = Model.Clase, articulo = Model.Articulo, pagina = Model.Pagina + 1 })">Siguiente</a>
+                </li>
+            </ul>
+        </nav>
+    }
+}
+
+@section Scripts {
+<script>
+(() => {
+    'use strict';
+    const urlClientes = '@Url.Action("BuscarClientes", "ConsultaClientes")';
+    const urlArticulos = '@Url.Action("BuscarArticulos", "ConsultaClientes")';
+    const urlLineas = '@Url.Action("CatalogoLineasArticulos", "Predescuentos")';
+    const urlClases = '@Url.Action("CatalogoClasesArticulos", "Predescuentos")';
+    const form = document.getElementById('formConsultaClientes');
+    const clienteTexto = document.getElementById('buscarClienteConsulta');
+    const clienteElegido = document.getElementById('selectClienteConsulta');
+    const clienteCodigo = document.getElementById('idClienteConsulta');
+    const selLinea = document.getElementById('lineaConsulta');
+    const selClase = document.getElementById('claseConsulta');
+    const txtArticulo = document.getElementById('articuloConsulta');
+    const listaArticulos = document.getElementById('articulosOpcionesConsulta');
+    let ultimaBusquedaCliente = 0;
+    let ultimaBusquedaArticulo = 0;
+
+    const crearUrl = (ruta, parametros) => {
+        const url = new URL(ruta, window.location.origin);
+        Object.entries(parametros).forEach(([k, v]) => { if (v) url.searchParams.set(k, v); });
+        return url.toString();
+    };
+    const obtenerJson = async (ruta, parametros) => {
+        const respuesta = await fetch(crearUrl(ruta, parametros), { credentials: 'same-origin' });
+        if (!respuesta.ok) throw new Error('No se pudo cargar la información.');
+        return respuesta.json();
+    };
+    const ponerOpciones = (select, datos, primero, seleccionado = '') => {
+        select.replaceChildren(new Option(primero, ''));
+        for (const d of datos) {
+            const cod = d.codigo || '';
+            const des = d.descripcion || '';
+            select.add(new Option(des ? `${cod} - ${des}` : cod, cod, false, cod === seleccionado));
+        }
+        select.value = seleccionado || '';
+    };
+
+    let temporizadorCliente;
+    clienteTexto.addEventListener('input', () => {
+        clienteCodigo.value = '';
+        ponerOpciones(clienteElegido, [], '-- Buscá y elegí un cliente --');
+        clearTimeout(temporizadorCliente);
+        const texto = clienteTexto.value.trim();
+        if (texto.length < 2) return;
+        const version = ++ultimaBusquedaCliente;
+        temporizadorCliente = setTimeout(async () => {
+            try {
+                const datos = await obtenerJson(urlClientes, { q: texto });
+                if (version !== ultimaBusquedaCliente) return;
+                ponerOpciones(clienteElegido, datos.map(x => ({ codigo: x.codigo, descripcion: x.nombre })), '-- Seleccioná un cliente --');
+            } catch (e) { console.error(e); }
+        }, 250);
+    });
+    clienteElegido.addEventListener('change', () => {
+        clienteCodigo.value = clienteElegido.value;
+        const texto = clienteElegido.selectedOptions[0]?.textContent || '';
+        if (clienteCodigo.value) clienteTexto.value = texto;
+    });
+    form.addEventListener('submit', (e) => {
+        if (!clienteCodigo.value.trim()) {
+            e.preventDefault();
+            clienteTexto.focus();
+            alert('Primero buscá y seleccioná un cliente.');
+        }
+    });
+
+    async function cargarLineas() {
+        try {
+            const datos = await obtenerJson(urlLineas, {});
+            ponerOpciones(selLinea, datos, 'Todas las líneas', selLinea.dataset.selected);
+        } catch (e) { console.error(e); }
+        await cargarClases(true);
+    }
+    async function cargarClases(inicial = false) {
+        const linea = selLinea.value;
+        if (!linea) {
+            ponerOpciones(selClase, [], 'Todas las clases');
+            selClase.disabled = true;
+            return;
+        }
+        selClase.disabled = false;
+        try {
+            const datos = await obtenerJson(urlClases, { codLinea: linea });
+            ponerOpciones(selClase, datos, 'Todas las clases', inicial ? selClase.dataset.selected : '');
+        } catch (e) { console.error(e); }
+    }
+    selLinea.addEventListener('change', async () => {
+        selClase.dataset.selected = '';
+        txtArticulo.value = '';
+        listaArticulos.replaceChildren();
+        await cargarClases();
+    });
+    selClase.addEventListener('change', () => {
+        txtArticulo.value = '';
+        listaArticulos.replaceChildren();
+    });
+
+    let temporizadorArticulo;
+    txtArticulo.addEventListener('input', () => {
+        clearTimeout(temporizadorArticulo);
+        const texto = txtArticulo.value.trim();
+        listaArticulos.replaceChildren();
+        if (texto.length < 2) return;
+        const version = ++ultimaBusquedaArticulo;
+        temporizadorArticulo = setTimeout(async () => {
+            try {
+                const datos = await obtenerJson(urlArticulos, {
+                    q: texto, linea: selLinea.value, clase: selClase.value
+                });
+                if (version !== ultimaBusquedaArticulo) return;
+                listaArticulos.replaceChildren(...datos.map(x => {
+                    const op = document.createElement('option');
+                    op.value = x.codigo;
+                    op.label = x.descripcion || '';
+                    return op;
+                }));
+            } catch (e) { console.error(e); }
+        }, 250);
+    });
+
+    cargarLineas();
+})();
+</script>
+}

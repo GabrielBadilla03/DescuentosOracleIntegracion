@@ -82,227 +82,6 @@ namespace SolicitudesDescuentos.Controllers
             return bloqueados;
         }
 
-
-        // =========================================================
-        // REGLA GLOBAL 2: ACCEPTADESCUENTO = S es obligatorio.
-        // XXORA_ITEM_MASTER continúa usando LCR_3.
-        // =========================================================
-        private async Task<HashSet<string>> ObtenerArticulosNoAceptanDescuentoAsync(
-            IEnumerable<string> itemNumbers,
-            string? buNombre = "LANCO_CR",
-            string organizationCode = "LCR_3",
-            CancellationToken ct = default)
-        {
-            static string N(string? s) => (s ?? "").Trim().ToUpperInvariant();
-
-            var buKey = N(buNombre);
-            var orgKey = N(organizationCode);
-
-            var items = itemNumbers
-                .Select(N)
-                .Where(x => !string.IsNullOrWhiteSpace(x))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            var aceptados = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            const int chunkSize = 900;
-
-            for (int i = 0; i < items.Count; i += chunkSize)
-            {
-                var chunk = items.Skip(i).Take(chunkSize).ToList();
-
-                var rows = await _OracleContext.XXORA_ITEM_MASTERs
-                    .AsNoTracking()
-                    .Where(x =>
-                        x.BU_NAME != null &&
-                        x.ORGANIZATION_CODE != null &&
-                        x.ITEM_NUMBER != null &&
-                        x.ACCEPTADESCUENTO != null &&
-                        x.BU_NAME.Trim().ToUpper() == buKey &&
-                        x.ORGANIZATION_CODE.Trim().ToUpper() == orgKey &&
-                        x.ACCEPTADESCUENTO.Trim().ToUpper() == "S" &&
-                        chunk.Contains(x.ITEM_NUMBER.Trim().ToUpper()))
-                    .Select(x => x.ITEM_NUMBER)
-                    .Distinct()
-                    .ToListAsync(ct);
-
-                foreach (var item in rows)
-                {
-                    var key = N(item);
-                    if (!string.IsNullOrWhiteSpace(key))
-                        aceptados.Add(key);
-                }
-            }
-
-            return items
-                .Where(x => !aceptados.Contains(x))
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        }
-
-        // =========================================================
-        // PROMOCIONAL: el artículo debe tener descuento CLIENTE
-        // vigente hoy.
-        // =========================================================
-        private async Task<HashSet<string>> ObtenerArticulosSinDescuentoClienteVigenteAsync(
-            IEnumerable<string> itemNumbers,
-            string? codCliente,
-            string? buNombre = "LANCO_CR",
-            CancellationToken ct = default)
-        {
-            static string N(string? s) => (s ?? "").Trim().ToUpperInvariant();
-
-            var items = itemNumbers
-                .Select(N)
-                .Where(x => !string.IsNullOrWhiteSpace(x))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            if (items.Count == 0)
-                return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            var clienteKey = N(codCliente);
-            var buKey = N(buNombre);
-
-            if (string.IsNullOrWhiteSpace(clienteKey))
-                return items.ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-            var vigentes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var hoy = DateTime.Today;
-            const int chunkSize = 900;
-
-            for (int i = 0; i < items.Count; i += chunkSize)
-            {
-                var chunk = items.Skip(i).Take(chunkSize).ToList();
-
-                var rows = await _OracleContext.XXORA_DISCOUNT_LISTs
-                    .AsNoTracking()
-                    .Where(x =>
-                        x.BU_NAME != null &&
-                        x.PARTY_NUMBER != null &&
-                        x.ITEM_NUMBER != null &&
-                        x.RULE_DISCOUNT_NAME != null &&
-                        x.BU_NAME.Trim().ToUpper() == buKey &&
-                        x.PARTY_NUMBER.Trim().ToUpper() == clienteKey &&
-                        x.RULE_DISCOUNT_NAME.Trim().ToUpper() == "CLIENTE" &&
-                        x.START_DATE <= hoy &&
-                        (x.END_DATE == null || x.END_DATE >= hoy) &&
-                        chunk.Contains(x.ITEM_NUMBER.Trim().ToUpper()))
-                    .Select(x => x.ITEM_NUMBER)
-                    .Distinct()
-                    .ToListAsync(ct);
-
-                foreach (var item in rows)
-                {
-                    var key = N(item);
-                    if (!string.IsNullOrWhiteSpace(key))
-                        vigentes.Add(key);
-                }
-            }
-
-            return items
-                .Where(x => !vigentes.Contains(x))
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        }
-
-        // =========================================================
-        // Línea/clase solo es válida si contiene al menos un
-        // artículo elegible hoy.
-        // =========================================================
-        private async Task<bool> ExisteArticuloElegibleEnScopeAsync(
-            string? codLinea,
-            string? codClase,
-            string? buNombre,
-            string? codCliente,
-            string? tipoDescuento,
-            CancellationToken ct = default)
-        {
-            static string N(string? s) => (s ?? "").Trim().ToUpperInvariant();
-
-            var lineaKey = N(codLinea);
-            var claseKey = N(codClase);
-            var buKey = N(buNombre);
-
-            if (string.IsNullOrWhiteSpace(lineaKey))
-                return false;
-
-            const string orgItemMaster = "LCR_3";
-            const string orgNoPromo = "CR_3";
-
-            bool esPromo =
-                !string.IsNullOrWhiteSpace(tipoDescuento) &&
-                tipoDescuento.Contains("promocional", StringComparison.OrdinalIgnoreCase);
-
-            var query = _OracleContext.INV_ARTICULOs
-                .AsNoTracking()
-                .Where(a =>
-                    a.COD_ARTICULO != null &&
-                    a.COD_LINEA != null &&
-                    a.COD_LINEA.Trim().ToUpper() == lineaKey &&
-                    (string.IsNullOrWhiteSpace(claseKey) ||
-                     (a.COD_CLASE != null && a.COD_CLASE.Trim().ToUpper() == claseKey)) &&
-                    _OracleContext.XXORA_ITEM_MASTERs.AsNoTracking().Any(x =>
-                        x.BU_NAME != null &&
-                        x.ORGANIZATION_CODE != null &&
-                        x.ITEM_NUMBER != null &&
-                        x.ACCEPTADESCUENTO != null &&
-                        x.BU_NAME.Trim().ToUpper() == buKey &&
-                        x.ORGANIZATION_CODE.Trim().ToUpper() == orgItemMaster &&
-                        x.ITEM_NUMBER.Trim().ToUpper() == a.COD_ARTICULO.Trim().ToUpper() &&
-                        x.ACCEPTADESCUENTO.Trim().ToUpper() == "S") &&
-                    !_OracleContext.ART_NO_PROMOs.AsNoTracking().Any(np =>
-                        np.BU_NAME != null &&
-                        np.ORGANIZATION_CODE != null &&
-                        np.ITEM_NUMBER != null &&
-                        np.ESTADO != null &&
-                        np.BU_NAME.Trim().ToUpper() == buKey &&
-                        np.ORGANIZATION_CODE.Trim().ToUpper() == orgNoPromo &&
-                        np.ITEM_NUMBER.Trim().ToUpper() == a.COD_ARTICULO.Trim().ToUpper() &&
-                        np.ESTADO.Trim().ToUpper() == "ACTIVO")
-                );
-
-            if (esPromo)
-            {
-                var clienteKey = N(codCliente);
-                if (string.IsNullOrWhiteSpace(clienteKey))
-                    return false;
-
-                var hoy = DateTime.Today;
-
-                query = query.Where(a =>
-                    _OracleContext.XXORA_DISCOUNT_LISTs.AsNoTracking().Any(x =>
-                        x.BU_NAME != null &&
-                        x.PARTY_NUMBER != null &&
-                        x.ITEM_NUMBER != null &&
-                        x.RULE_DISCOUNT_NAME != null &&
-                        x.BU_NAME.Trim().ToUpper() == buKey &&
-                        x.PARTY_NUMBER.Trim().ToUpper() == clienteKey &&
-                        x.ITEM_NUMBER.Trim().ToUpper() == a.COD_ARTICULO.Trim().ToUpper() &&
-                        x.RULE_DISCOUNT_NAME.Trim().ToUpper() == "CLIENTE" &&
-                        x.START_DATE <= hoy &&
-                        (x.END_DATE == null || x.END_DATE >= hoy)
-                    ));
-            }
-
-            return await query.AnyAsync(ct);
-        }
-
-        private async Task EliminarPredesclaseOracleClienteAsync(
-            string codCliente,
-            CancellationToken ct = default)
-        {
-            const string organizationCode = "CR_3";
-            codCliente = (codCliente ?? "").Trim();
-
-            if (string.IsNullOrWhiteSpace(codCliente))
-                return;
-
-            await _OracleContext.Database.ExecuteSqlInterpolatedAsync($@"
-                DELETE FROM PREDESCLASEORACLE
-                 WHERE TRIM(ORGANIZATION_CODE) = {organizationCode}
-                   AND TRIM(IDCLIENTE) = {codCliente}
-            ", ct);
-        }
-
         // GET: Predescuentos
         // GET: Predescuentos
         [HttpGet]
@@ -391,6 +170,7 @@ namespace SolicitudesDescuentos.Controllers
         }
 
         [HttpGet]
+        [Authorize(Roles = "PRICE_EDITOR")]
         public async Task<IActionResult> ListarArticulosExcluidos(string? filtro)
         {
             const string bu = "LANCO_CR";
@@ -441,6 +221,7 @@ namespace SolicitudesDescuentos.Controllers
         }
 
         [HttpGet]
+        [Authorize(Roles = "PRICE_EDITOR")]
         public async Task<IActionResult> BuscarArticulosParaExcluir(
             string? codLinea,
             string? codClase,
@@ -531,6 +312,7 @@ namespace SolicitudesDescuentos.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [Authorize(Roles = "PRICE_EDITOR")]
         public async Task<IActionResult> AgregarArticuloExcluido(string itemNumber)
         {
             const string bu = "LANCO_CR";
@@ -587,6 +369,7 @@ namespace SolicitudesDescuentos.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [Authorize(Roles = "PRICE_EDITOR")]
         public async Task<IActionResult> QuitarArticuloExcluido(string itemNumber)
         {
             const string bu = "LANCO_CR";
@@ -685,244 +468,224 @@ namespace SolicitudesDescuentos.Controllers
             return Json(data);
         }
 
-        private async Task<(bool Ok, string Mensaje, int Procesados)> ActivarArticulosNoPromoAsync(
-            IEnumerable<string>? itemNumbers,
+        private async Task<(bool Ok, string Mensaje, int Detalles)> RegistrarArticuloNoPromoDesdeXxoraAsync(
+            string itemNumber,
             CancellationToken ct = default)
         {
             const string bu = "LANCO_CR";
             const string org = "CR_3";
+            const string estadoActivo = "Activo";
+            const string generadoN = "N";
 
-            static string N(string? value) =>
-                (value ?? string.Empty).Trim().ToUpperInvariant();
+            static string T(string? s) => (s ?? "").Trim();
 
-            var items = (itemNumbers ?? Enumerable.Empty<string>())
-                .Select(N)
-                .Where(x => !string.IsNullOrWhiteSpace(x))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
+            static string N(string? s) => (s ?? "").Trim().ToUpperInvariant();
 
-            if (items.Count == 0)
-                return (false, "Debe seleccionar al menos un artículo para desactivar descuentos.", 0);
-
-            // Validación defensiva: la vista usa INV_ARTICULO, pero el POST puede ser manipulado.
-            var encontrados = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            const int chunkSize = 900;
-
-            for (var i = 0; i < items.Count; i += chunkSize)
+            static string RuleBucketLocal(string? rule)
             {
-                var chunk = items.Skip(i).Take(chunkSize).ToList();
+                var x = N(rule);
 
-                var rows = await _OracleContext.INV_ARTICULOs
+                if (string.IsNullOrWhiteSpace(x))
+                    return "";
+
+                if (x == "PROMOCION" || x.Contains("PROMOC"))
+                    return "PROMOCION";
+
+                if (x == "CLIENTE" || x.Contains("CLIENT"))
+                    return "CLIENTE";
+
+                return "";
+            }
+
+            static DateTime? NormalizeEndDateByRule(string? rule, DateTime? end)
+            {
+                return string.Equals(RuleBucketLocal(rule), "CLIENTE", StringComparison.OrdinalIgnoreCase)
+                    ? null
+                    : end;
+            }
+
+            itemNumber = T(itemNumber);
+
+            if (string.IsNullOrWhiteSpace(itemNumber))
+                return (false, "Debe indicar un artículo.", 0);
+
+            var itemKey = itemNumber.ToUpperInvariant();
+
+            await using var trx = await _OracleContext.Database.BeginTransactionAsync(ct);
+
+            try
+            {
+                // =====================================================
+                // 1) Buscar los descuentos actuales del artículo en XXORA
+                // =====================================================
+                var xxoraRowsRaw = await _OracleContext.XXORA_DISCOUNT_LISTs
                     .AsNoTracking()
-                    .Where(a =>
-                        a.COD_ARTICULO != null &&
-                        chunk.Contains(a.COD_ARTICULO.Trim().ToUpper()))
-                    .Select(a => a.COD_ARTICULO)
-                    .Distinct()
+                    .Where(x =>
+                        x.BU_NAME != null &&
+                        x.ITEM_NUMBER != null &&
+                        x.BU_NAME.Trim().ToUpper() == bu &&
+                        x.ITEM_NUMBER.Trim().ToUpper() == itemKey)
+                    .Select(x => new
+                    {
+                        x.RULE_DISCOUNT_NAME,
+                        x.PARTY_NUMBER,
+                        x.PRICING_UOM_CODE,
+                        x.DISCOUNT_PRICE,
+                        x.START_DATE,
+                        x.END_DATE
+                    })
                     .ToListAsync(ct);
 
-                foreach (var row in rows)
-                {
-                    var key = N(row);
-                    if (!string.IsNullOrWhiteSpace(key))
-                        encontrados.Add(key);
-                }
-            }
-
-            var inexistentes = items
-                .Where(x => !encontrados.Contains(x))
-                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            if (inexistentes.Count > 0)
-            {
-                return (
-                    false,
-                    "No se encontraron en INV_ARTICULO los siguientes artículos: " +
-                    string.Join(", ", inexistentes),
-                    0);
-            }
-
-            await using var trx = await _OracleContext.Database.BeginTransactionAsync(ct);
-
-            try
-            {
-                foreach (var itemKey in items)
-                {
-                    ct.ThrowIfCancellationRequested();
-
-                    var header = await _OracleContext.ART_NO_PROMOs
-                        .FirstOrDefaultAsync(a =>
-                            a.BU_NAME != null &&
-                            a.ORGANIZATION_CODE != null &&
-                            a.ITEM_NUMBER != null &&
-                            a.BU_NAME.Trim().ToUpper() == bu &&
-                            a.ORGANIZATION_CODE.Trim().ToUpper() == org &&
-                            a.ITEM_NUMBER.Trim().ToUpper() == itemKey,
-                            ct);
-
-                    if (header != null)
-                    {
-                        // Cada nueva activación de NO PROMO empieza con un respaldo limpio.
-                        // El JOB volverá a copiar los descuentos actuales desde XXORA.
-                        await _OracleContext.Database.ExecuteSqlInterpolatedAsync($@"
-                            DELETE FROM ART_DET_NO_PROMO
-                             WHERE TRIM(UPPER(BU_NAME)) = {bu}
-                               AND TRIM(UPPER(ORGANIZATION_CODE)) = {org}
-                               AND TRIM(UPPER(ITEM_NUMBER)) = {itemKey}
-                        ", ct);
-
-                        header.ESTADO = "Activo";
-                        header.GENERADO = "N";
-                        _OracleContext.ART_NO_PROMOs.Update(header);
-                    }
-                    else
-                    {
-                        _OracleContext.ART_NO_PROMOs.Add(new ART_NO_PROMO
-                        {
-                            BU_NAME = bu,
-                            ORGANIZATION_CODE = org,
-                            ITEM_NUMBER = itemKey,
-                            ESTADO = "Activo",
-                            GENERADO = "N"
-                        });
-                    }
-                }
-
-                await _OracleContext.SaveChangesAsync(ct);
-                await trx.CommitAsync(ct);
-
-                return (
-                    true,
-                    $"Se marcaron {items.Count} artículo(s) como Activo / N. " +
-                    "El job copiará los descuentos actuales a ART_DET_NO_PROMO antes de generar los archivos.",
-                    items.Count);
-            }
-            catch (Exception ex)
-            {
-                await trx.RollbackAsync(ct);
-                _OracleContext.ChangeTracker.Clear();
-
-                return (
-                    false,
-                    $"Error marcando artículos en ART_NO_PROMO: {ex.Message}",
-                    0);
-            }
-        }
-
-        private async Task<(bool Ok, string Mensaje, int Procesados)> InactivarArticulosNoPromoAsync(
-            IEnumerable<string>? itemNumbers,
-            CancellationToken ct = default)
-        {
-            const string bu = "LANCO_CR";
-            const string org = "CR_3";
-
-            static string N(string? value) =>
-                (value ?? string.Empty).Trim().ToUpperInvariant();
-
-            var items = (itemNumbers ?? Enumerable.Empty<string>())
-                .Select(N)
-                .Where(x => !string.IsNullOrWhiteSpace(x))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            if (items.Count == 0)
-                return (false, "Debe seleccionar al menos un artículo para reactivar descuentos.", 0);
-
-            await using var trx = await _OracleContext.Database.BeginTransactionAsync(ct);
-
-            try
-            {
-                var headers = new List<ART_NO_PROMO>();
-                var sinHeader = new List<string>();
-                var sinRespaldo = new List<string>();
-
-                foreach (var itemKey in items)
-                {
-                    ct.ThrowIfCancellationRequested();
-
-                    var header = await _OracleContext.ART_NO_PROMOs
-                        .FirstOrDefaultAsync(a =>
-                            a.BU_NAME != null &&
-                            a.ORGANIZATION_CODE != null &&
-                            a.ITEM_NUMBER != null &&
-                            a.BU_NAME.Trim().ToUpper() == bu &&
-                            a.ORGANIZATION_CODE.Trim().ToUpper() == org &&
-                            a.ITEM_NUMBER.Trim().ToUpper() == itemKey,
-                            ct);
-
-                    if (header == null)
-                    {
-                        sinHeader.Add(itemKey);
-                        continue;
-                    }
-
-                    var existeRespaldo = await _OracleContext.ART_DET_NO_PROMOs
-                        .AsNoTracking()
-                        .AnyAsync(d =>
-                            d.BU_NAME != null &&
-                            d.ORGANIZATION_CODE != null &&
-                            d.ITEM_NUMBER != null &&
-                            d.BU_NAME.Trim().ToUpper() == bu &&
-                            d.ORGANIZATION_CODE.Trim().ToUpper() == org &&
-                            d.ITEM_NUMBER.Trim().ToUpper() == itemKey,
-                            ct);
-
-                    if (!existeRespaldo)
-                    {
-                        sinRespaldo.Add(itemKey);
-                        continue;
-                    }
-
-                    headers.Add(header);
-                }
-
-                if (sinHeader.Count > 0 || sinRespaldo.Count > 0)
+                if (xxoraRowsRaw.Count == 0)
                 {
                     await trx.RollbackAsync(ct);
-                    _OracleContext.ChangeTracker.Clear();
-
-                    var errores = new List<string>();
-
-                    if (sinHeader.Count > 0)
-                        errores.Add("sin ART_NO_PROMO: " + string.Join(", ", sinHeader));
-
-                    if (sinRespaldo.Count > 0)
-                        errores.Add("sin respaldo en ART_DET_NO_PROMO: " + string.Join(", ", sinRespaldo));
 
                     return (
                         false,
-                        "No se realizó ningún cambio porque hay artículos " + string.Join("; ", errores) + ".",
-                        0);
+                        $"No hay registros en XXORA_DISCOUNT_LIST para el artículo {itemKey}. No se insertó ART_NO_PROMO.",
+                        0
+                    );
                 }
 
-                foreach (var header in headers)
+                // =====================================================
+                // 2) Normalizar filas y quitar duplicados
+                //    El índice único de ART_DET_NO_PROMO usa:
+                //    BU_NAME, ORGANIZATION_CODE, ITEM_NUMBER,
+                //    RULE_DISCOUNT_NAME, PARTY_NUMBER, START_DATE.
+                // =====================================================
+                var xxoraRows = xxoraRowsRaw
+                    .Select(r => new
+                    {
+                        Rule = T(r.RULE_DISCOUNT_NAME),
+                        Party = T(r.PARTY_NUMBER),
+                        Uom = string.IsNullOrWhiteSpace(r.PRICING_UOM_CODE)
+                            ? null
+                            : T(r.PRICING_UOM_CODE),
+                        DiscountPrice = r.DISCOUNT_PRICE,
+                        StartDate = r.START_DATE,
+                        EndDate = NormalizeEndDateByRule(r.RULE_DISCOUNT_NAME, r.END_DATE)
+                    })
+                    .Where(r =>
+                        !string.IsNullOrWhiteSpace(r.Rule) &&
+                        !string.IsNullOrWhiteSpace(r.Party))
+                    .GroupBy(r =>
+                        $"{N(r.Rule)}|{N(r.Party)}|{r.StartDate:yyyyMMddHHmmss}",
+                        StringComparer.OrdinalIgnoreCase)
+                    .Select(g => g.First())
+                    .ToList();
+
+                if (xxoraRows.Count == 0)
                 {
-                    // Al pasar a Inactivo NO se toca ART_DET_NO_PROMO.
-                    // Ese respaldo será utilizado por el job para reactivar en Fusion.
-                    header.ESTADO = "Inactivo";
-                    header.GENERADO = "N";
-                    _OracleContext.ART_NO_PROMOs.Update(header);
+                    await trx.RollbackAsync(ct);
+
+                    return (
+                        false,
+                        $"No hay registros válidos en XXORA_DISCOUNT_LIST para el artículo {itemKey}. Revise RULE_DISCOUNT_NAME o PARTY_NUMBER.",
+                        0
+                    );
                 }
 
-                await _OracleContext.SaveChangesAsync(ct);
+                // =====================================================
+                // 3) Borrar primero ART_DET_NO_PROMO
+                //    porque depende del header ART_NO_PROMO.
+                // =====================================================
+                await _OracleContext.Database.ExecuteSqlInterpolatedAsync($@"
+            DELETE FROM ART_DET_NO_PROMO
+             WHERE TRIM(UPPER(BU_NAME)) = {bu}
+               AND TRIM(UPPER(ORGANIZATION_CODE)) = {org}
+               AND TRIM(UPPER(ITEM_NUMBER)) = {itemKey}
+        ", ct);
+
+                // =====================================================
+                // 4) Borrar ART_NO_PROMO si ya existía
+                // =====================================================
+                await _OracleContext.Database.ExecuteSqlInterpolatedAsync($@"
+            DELETE FROM ART_NO_PROMO
+             WHERE TRIM(UPPER(BU_NAME)) = {bu}
+               AND TRIM(UPPER(ORGANIZATION_CODE)) = {org}
+               AND TRIM(UPPER(ITEM_NUMBER)) = {itemKey}
+        ", ct);
+
+                // =====================================================
+                // 5) Insertar ART_NO_PROMO nuevo
+                //    Esto queda listo para que el worker lo procese.
+                // =====================================================
+                await _OracleContext.Database.ExecuteSqlInterpolatedAsync($@"
+            INSERT INTO ART_NO_PROMO
+            (
+                BU_NAME,
+                ORGANIZATION_CODE,
+                ITEM_NUMBER,
+                ESTADO,
+                GENERADO
+            )
+            VALUES
+            (
+                {bu},
+                {org},
+                {itemKey},
+                {estadoActivo},
+                {generadoN}
+            )
+        ", ct);
+
+                // =====================================================
+                // 6) Insertar ART_DET_NO_PROMO desde XXORA_DISCOUNT_LIST
+                // =====================================================
+                foreach (var r in xxoraRows)
+                {
+                    var rule = r.Rule;
+                    var party = r.Party;
+                    var uom = r.Uom;
+                    var discountPrice = r.DiscountPrice;
+                    var startDate = r.StartDate;
+                    var endDate = r.EndDate;
+
+                    await _OracleContext.Database.ExecuteSqlInterpolatedAsync($@"
+                INSERT INTO ART_DET_NO_PROMO
+                (
+                    BU_NAME,
+                    ORGANIZATION_CODE,
+                    ITEM_NUMBER,
+                    RULE_DISCOUNT_NAME,
+                    PARTY_NUMBER,
+                    DISCOUNT_PRICE,
+                    START_DATE,
+                    END_DATE,
+                    PRICING_UOM_CODE
+                )
+                VALUES
+                (
+                    {bu},
+                    {org},
+                    {itemKey},
+                    {rule},
+                    {party},
+                    {discountPrice},
+                    {startDate},
+                    {endDate},
+                    {uom}
+                )
+            ", ct);
+                }
+
                 await trx.CommitAsync(ct);
 
                 return (
                     true,
-                    $"Se marcaron {headers.Count} artículo(s) como Inactivo / N. " +
-                    "El respaldo de ART_DET_NO_PROMO se conserva para la reactivación.",
-                    headers.Count);
+                    $"ART_NO_PROMO y ART_DET_NO_PROMO regenerados correctamente para el artículo {itemKey}.",
+                    xxoraRows.Count
+                );
             }
             catch (Exception ex)
             {
                 await trx.RollbackAsync(ct);
-                _OracleContext.ChangeTracker.Clear();
 
                 return (
                     false,
-                    $"Error marcando artículos como Inactivo: {ex.Message}",
-                    0);
+                    $"Error registrando ART_NO_PROMO / ART_DET_NO_PROMO para el artículo {itemKey}: {ex.Message}",
+                    0
+                );
             }
         }
 
@@ -1244,19 +1007,19 @@ namespace SolicitudesDescuentos.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> DesactivarArticuloNoPromo(
-            List<string>? itemNumbers,
-            string? itemNumber = null)
+        [Authorize(Roles = "PRICE_EDITOR")]
+        public async Task<IActionResult> DesactivarArticuloNoPromo(string itemNumber)
         {
-            var items = itemNumbers ?? new List<string>();
+            itemNumber = (itemNumber ?? "").Trim();
 
-            // Compatibilidad con el POST individual anterior por si el navegador
-            // todavía tiene una versión cacheada de la vista/JavaScript.
-            if (!string.IsNullOrWhiteSpace(itemNumber))
-                items.Add(itemNumber);
+            if (string.IsNullOrWhiteSpace(itemNumber))
+            {
+                TempData["ErrorMessage"] = "Debe seleccionar un artículo para desactivar descuentos.";
+                return RedirectToAction(nameof(Index));
+            }
 
-            var result = await ActivarArticulosNoPromoAsync(
-                items,
+            var result = await RegistrarArticuloNoPromoDesdeXxoraAsync(
+                itemNumber,
                 HttpContext.RequestAborted);
 
             if (!result.Ok)
@@ -1265,24 +1028,31 @@ namespace SolicitudesDescuentos.Controllers
                 return RedirectToAction(nameof(Index));
             }
 
-            TempData["InfoFlujo"] = result.Mensaje;
+            TempData["InfoFlujo"] =
+                $"Artículo {itemNumber} marcado para desactivar descuentos. Quedó en ART_NO_PROMO como Activo / N. Detalles copiados: {result.Detalles}.";
+
             return RedirectToAction(nameof(Index));
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> ReactivarArticuloNoPromo(
-            List<string>? itemNumbers,
-            string? itemNumber = null)
+        [Authorize(Roles = "PRICE_EDITOR")]
+        public async Task<IActionResult> ReactivarArticuloNoPromo(string itemNumber)
         {
-            var items = itemNumbers ?? new List<string>();
+            itemNumber = (itemNumber ?? "").Trim();
 
-            if (!string.IsNullOrWhiteSpace(itemNumber))
-                items.Add(itemNumber);
+            if (string.IsNullOrWhiteSpace(itemNumber))
+            {
+                TempData["ErrorMessage"] = "Debe seleccionar un artículo para reactivar descuentos.";
+                return RedirectToAction(nameof(Index));
+            }
 
-            var result = await InactivarArticulosNoPromoAsync(
-                items,
-                HttpContext.RequestAborted);
+            var result = await ReactivarFlujoItemAsync(
+                itemNumber: itemNumber,
+                startDate: null,
+                endDate: null,
+                descuento: 0m,
+                ct: HttpContext.RequestAborted);
 
             if (!result.Ok)
             {
@@ -1290,7 +1060,9 @@ namespace SolicitudesDescuentos.Controllers
                 return RedirectToAction(nameof(Index));
             }
 
-            TempData["InfoFlujo"] = result.Mensaje;
+            TempData["InfoFlujo"] =
+                $"Artículo {itemNumber} marcado para reactivar descuentos. Quedó en ART_NO_PROMO como Inactivo / N.";
+
             return RedirectToAction(nameof(Index));
         }
 
@@ -1324,6 +1096,7 @@ namespace SolicitudesDescuentos.Controllers
         }
 
         [HttpGet]
+        [Authorize(Roles = "PRICE_EDITOR")]
         public async Task<IActionResult> BuscarItemsNoPromo(string? filtro)
         {
             const string bu = "LANCO_CR";
@@ -1409,66 +1182,38 @@ namespace SolicitudesDescuentos.Controllers
 
 
         [HttpGet]
-        public async Task<IActionResult> GetDescuentosCliente(
-            string codCliente,
-            string? codCia,
-            string? tipoDescuento)
+        public async Task<IActionResult> GetDescuentosCliente(string codCliente, string? codCia)
         {
             if (string.IsNullOrWhiteSpace(codCliente))
                 return Json(Array.Empty<object>());
 
-            const string buKey = "LANCO_CR";
             const string orgKey = "CR_3";
-            const string orgItemMaster = "LCR_3";
-
-            static string T(string? s) => (s ?? "").Trim();
-            static string N(string? s) => (s ?? "").Trim().ToUpperInvariant();
-            static string ScopeKey(string? linea, string? clase) => $"{N(linea)}|{N(clase)}";
 
             var clienteTrim = codCliente.Trim();
-            var clienteKey = N(codCliente);
-            var hoy = DateTime.Today;
-
-            bool esPromo =
-                !string.IsNullOrWhiteSpace(tipoDescuento) &&
-                tipoDescuento.Contains("promocional", StringComparison.OrdinalIgnoreCase);
 
             try
             {
-                var baseRows = await _OracleContext.PREDESCLASEORACLEs
-                    .AsNoTracking()
+                // 1) Traer descuentos (SIN JOIN)
+                var baseRows = await _OracleContext.PREDESCLASEORACLEs.AsNoTracking()
                     .Where(d =>
-                        d.ORGANIZATION_CODE != null &&
-                        d.ORGANIZATION_CODE.Trim().ToUpper() == orgKey &&
-                        d.IDCLIENTE != null &&
-                        d.IDCLIENTE.Trim().ToUpper() == clienteKey &&
-                        (d.FECHA_INICIO == null || d.FECHA_INICIO <= hoy) &&
-                        (d.FECHA_FIN == null || d.FECHA_FIN >= hoy) &&
+                        d.ORGANIZATION_CODE != null && d.ORGANIZATION_CODE.Trim() == "CR_3" &&
+                        d.IDCLIENTE != null && d.IDCLIENTE.Trim() == clienteTrim &&
+
+                        // Si el detalle es por artículo, no devolverlo si está ACTIVO en ART_NO_PROMO.
+                        // Los detalles por línea/clase se conservan; al expandirse los artículos
+                        // también se vuelve a aplicar la exclusión.
                         (
                             d.ITEM_NUMBER == null ||
                             d.ITEM_NUMBER.Trim() == "" ||
-                            (
-                                _OracleContext.XXORA_ITEM_MASTERs.AsNoTracking().Any(x =>
-                                    x.BU_NAME != null &&
-                                    x.ORGANIZATION_CODE != null &&
-                                    x.ITEM_NUMBER != null &&
-                                    x.ACCEPTADESCUENTO != null &&
-                                    x.BU_NAME.Trim().ToUpper() == buKey &&
-                                    x.ORGANIZATION_CODE.Trim().ToUpper() == orgItemMaster &&
-                                    x.ITEM_NUMBER.Trim().ToUpper() == d.ITEM_NUMBER.Trim().ToUpper() &&
-                                    x.ACCEPTADESCUENTO.Trim().ToUpper() == "S"
-                                )
-                                &&
-                                !_OracleContext.ART_NO_PROMOs.AsNoTracking().Any(np =>
-                                    np.BU_NAME != null &&
-                                    np.ORGANIZATION_CODE != null &&
-                                    np.ITEM_NUMBER != null &&
-                                    np.ESTADO != null &&
-                                    np.BU_NAME.Trim().ToUpper() == buKey &&
-                                    np.ORGANIZATION_CODE.Trim().ToUpper() == orgKey &&
-                                    np.ITEM_NUMBER.Trim().ToUpper() == d.ITEM_NUMBER.Trim().ToUpper() &&
-                                    np.ESTADO.Trim().ToUpper() == "ACTIVO"
-                                )
+                            !_OracleContext.ART_NO_PROMOs.AsNoTracking().Any(np =>
+                                np.BU_NAME != null &&
+                                np.ORGANIZATION_CODE != null &&
+                                np.ITEM_NUMBER != null &&
+                                np.ESTADO != null &&
+                                np.BU_NAME.Trim().ToUpper() == "LANCO_CR" &&
+                                np.ORGANIZATION_CODE.Trim().ToUpper() == orgKey &&
+                                np.ITEM_NUMBER.Trim().ToUpper() == d.ITEM_NUMBER.Trim().ToUpper() &&
+                                np.ESTADO.Trim().ToUpper() == "ACTIVO"
                             )
                         )
                     )
@@ -1485,252 +1230,126 @@ namespace SolicitudesDescuentos.Controllers
                 if (baseRows.Count == 0)
                     return Json(Array.Empty<object>());
 
-                if (esPromo)
-                {
-                    var explicitos = baseRows
-                        .Select(x => T(x.CodArticulo))
-                        .Where(x => !string.IsNullOrWhiteSpace(x))
-                        .Distinct(StringComparer.OrdinalIgnoreCase)
-                        .ToList();
-
-                    var sinFijoVigente = await ObtenerArticulosSinDescuentoClienteVigenteAsync(
-                        explicitos,
-                        clienteTrim,
-                        buKey,
-                        HttpContext.RequestAborted);
-
-                    baseRows = baseRows
-                        .Where(x =>
-                            string.IsNullOrWhiteSpace(T(x.CodArticulo)) ||
-                            !sinFijoVigente.Contains(T(x.CodArticulo)))
-                        .ToList();
-                }
-
-                var scopesValidos = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-                foreach (var row in baseRows.Where(x => string.IsNullOrWhiteSpace(T(x.CodArticulo))))
-                {
-                    var key = ScopeKey(row.CodLinea, row.Clase);
-                    if (scopesValidos.Contains(key))
-                        continue;
-
-                    if (await ExisteArticuloElegibleEnScopeAsync(
-                        row.CodLinea,
-                        row.Clase,
-                        buKey,
-                        clienteTrim,
-                        tipoDescuento,
-                        HttpContext.RequestAborted))
-                    {
-                        scopesValidos.Add(key);
-                    }
-                }
-
-                baseRows = baseRows
-                    .Where(x =>
-                        !string.IsNullOrWhiteSpace(T(x.CodArticulo)) ||
-                        scopesValidos.Contains(ScopeKey(x.CodLinea, x.Clase)))
-                    .ToList();
-
-                if (baseRows.Count == 0)
-                    return Json(Array.Empty<object>());
-
+                // 2) Traer descripciones de línea por IN (chunk 900)
                 var codLineas = baseRows
-                    .Select(x => T(x.CodLinea))
+                    .Select(x => (x.CodLinea ?? "").Trim())
                     .Where(x => !string.IsNullOrWhiteSpace(x))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Distinct()
                     .ToList();
 
                 var dictLineas = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                const int chunkSize = 900;
 
+                const int chunkSize = 900;
                 for (int i = 0; i < codLineas.Count; i += chunkSize)
                 {
                     var chunk = codLineas.Skip(i).Take(chunkSize).ToList();
 
                     var lineasChunk = await _OracleContext.INV_LINEAs.AsNoTracking()
                         .Where(l => l.CATEGORY_CODE != null && chunk.Contains(l.CATEGORY_CODE.Trim()))
-                        .Select(l => new { Cod = l.CATEGORY_CODE, Nombre = l.CATEGORY_NAME })
+                        .Select(l => new
+                        {
+                            Cod = l.CATEGORY_CODE,
+                            Nombre = l.CATEGORY_NAME
+                        })
                         .ToListAsync();
 
                     foreach (var l in lineasChunk)
                     {
-                        var key = N(l.Cod);
+                        var key = (l.Cod ?? "").Trim().ToUpperInvariant();
                         if (!dictLineas.ContainsKey(key))
-                            dictLineas[key] = T(l.Nombre);
+                            dictLineas[key] = (l.Nombre ?? "").Trim();
                     }
                 }
 
+                // 3) Armar salida final en memoria
                 var descuentos = baseRows.Select(d =>
                 {
-                    var codLinea = T(d.CodLinea);
-                    dictLineas.TryGetValue(N(codLinea), out var desLinea);
+                    var codLinea = (d.CodLinea ?? "").Trim();
+                    var key = codLinea.ToUpperInvariant();
+
+                    dictLineas.TryGetValue(key, out var desLinea);
 
                     return new
                     {
                         codLinea,
                         desLinea = desLinea ?? "",
-                        codArticulo = T(d.CodArticulo),
+                        codArticulo = (d.CodArticulo ?? "").Trim(),
                         tipo = "P",
                         valor = d.Valor,
-                        claseart = T(d.Clase)
+                        claseart = (d.Clase ?? "").Trim()
                     };
                 }).ToList();
 
                 return Json(descuentos);
             }
-            catch
+            catch (Exception ex)
             {
                 Response.StatusCode = 500;
-                return Json(new
-                {
-                    error = true,
-                    message = "No fue posible obtener los descuentos vigentes del cliente."
-                });
+                return Json(new { error = true, message = ex.Message });
             }
         }
 
+
         [HttpGet]
-        public async Task<IActionResult> GetDescuentosCombinados(
-            string clienteOrigen,
-            string clienteDestino,
-            string? tipoDescuento)
+        public JsonResult GetDescuentosCombinados(string clienteOrigen, string clienteDestino)
         {
-            if (string.IsNullOrWhiteSpace(clienteOrigen) ||
-                string.IsNullOrWhiteSpace(clienteDestino))
+            if (string.IsNullOrWhiteSpace(clienteOrigen) || string.IsNullOrWhiteSpace(clienteDestino))
             {
-                return Json(Array.Empty<object>());
+                return Json(new List<object>());
             }
 
-            const string buKey = "LANCO_CR";
-            const string orgKey = "CR_3";
-            const string orgItemMaster = "LCR_3";
+            // 1) Armas la consulta hasta antes del select "final"
+            var query = from d in _OracleContext.PREDESCLASEORACLEs.AsNoTracking()
+                        join l in _OracleContext.INV_LINEAs.AsNoTracking()
+                            on d.CATEGORY_CODE equals l.CATEGORY_CODE into gj
+                        from l in gj.DefaultIfEmpty()
+                        where d.IDCLIENTE == clienteOrigen
+                           && (
+                                d.ITEM_NUMBER == null ||
+                                d.ITEM_NUMBER.Trim() == "" ||
+                                !_OracleContext.ART_NO_PROMOs.AsNoTracking().Any(np =>
+                                    np.BU_NAME != null &&
+                                    np.ORGANIZATION_CODE != null &&
+                                    np.ITEM_NUMBER != null &&
+                                    np.ESTADO != null &&
+                                    np.BU_NAME.Trim().ToUpper() == "LANCO_CR" &&
+                                    np.ORGANIZATION_CODE.Trim().ToUpper() == "CR_3" &&
+                                    np.ITEM_NUMBER.Trim().ToUpper() == d.ITEM_NUMBER.Trim().ToUpper() &&
+                                    np.ESTADO.Trim().ToUpper() == "ACTIVO"
+                                )
+                              )
+                        select new { d, l };
 
-            static string T(string? s) => (s ?? "").Trim();
-            static string N(string? s) => (s ?? "").Trim().ToUpperInvariant();
-            static string ScopeKey(string? linea, string? clase) => $"{N(linea)}|{N(clase)}";
-
-            var origenKey = N(clienteOrigen);
-            var destinoKey = N(clienteDestino);
-            var hoy = DateTime.Today;
-
-            bool esPromo =
-                !string.IsNullOrWhiteSpace(tipoDescuento) &&
-                tipoDescuento.Contains("promocional", StringComparison.OrdinalIgnoreCase);
-
-            var rows = await (
-                from d in _OracleContext.PREDESCLASEORACLEs.AsNoTracking()
-                join l in _OracleContext.INV_LINEAs.AsNoTracking()
-                    on d.CATEGORY_CODE equals l.CATEGORY_CODE into gj
-                from l in gj.DefaultIfEmpty()
-                where d.IDCLIENTE != null
-                   && d.IDCLIENTE.Trim().ToUpper() == origenKey
-                   && d.ORGANIZATION_CODE != null
-                   && d.ORGANIZATION_CODE.Trim().ToUpper() == orgKey
-                   && (d.FECHA_INICIO == null || d.FECHA_INICIO <= hoy)
-                   && (d.FECHA_FIN == null || d.FECHA_FIN >= hoy)
-                   && (
-                        d.ITEM_NUMBER == null ||
-                        d.ITEM_NUMBER.Trim() == "" ||
-                        (
-                            _OracleContext.XXORA_ITEM_MASTERs.AsNoTracking().Any(x =>
-                                x.BU_NAME != null &&
-                                x.ORGANIZATION_CODE != null &&
-                                x.ITEM_NUMBER != null &&
-                                x.ACCEPTADESCUENTO != null &&
-                                x.BU_NAME.Trim().ToUpper() == buKey &&
-                                x.ORGANIZATION_CODE.Trim().ToUpper() == orgItemMaster &&
-                                x.ITEM_NUMBER.Trim().ToUpper() == d.ITEM_NUMBER.Trim().ToUpper() &&
-                                x.ACCEPTADESCUENTO.Trim().ToUpper() == "S"
-                            )
-                            &&
-                            !_OracleContext.ART_NO_PROMOs.AsNoTracking().Any(np =>
-                                np.BU_NAME != null &&
-                                np.ORGANIZATION_CODE != null &&
-                                np.ITEM_NUMBER != null &&
-                                np.ESTADO != null &&
-                                np.BU_NAME.Trim().ToUpper() == buKey &&
-                                np.ORGANIZATION_CODE.Trim().ToUpper() == orgKey &&
-                                np.ITEM_NUMBER.Trim().ToUpper() == d.ITEM_NUMBER.Trim().ToUpper() &&
-                                np.ESTADO.Trim().ToUpper() == "ACTIVO"
-                            )
-                        )
-                   )
-                select new
-                {
-                    d.CATEGORY_CODE,
-                    d.SUBCATEGORY_CODE,
-                    d.ITEM_NUMBER,
-                    d.PORCENTAJE,
-                    DesLinea = l != null ? l.CATEGORY_NAME : ""
-                }
-            ).ToListAsync();
-
-            if (rows.Count == 0)
-                return Json(Array.Empty<object>());
-
-            if (esPromo)
-            {
-                var explicitos = rows
-                    .Select(x => T(x.ITEM_NUMBER))
-                    .Where(x => !string.IsNullOrWhiteSpace(x))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToList();
-
-                var sinFijoDestino = await ObtenerArticulosSinDescuentoClienteVigenteAsync(
-                    explicitos,
-                    destinoKey,
-                    buKey,
-                    HttpContext.RequestAborted);
-
-                rows = rows
-                    .Where(x =>
-                        string.IsNullOrWhiteSpace(T(x.ITEM_NUMBER)) ||
-                        !sinFijoDestino.Contains(T(x.ITEM_NUMBER)))
-                    .ToList();
-            }
-
-            var scopesValidos = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var row in rows.Where(x => string.IsNullOrWhiteSpace(T(x.ITEM_NUMBER))))
-            {
-                var key = ScopeKey(row.CATEGORY_CODE, row.SUBCATEGORY_CODE);
-                if (scopesValidos.Contains(key))
-                    continue;
-
-                if (await ExisteArticuloElegibleEnScopeAsync(
-                    row.CATEGORY_CODE,
-                    row.SUBCATEGORY_CODE,
-                    buKey,
-                    destinoKey,
-                    tipoDescuento,
-                    HttpContext.RequestAborted))
-                {
-                    scopesValidos.Add(key);
-                }
-            }
-
-            rows = rows
-                .Where(x =>
-                    !string.IsNullOrWhiteSpace(T(x.ITEM_NUMBER)) ||
-                    scopesValidos.Contains(ScopeKey(x.CATEGORY_CODE, x.SUBCATEGORY_CODE)))
-                .ToList();
-
-            var descuentosOrigen = rows
+            // 2) A partir de aquí pasás a memoria con AsEnumerable()
+            var descuentosOrigen = query
+                .AsEnumerable() // 👉 desde aquí ya NO es SQL, es LINQ to Objects
                 .Select(x => new
                 {
-                    codLinea = T(x.CATEGORY_CODE),
-                    desLinea = T(x.DesLinea),
-                    codArticulo = T(x.ITEM_NUMBER),
+                    codLinea = x.d.CATEGORY_CODE,
+                    desLinea = x.l?.CATEGORY_NAME ?? "",
+
+                    codArticulo = string.IsNullOrWhiteSpace(x.d.ITEM_NUMBER)
+                                    ? " "
+                                    : x.d.ITEM_NUMBER,
+
+                    // En Oracle solo tenemos PORCENTAJE, asumimos tipo porcentual
                     tipo = "P",
-                    valor = x.PORCENTAJE,
-                    claseart = T(x.SUBCATEGORY_CODE)
+                    valor = x.d.PORCENTAJE,
+
+                    Claseart = string.IsNullOrWhiteSpace(x.d.SUBCATEGORY_CODE)
+                                    ? " "
+                                    : x.d.SUBCATEGORY_CODE
                 })
-                .OrderBy(d => int.TryParse(d.codLinea, out var num) ? num : int.MaxValue)
+                // 3) Ordenar por codLinea numéricamente si se puede
+                .OrderBy(d =>
+                {
+                    return int.TryParse(d.codLinea, out var num) ? num : int.MaxValue;
+                })
                 .ToList();
 
             return Json(descuentosOrigen);
         }
+
 
         [HttpGet]
         public async Task<JsonResult> GetDetalleArticulo(string? codArticulo, string? codLinea, string? codClase)
@@ -1874,107 +1493,36 @@ namespace SolicitudesDescuentos.Controllers
 
 
         [HttpGet]
-        public async Task<JsonResult> BuscarLineas(
-            string? filtro,
-            string? codCliente,
-            string? buNombre,
-            string? tipoDescuento)
+        public JsonResult BuscarLineas(string filtro)
         {
-            static string N(string? s) => (s ?? "").Trim().ToUpperInvariant();
-
-            var buKey = N(string.IsNullOrWhiteSpace(buNombre) ? "LANCO_CR" : buNombre);
-            var clienteKey = N(codCliente);
-            var filtroKey = N(filtro);
-
-            const string orgItemMaster = "LCR_3";
-            const string orgNoPromo = "CR_3";
-
-            bool esPromo =
-                !string.IsNullOrWhiteSpace(tipoDescuento) &&
-                tipoDescuento.Contains("promocional", StringComparison.OrdinalIgnoreCase);
-
-            if (esPromo && string.IsNullOrWhiteSpace(clienteKey))
-                return Json(Array.Empty<object>());
-
-            var articulosElegibles = _OracleContext.INV_ARTICULOs
-                .AsNoTracking()
-                .Where(a =>
-                    a.COD_ARTICULO != null &&
-                    a.COD_LINEA != null &&
-                    _OracleContext.XXORA_ITEM_MASTERs.AsNoTracking().Any(x =>
-                        x.BU_NAME != null &&
-                        x.ORGANIZATION_CODE != null &&
-                        x.ITEM_NUMBER != null &&
-                        x.ACCEPTADESCUENTO != null &&
-                        x.BU_NAME.Trim().ToUpper() == buKey &&
-                        x.ORGANIZATION_CODE.Trim().ToUpper() == orgItemMaster &&
-                        x.ITEM_NUMBER.Trim().ToUpper() == a.COD_ARTICULO.Trim().ToUpper() &&
-                        x.ACCEPTADESCUENTO.Trim().ToUpper() == "S"
-                    ) &&
-                    !_OracleContext.ART_NO_PROMOs.AsNoTracking().Any(np =>
-                        np.BU_NAME != null &&
-                        np.ORGANIZATION_CODE != null &&
-                        np.ITEM_NUMBER != null &&
-                        np.ESTADO != null &&
-                        np.BU_NAME.Trim().ToUpper() == buKey &&
-                        np.ORGANIZATION_CODE.Trim().ToUpper() == orgNoPromo &&
-                        np.ITEM_NUMBER.Trim().ToUpper() == a.COD_ARTICULO.Trim().ToUpper() &&
-                        np.ESTADO.Trim().ToUpper() == "ACTIVO"
-                    )
-                );
-
-            if (esPromo)
-            {
-                var hoy = DateTime.Today;
-
-                articulosElegibles = articulosElegibles.Where(a =>
-                    _OracleContext.XXORA_DISCOUNT_LISTs.AsNoTracking().Any(x =>
-                        x.BU_NAME != null &&
-                        x.PARTY_NUMBER != null &&
-                        x.ITEM_NUMBER != null &&
-                        x.RULE_DISCOUNT_NAME != null &&
-                        x.BU_NAME.Trim().ToUpper() == buKey &&
-                        x.PARTY_NUMBER.Trim().ToUpper() == clienteKey &&
-                        x.ITEM_NUMBER.Trim().ToUpper() == a.COD_ARTICULO.Trim().ToUpper() &&
-                        x.RULE_DISCOUNT_NAME.Trim().ToUpper() == "CLIENTE" &&
-                        x.START_DATE <= hoy &&
-                        (x.END_DATE == null || x.END_DATE >= hoy)
-                    ));
-            }
-
-            var lineasElegibles = await articulosElegibles
-                .Select(a => a.COD_LINEA!.Trim())
-                .Distinct()
-                .ToListAsync();
-
-            if (lineasElegibles.Count == 0)
-                return Json(Array.Empty<object>());
-
+            // Partimos de la vista INV_LINEA de Oracle
             var query = _OracleContext.INV_LINEAs
-                .AsNoTracking()
-                .Where(l =>
-                    l.CATEGORY_CODE != null &&
-                    lineasElegibles.Contains(l.CATEGORY_CODE.Trim()));
+                .AsNoTracking();
 
-            if (!string.IsNullOrWhiteSpace(filtroKey))
+            // Si viene filtro, lo aplicamos sobre código y descripción
+            if (!string.IsNullOrWhiteSpace(filtro))
             {
+                var filtroUpper = filtro.ToUpper().Trim();
+
                 query = query.Where(l =>
-                    (l.CATEGORY_CODE ?? "").Trim().ToUpper().Contains(filtroKey) ||
-                    (l.CATEGORY_NAME ?? "").Trim().ToUpper().Contains(filtroKey));
+                    (l.CATEGORY_CODE ?? "").ToUpper().Contains(filtroUpper) ||
+                    (l.CATEGORY_NAME ?? "").ToUpper().Contains(filtroUpper)
+                );
             }
 
-            var lineas = await query
+            // Proyectamos al shape que espera el front
+            var lineas = query
                 .Select(l => new
                 {
-                    codLinea = (l.CATEGORY_CODE ?? "").Trim(),
-                    desLinea = (l.CATEGORY_NAME ?? "").Trim()
+                    codLinea = l.CATEGORY_CODE,
+                    desLinea = l.CATEGORY_NAME
                 })
-                .Distinct()
                 .OrderBy(l => l.codLinea)
-                .ToListAsync();
+                .ToList();
 
             return Json(lineas);
         }
+
 
         [HttpGet]
         public async Task<JsonResult> BuscarArticulosPorLinea(
@@ -2147,8 +1695,7 @@ namespace SolicitudesDescuentos.Controllers
                         x.RULE_DISCOUNT_NAME.Trim().ToUpper() ==
                             "CLIENTE" &&
 
-                        // Descuento vigente: ya inició y todavía no terminó.
-                        x.START_DATE <= hoy &&
+                        // Descuento vigente
                         (
                             x.END_DATE == null ||
                             x.END_DATE >= hoy
@@ -2224,100 +1771,38 @@ namespace SolicitudesDescuentos.Controllers
         }
 
         [HttpGet]
-        public async Task<JsonResult> BuscarClaseartsPorlinea(
-            string codLinea,
-            string? filtro,
-            string? codCliente,
-            string? buNombre,
-            string? tipoDescuento)
+        public JsonResult BuscarClaseartsPorlinea(string codLinea, string filtro)
         {
-            static string N(string? s) => (s ?? "").Trim().ToUpperInvariant();
-
-            var lineaKey = N(codLinea);
-            var filtroKey = N(filtro);
-            var buKey = N(string.IsNullOrWhiteSpace(buNombre) ? "LANCO_CR" : buNombre);
-            var clienteKey = N(codCliente);
-
-            if (string.IsNullOrWhiteSpace(lineaKey))
-                return Json(Array.Empty<object>());
-
-            const string orgItemMaster = "LCR_3";
-            const string orgNoPromo = "CR_3";
-
-            bool esPromo =
-                !string.IsNullOrWhiteSpace(tipoDescuento) &&
-                tipoDescuento.Contains("promocional", StringComparison.OrdinalIgnoreCase);
-
-            if (esPromo && string.IsNullOrWhiteSpace(clienteKey))
-                return Json(Array.Empty<object>());
+            if (string.IsNullOrWhiteSpace(codLinea))
+                return Json(new List<object>());
 
             var query = _OracleContext.INV_ARTICULOs
                 .AsNoTracking()
-                .Where(a =>
-                    a.COD_ARTICULO != null &&
-                    a.COD_LINEA != null &&
-                    a.COD_CLASE != null &&
-                    a.COD_LINEA.Trim().ToUpper() == lineaKey &&
-                    _OracleContext.XXORA_ITEM_MASTERs.AsNoTracking().Any(x =>
-                        x.BU_NAME != null &&
-                        x.ORGANIZATION_CODE != null &&
-                        x.ITEM_NUMBER != null &&
-                        x.ACCEPTADESCUENTO != null &&
-                        x.BU_NAME.Trim().ToUpper() == buKey &&
-                        x.ORGANIZATION_CODE.Trim().ToUpper() == orgItemMaster &&
-                        x.ITEM_NUMBER.Trim().ToUpper() == a.COD_ARTICULO.Trim().ToUpper() &&
-                        x.ACCEPTADESCUENTO.Trim().ToUpper() == "S"
-                    ) &&
-                    !_OracleContext.ART_NO_PROMOs.AsNoTracking().Any(np =>
-                        np.BU_NAME != null &&
-                        np.ORGANIZATION_CODE != null &&
-                        np.ITEM_NUMBER != null &&
-                        np.ESTADO != null &&
-                        np.BU_NAME.Trim().ToUpper() == buKey &&
-                        np.ORGANIZATION_CODE.Trim().ToUpper() == orgNoPromo &&
-                        np.ITEM_NUMBER.Trim().ToUpper() == a.COD_ARTICULO.Trim().ToUpper() &&
-                        np.ESTADO.Trim().ToUpper() == "ACTIVO"
-                    )
+                .Where(a => a.COD_LINEA == codLinea && a.COD_CLASE != null);
+
+            if (!string.IsNullOrWhiteSpace(filtro))
+            {
+                var filtroUpper = filtro.ToUpper().Trim();
+
+                query = query.Where(a =>
+                    (a.COD_CLASE ?? string.Empty).ToUpper().Contains(filtroUpper) ||
+                    (a.DES_CLASE ?? string.Empty).ToUpper().Contains(filtroUpper)
                 );
-
-            if (esPromo)
-            {
-                var hoy = DateTime.Today;
-
-                query = query.Where(a =>
-                    _OracleContext.XXORA_DISCOUNT_LISTs.AsNoTracking().Any(x =>
-                        x.BU_NAME != null &&
-                        x.PARTY_NUMBER != null &&
-                        x.ITEM_NUMBER != null &&
-                        x.RULE_DISCOUNT_NAME != null &&
-                        x.BU_NAME.Trim().ToUpper() == buKey &&
-                        x.PARTY_NUMBER.Trim().ToUpper() == clienteKey &&
-                        x.ITEM_NUMBER.Trim().ToUpper() == a.COD_ARTICULO.Trim().ToUpper() &&
-                        x.RULE_DISCOUNT_NAME.Trim().ToUpper() == "CLIENTE" &&
-                        x.START_DATE <= hoy &&
-                        (x.END_DATE == null || x.END_DATE >= hoy)
-                    ));
             }
 
-            if (!string.IsNullOrWhiteSpace(filtroKey))
-            {
-                query = query.Where(a =>
-                    (a.COD_CLASE ?? "").Trim().ToUpper().Contains(filtroKey) ||
-                    (a.DES_CLASE ?? "").Trim().ToUpper().Contains(filtroKey));
-            }
-
-            var clases = await query
+            var clases = query
                 .GroupBy(a => new { a.COD_CLASE, a.DES_CLASE })
                 .Select(g => new
                 {
-                    codigo = (g.Key.COD_CLASE ?? "").Trim(),
-                    descripcion = (g.Key.DES_CLASE ?? "").Trim()
+                    codigo = g.Key.COD_CLASE,
+                    descripcion = g.Key.DES_CLASE
                 })
                 .OrderBy(x => x.codigo)
-                .ToListAsync();
+                .ToList();
 
             return Json(clases);
         }
+
 
         private class DetalleDto
         {
@@ -2541,274 +2026,22 @@ namespace SolicitudesDescuentos.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ReversarSolicitud(string CodCia, string Consecutivo)
         {
-            if (string.IsNullOrWhiteSpace(CodCia) ||
-                string.IsNullOrWhiteSpace(Consecutivo))
+            if (string.IsNullOrWhiteSpace(CodCia) || string.IsNullOrWhiteSpace(Consecutivo))
                 return NotFound();
 
-            static string? Normalizar(string? valor)
+            var solicitud = await _OracleContext.PREDESCUENTOs
+                .FirstOrDefaultAsync(p =>
+                    p.BU_NOMBRE == CodCia &&
+                    p.CONSECUTIVO == Consecutivo);
+
+            if (solicitud == null)
+                return NotFound();
+
+            var estadoActual = (solicitud.ESTADO ?? "").Trim();
+
+            if (!estadoActual.Equals("Aprobado", StringComparison.OrdinalIgnoreCase))
             {
-                if (string.IsNullOrWhiteSpace(valor))
-                    return null;
-
-                valor = valor.Trim();
-                return valor.Equals("NULL", StringComparison.OrdinalIgnoreCase)
-                    ? null
-                    : valor;
-            }
-
-            static bool MismaLlave(
-                string? linea1,
-                string? clase1,
-                string? item1,
-                string? linea2,
-                string? clase2,
-                string? item2)
-            {
-                static string N(string? s) => (s ?? "").Trim().ToUpperInvariant();
-
-                return N(linea1) == N(linea2) &&
-                       N(clase1) == N(clase2) &&
-                       N(item1) == N(item2);
-            }
-
-            const string organizationCode = "CR_3";
-            var hoy = DateTime.Today;
-
-            await using var trx = await _OracleContext.Database.BeginTransactionAsync();
-
-            try
-            {
-                var solicitud = await _OracleContext.PREDESCUENTOs
-                    .FirstOrDefaultAsync(p =>
-                        p.BU_NOMBRE == CodCia &&
-                        p.CONSECUTIVO == Consecutivo);
-
-                if (solicitud == null)
-                {
-                    await trx.RollbackAsync();
-                    return NotFound();
-                }
-
-                var estadoActual = (solicitud.ESTADO ?? "").Trim();
-
-                if (!estadoActual.Equals("Aprobado", StringComparison.OrdinalIgnoreCase))
-                {
-                    await trx.RollbackAsync();
-
-                    TempData["ErrorMessage"] =
-                        "Solo se pueden reversar solicitudes aprobadas.";
-
-                    return RedirectToAction(nameof(Details), new
-                    {
-                        id = solicitud.CONSECUTIVO,
-                        buNombre = solicitud.BU_NOMBRE,
-                        codCliente = solicitud.COD_CLIENTE
-                    });
-                }
-
-                var detallesReversa = await _OracleContext.PREDETDESCUENTOs
-                    .AsNoTracking()
-                    .Where(d =>
-                        d.BU_NOMBRE == solicitud.BU_NOMBRE &&
-                        d.COD_CLIENTE == solicitud.COD_CLIENTE &&
-                        d.CONSECUTIVO == solicitud.CONSECUTIVO)
-                    .Select(d => new
-                    {
-                        d.COD_LINEA,
-                        d.COD_CLASE,
-                        d.COD_ARTICULO
-                    })
-                    .ToListAsync();
-
-                var llavesReversa = detallesReversa
-                    .Select(d => (
-                        Linea: Normalizar(d.COD_LINEA),
-                        Clase: Normalizar(d.COD_CLASE),
-                        Item: Normalizar(d.COD_ARTICULO)
-                    ))
-                    .Where(x => !string.IsNullOrWhiteSpace(x.Linea))
-                    .Distinct()
-                    .ToList();
-
-                // Cargar una sola vez los detalles de solicitudes aprobadas anteriores.
-                // La reversa solo tocará las llaves afectadas por la solicitud reversada.
-                var anteriores = await (
-                    from p in _OracleContext.PREDESCUENTOs.AsNoTracking()
-                    join d in _OracleContext.PREDETDESCUENTOs.AsNoTracking()
-                        on new
-                        {
-                            p.BU_NOMBRE,
-                            p.COD_CLIENTE,
-                            p.CONSECUTIVO
-                        }
-                        equals new
-                        {
-                            d.BU_NOMBRE,
-                            d.COD_CLIENTE,
-                            d.CONSECUTIVO
-                        }
-                    where p.BU_NOMBRE == solicitud.BU_NOMBRE
-                       && p.COD_CLIENTE == solicitud.COD_CLIENTE
-                       && p.CONSECUTIVO != solicitud.CONSECUTIVO
-                       && p.ESTADO != null
-                       && p.ESTADO.Trim().ToUpper() == "APROBADO"
-                    select new
-                    {
-                        p.CONSECUTIVO,
-                        p.TIPODESCUENTO,
-                        p.FECHAINICIO,
-                        p.FECHAFIN,
-                        p.FECHA_APLICACION,
-                        p.FECHASOLICITUD,
-                        d.COD_LINEA,
-                        d.COD_CLASE,
-                        d.COD_ARTICULO,
-                        d.VALOR
-                    }
-                ).ToListAsync();
-
-                solicitud.ESTADO = "Reversado";
-                solicitud.GENERADO = "N";
-
-                _OracleContext.PREDESCUENTOs.Update(solicitud);
-                await _OracleContext.SaveChangesAsync();
-
-                foreach (var llave in llavesReversa)
-                {
-                    // Quitar la versión que estaba vigente para esa llave.
-                    await _OracleContext.Database.ExecuteSqlInterpolatedAsync($@"
-                        DELETE FROM PREDESCLASEORACLE
-                         WHERE TRIM(ORGANIZATION_CODE) = {organizationCode}
-                           AND TRIM(IDCLIENTE) = {solicitud.COD_CLIENTE}
-                           AND NVL(TRIM(CATEGORY_CODE), '##NULL##') =
-                               NVL({llave.Linea}, '##NULL##')
-                           AND NVL(TRIM(SUBCATEGORY_CODE), '##NULL##') =
-                               NVL({llave.Clase}, '##NULL##')
-                           AND NVL(TRIM(ITEM_NUMBER), '##NULL##') =
-                               NVL({llave.Item}, '##NULL##')
-                    ");
-
-                    // Buscar hacia atrás la última versión APROBADA que siga
-                    // siendo válida hoy y restaurarla.
-                    var candidatos = anteriores
-                        .Where(x => MismaLlave(
-                            x.COD_LINEA,
-                            x.COD_CLASE,
-                            x.COD_ARTICULO,
-                            llave.Linea,
-                            llave.Clase,
-                            llave.Item))
-                        .OrderByDescending(x => x.FECHA_APLICACION ?? DateTime.MinValue)
-                        .ThenByDescending(x => x.FECHASOLICITUD)
-                        .ThenByDescending(x => x.CONSECUTIVO)
-                        .ToList();
-
-                    foreach (var candidato in candidatos)
-                    {
-                        DateTime? fechaInicio = candidato.FECHAINICIO;
-
-                        if (!fechaInicio.HasValue || fechaInicio.Value == default)
-                            fechaInicio = candidato.FECHA_APLICACION;
-
-                        if (!fechaInicio.HasValue || fechaInicio.Value == default)
-                            fechaInicio = candidato.FECHASOLICITUD;
-
-                        DateTime? fechaFin = candidato.FECHAFIN;
-
-                        if (fechaFin.HasValue && fechaFin.Value == default)
-                            fechaFin = null;
-
-                        if (fechaInicio.HasValue && fechaInicio.Value.Date > hoy)
-                            continue;
-
-                        if (fechaFin.HasValue && fechaFin.Value.Date < hoy)
-                            continue;
-
-                        var item = Normalizar(candidato.COD_ARTICULO);
-
-                        if (!string.IsNullOrWhiteSpace(item))
-                        {
-                            var bloqueado = await ObtenerArticulosNoPromoActivosAsync(
-                                new[] { item },
-                                solicitud.BU_NOMBRE,
-                                "CR_3",
-                                HttpContext.RequestAborted);
-
-                            var noAcepta = await ObtenerArticulosNoAceptanDescuentoAsync(
-                                new[] { item },
-                                solicitud.BU_NOMBRE,
-                                "LCR_3",
-                                HttpContext.RequestAborted);
-
-                            if (bloqueado.Count > 0 || noAcepta.Count > 0)
-                                continue;
-
-                            bool candidatoPromo =
-                                !string.IsNullOrWhiteSpace(candidato.TIPODESCUENTO) &&
-                                candidato.TIPODESCUENTO.Contains(
-                                    "promocional",
-                                    StringComparison.OrdinalIgnoreCase);
-
-                            if (candidatoPromo)
-                            {
-                                var sinFijo = await ObtenerArticulosSinDescuentoClienteVigenteAsync(
-                                    new[] { item },
-                                    solicitud.COD_CLIENTE,
-                                    solicitud.BU_NOMBRE,
-                                    HttpContext.RequestAborted);
-
-                                if (sinFijo.Count > 0)
-                                    continue;
-                            }
-                        }
-                        else
-                        {
-                            if (!await ExisteArticuloElegibleEnScopeAsync(
-                                candidato.COD_LINEA,
-                                candidato.COD_CLASE,
-                                solicitud.BU_NOMBRE,
-                                solicitud.COD_CLIENTE,
-                                candidato.TIPODESCUENTO,
-                                HttpContext.RequestAborted))
-                            {
-                                continue;
-                            }
-                        }
-
-                        await _OracleContext.Database.ExecuteSqlInterpolatedAsync($@"
-                            INSERT INTO PREDESCLASEORACLE
-                            (
-                                ORGANIZATION_CODE,
-                                IDCLIENTE,
-                                CATEGORY_CODE,
-                                SUBCATEGORY_CODE,
-                                ITEM_NUMBER,
-                                PORCENTAJE,
-                                FECHA_INICIO,
-                                FECHA_FIN
-                            )
-                            VALUES
-                            (
-                                {organizationCode},
-                                {solicitud.COD_CLIENTE},
-                                {Normalizar(candidato.COD_LINEA)},
-                                {Normalizar(candidato.COD_CLASE)},
-                                {Normalizar(candidato.COD_ARTICULO)},
-                                {candidato.VALOR},
-                                {fechaInicio},
-                                {fechaFin}
-                            )
-                        ");
-
-                        break;
-                    }
-                }
-
-                await trx.CommitAsync();
-
-                TempData["InfoFlujo"] =
-                    $"La solicitud {solicitud.CONSECUTIVO} fue reversada correctamente.";
-
+                TempData["ErrorMessage"] = "Solo se pueden reversar solicitudes aprobadas.";
                 return RedirectToAction(nameof(Details), new
                 {
                     id = solicitud.CONSECUTIVO,
@@ -2816,11 +2049,21 @@ namespace SolicitudesDescuentos.Controllers
                     codCliente = solicitud.COD_CLIENTE
                 });
             }
-            catch
+
+            solicitud.ESTADO = "Reversado";
+            solicitud.GENERADO = "N";
+
+            _OracleContext.PREDESCUENTOs.Update(solicitud);
+            await _OracleContext.SaveChangesAsync();
+
+            TempData["InfoFlujo"] = $"La solicitud {solicitud.CONSECUTIVO} fue reversada correctamente.";
+
+            return RedirectToAction(nameof(Details), new
             {
-                await trx.RollbackAsync();
-                throw;
-            }
+                id = solicitud.CONSECUTIVO,
+                buNombre = solicitud.BU_NOMBRE,
+                codCliente = solicitud.COD_CLIENTE
+            });
         }
 
         // GET: Predescuentos/Create
@@ -2859,21 +2102,6 @@ namespace SolicitudesDescuentos.Controllers
                 return RedirectToAction(nameof(Index));
             }
 
-            var estadoOrigen = (origen.ESTADO ?? "").Trim();
-
-            var puedeCopiarOrigen =
-                estadoOrigen.Equals("Aprobado", StringComparison.OrdinalIgnoreCase) ||
-                estadoOrigen.Equals("Reversado", StringComparison.OrdinalIgnoreCase) ||
-                estadoOrigen.Equals("R", StringComparison.OrdinalIgnoreCase);
-
-            if (!puedeCopiarOrigen)
-            {
-                TempData["ErrorMessage"] =
-                    "Solo se pueden copiar descuentos desde una solicitud aprobada o reversada.";
-
-                return RedirectToAction(nameof(Index));
-            }
-
             // 2) Traer detalles origen
             var detalles = await _OracleContext.PREDETDESCUENTOs
                 .AsNoTracking()
@@ -2884,33 +2112,20 @@ namespace SolicitudesDescuentos.Controllers
                 .OrderBy(d => d.COD_LINEA)
                 .ToListAsync();
 
-            // Copia inicial: solo artículos que SIGUEN siendo elegibles.
-            var articulosCopia = detalles
-                .Select(d => NormalizeBlankOrNull(d.COD_ARTICULO))
-                .Where(x => !string.IsNullOrWhiteSpace(x))
-                .Select(x => x!)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
+            // No copiar artículos explícitos que actualmente estén bloqueados.
             var bloqueadosCopia = await ObtenerArticulosNoPromoActivosAsync(
-                articulosCopia,
+                detalles
+                    .Select(d => d.COD_ARTICULO)
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Select(x => x!),
                 origen.BU_NOMBRE,
                 "CR_3",
                 HttpContext.RequestAborted);
 
-            var noAceptanCopia = await ObtenerArticulosNoAceptanDescuentoAsync(
-                articulosCopia,
-                origen.BU_NOMBRE,
-                "LCR_3",
-                HttpContext.RequestAborted);
-
             detalles = detalles
                 .Where(d =>
-                {
-                    var item = NormalizeBlankOrNull(d.COD_ARTICULO);
-                    return string.IsNullOrWhiteSpace(item) ||
-                           (!bloqueadosCopia.Contains(item) && !noAceptanCopia.Contains(item));
-                })
+                    string.IsNullOrWhiteSpace(d.COD_ARTICULO) ||
+                    !bloqueadosCopia.Contains((d.COD_ARTICULO ?? "").Trim()))
                 .ToList();
 
             // 3) (Opcional) Descripción de línea para pintar bonito en la tabla
@@ -3129,52 +2344,15 @@ namespace SolicitudesDescuentos.Controllers
                 "CR_3",
                 HttpContext.RequestAborted);
 
-            var noAceptanPost = await ObtenerArticulosNoAceptanDescuentoAsync(
-                articulosPost,
-                model.BU_NOMBRE,
-                "LCR_3",
-                HttpContext.RequestAborted);
-
-            if (bloqueadosPost.Count > 0 || noAceptanPost.Count > 0)
+            if (bloqueadosPost.Count > 0)
             {
-                if (bloqueadosPost.Count > 0)
-                {
-                    ModelState.AddModelError(
-                        "",
-                        "No se pueden incluir artículos activos en ART_NO_PROMO: " +
-                        string.Join(", ", bloqueadosPost.OrderBy(x => x)));
-                }
-
-                if (noAceptanPost.Count > 0)
-                {
-                    ModelState.AddModelError(
-                        "",
-                        "No se pueden incluir artículos con ACCEPTADESCUENTO distinto de S: " +
-                        string.Join(", ", noAceptanPost.OrderBy(x => x)));
-                }
+                ModelState.AddModelError(
+                    "",
+                    "No se pueden incluir artículos activos en ART_NO_PROMO: " +
+                    string.Join(", ", bloqueadosPost.OrderBy(x => x)));
 
                 await CargarCombosCreateAsync(model.COD_CLIENTE);
                 return View(model);
-            }
-
-            if (esPromo && articulosPost.Count > 0)
-            {
-                var sinFijoVigente = await ObtenerArticulosSinDescuentoClienteVigenteAsync(
-                    articulosPost,
-                    model.COD_CLIENTE,
-                    model.BU_NOMBRE,
-                    HttpContext.RequestAborted);
-
-                if (sinFijoVigente.Count > 0)
-                {
-                    ModelState.AddModelError(
-                        "",
-                        "En descuento promocional solo se permiten artículos con descuento CLIENTE vigente: " +
-                        string.Join(", ", sinFijoVigente.OrderBy(x => x)));
-
-                    await CargarCombosCreateAsync(model.COD_CLIENTE);
-                    return View(model);
-                }
             }
 
             var maxConsec = await GetMaxConsecutivoAsync(model.BU_NOMBRE);
@@ -3342,50 +2520,6 @@ namespace SolicitudesDescuentos.Controllers
                     d.CONSECUTIVO == predescuento.CONSECUTIVO)
                 .OrderBy(d => d.COD_LINEA)
                 .ToListAsync();
-
-            // Si la elegibilidad cambió después de crear la solicitud,
-            // no volver a mostrar artículos explícitos que ya no pueden usarse.
-            var articulosEditGet = detallesDb
-                .Select(d => NormalizeBlankOrNull(d.COD_ARTICULO))
-                .Where(x => !string.IsNullOrWhiteSpace(x))
-                .Select(x => x!)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            var bloqueadosEditGet = await ObtenerArticulosNoPromoActivosAsync(
-                articulosEditGet,
-                predescuento.BU_NOMBRE,
-                "CR_3",
-                HttpContext.RequestAborted);
-
-            var noAceptanEditGet = await ObtenerArticulosNoAceptanDescuentoAsync(
-                articulosEditGet,
-                predescuento.BU_NOMBRE,
-                "LCR_3",
-                HttpContext.RequestAborted);
-
-            var esPromoEditGet =
-                !string.IsNullOrWhiteSpace(predescuento.TIPODESCUENTO) &&
-                predescuento.TIPODESCUENTO.Contains("promocional", StringComparison.OrdinalIgnoreCase);
-
-            var sinFijoEditGet = esPromoEditGet
-                ? await ObtenerArticulosSinDescuentoClienteVigenteAsync(
-                    articulosEditGet,
-                    predescuento.COD_CLIENTE,
-                    predescuento.BU_NOMBRE,
-                    HttpContext.RequestAborted)
-                : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            detallesDb = detallesDb
-                .Where(d =>
-                {
-                    var item = NormalizeBlankOrNull(d.COD_ARTICULO);
-                    return string.IsNullOrWhiteSpace(item) ||
-                           (!bloqueadosEditGet.Contains(item) &&
-                            !noAceptanEditGet.Contains(item) &&
-                            !sinFijoEditGet.Contains(item));
-                })
-                .ToList();
 
             // Diccionarios de descripciones (opcional, pero ayuda a pintar bonito)
             string T(string? s) => (s ?? "").Trim();
@@ -3625,50 +2759,14 @@ namespace SolicitudesDescuentos.Controllers
                     "CR_3",
                     HttpContext.RequestAborted);
 
-                var noAceptanEdit = await ObtenerArticulosNoAceptanDescuentoAsync(
-                    articulosEdit,
-                    model.BU_NOMBRE,
-                    "LCR_3",
-                    HttpContext.RequestAborted);
-
                 if (bloqueadosEdit.Count > 0)
                 {
                     ModelState.AddModelError(
                         "",
                         "No se pueden incluir artículos activos en ART_NO_PROMO: " +
                         string.Join(", ", bloqueadosEdit.OrderBy(x => x)));
+
                     tieneErrores = true;
-                }
-
-                if (noAceptanEdit.Count > 0)
-                {
-                    ModelState.AddModelError(
-                        "",
-                        "No se pueden incluir artículos con ACCEPTADESCUENTO distinto de S: " +
-                        string.Join(", ", noAceptanEdit.OrderBy(x => x)));
-                    tieneErrores = true;
-                }
-
-                var esPromoEdit =
-                    !string.IsNullOrWhiteSpace(model.TIPODESCUENTO) &&
-                    model.TIPODESCUENTO.Contains("promocional", StringComparison.OrdinalIgnoreCase);
-
-                if (esPromoEdit && articulosEdit.Count > 0)
-                {
-                    var sinFijoVigenteEdit = await ObtenerArticulosSinDescuentoClienteVigenteAsync(
-                        articulosEdit,
-                        model.COD_CLIENTE,
-                        model.BU_NOMBRE,
-                        HttpContext.RequestAborted);
-
-                    if (sinFijoVigenteEdit.Count > 0)
-                    {
-                        ModelState.AddModelError(
-                            "",
-                            "En descuento promocional solo se permiten artículos con descuento CLIENTE vigente: " +
-                            string.Join(", ", sinFijoVigenteEdit.OrderBy(x => x)));
-                        tieneErrores = true;
-                    }
                 }
             }
 
@@ -3709,7 +2807,6 @@ namespace SolicitudesDescuentos.Controllers
                     return NotFound();
                 }
 
-
                 predescuentoDb.FECHASOLICITUD = model.FECHASOLICITUD;
                 predescuentoDb.TIPODESCUENTO = model.TIPODESCUENTO;
                 predescuentoDb.FECHAINICIO = model.FECHAINICIO;
@@ -3718,21 +2815,10 @@ namespace SolicitudesDescuentos.Controllers
                 predescuentoDb.ESTADO = model.ESTADO;
                 predescuentoDb.AUTORIZADO_POR = model.AUTORIZADO_POR;
                 predescuentoDb.FECHAREGISTRO = DateTime.Now;
-
-                // INGRESADO_POR identifica al usuario que creó la solicitud.
-                // Debe permanecer inmutable durante toda la vida de la solicitud,
-                // incluso si un PRICE_EDITOR la edita mientras está en
-                // "Pendiente Aprobacion".
+                predescuentoDb.INGRESADO_POR = User.Identity?.Name ?? string.Empty;
                 predescuentoDb.FECHA_APLICACION = model.FECHA_APLICACION;
 
                 _OracleContext.PREDESCUENTOs.Update(predescuentoDb);
-
-                // Protección adicional: Edit nunca debe generar un UPDATE
-                // de la columna INGRESADO_POR.
-                _OracleContext.Entry(predescuentoDb)
-                    .Property(p => p.INGRESADO_POR)
-                    .IsModified = false;
-
 
                 // Traer detalles actuales en BD
                 var detallesExistentes = await _OracleContext.PREDETDESCUENTOs
@@ -3883,225 +2969,529 @@ namespace SolicitudesDescuentos.Controllers
             await _OracleContext.SaveChangesAsync();
 
 
-            // Al aprobar solo se sincroniza PREDESCLASEORACLE.
-            // PREDESCUENTOS_MASTER se genera justo antes de crear el archivo,
-            // para evitar que una aprobación quede incompleta si este proceso pesado falla.
+            // Solo generar en PREDESCUENTOS_MASTER cuando esté aprobada
             if (string.Equals(Estado, "Aprobado", StringComparison.OrdinalIgnoreCase))
             {
-                await SincronizarPredesclaseOracleAsync(solicitud);
+                await GenerarDescuentosMasterAsync(solicitud);
             }
 
             return RedirectToAction(nameof(Index));
         }
 
-        private async Task SincronizarPredesclaseOracleAsync(PREDESCUENTO solicitud)
+        private async Task GenerarDescuentosMasterAsync(PREDESCUENTO solicitud)
         {
-            const string organizationCode = "CR_3";
+            // =========================
+            // Datos base
+            // =========================
+            string buNombre = solicitud.BU_NOMBRE;
+            string organizationCode = "CR_3";
+            string codCliente = solicitud.COD_CLIENTE;
+            string consecutivo = solicitud.CONSECUTIVO;
+            string usuario = User.Identity?.Name ?? "SYSTEM";
+            string fechaTexto = DateTime.Now.ToString("yyyy-MM-dd");
 
-            static string? Normalizar(string? valor)
+            // ✅ FECHAS de la solicitud a replicar en todos los registros master
+            DateTime? fechaInicioMaster = solicitud.FECHAINICIO ?? solicitud.FECHA_APLICACION; // <- si no querés fallback, pon: solicitud.FECHAINICIO
+            DateTime? fechaFinMaster = solicitud.FECHAFIN;
+
+            static string T(string? s) => (s ?? "").Trim();
+
+            static string MakeKey(string? linea, string? clase, string? articulo)
+                => $"{T(linea)}|{T(clase)}|{T(articulo)}";
+
+            static string MakePairKey(string? linea, string? clase)
+                => $"{T(linea)}|{T(clase)}";
+
+            static IEnumerable<List<TItem>> Chunk<TItem>(IEnumerable<TItem> source, int size)
             {
-                if (string.IsNullOrWhiteSpace(valor))
-                    return null;
-
-                valor = valor.Trim();
-                return valor.Equals("NULL", StringComparison.OrdinalIgnoreCase)
-                    ? null
-                    : valor;
+                var batch = new List<TItem>(size);
+                foreach (var item in source)
+                {
+                    batch.Add(item);
+                    if (batch.Count == size)
+                    {
+                        yield return batch;
+                        batch = new List<TItem>(size);
+                    }
+                }
+                if (batch.Count > 0) yield return batch;
             }
 
-            var buNombre = (solicitud.BU_NOMBRE ?? "").Trim();
-            var codCliente = (solicitud.COD_CLIENTE ?? "").Trim();
-            var consecutivo = (solicitud.CONSECUTIVO ?? "").Trim();
-
-            if (string.IsNullOrWhiteSpace(buNombre) ||
-                string.IsNullOrWhiteSpace(codCliente) ||
-                string.IsNullOrWhiteSpace(consecutivo))
-                return;
-
+            // =========================
+            // 1) Detalles
+            // =========================
             var detalles = await _OracleContext.PREDETDESCUENTOs
                 .AsNoTracking()
-                .Where(d =>
-                    d.BU_NOMBRE == buNombre &&
-                    d.COD_CLIENTE == codCliente &&
-                    d.CONSECUTIVO == consecutivo)
+                .Where(d => d.BU_NOMBRE == buNombre &&
+                            d.COD_CLIENTE == codCliente &&
+                            d.CONSECUTIVO == consecutivo)
                 .ToListAsync();
 
             if (detalles.Count == 0)
                 return;
 
-            DateTime? fechaInicio = solicitud.FECHAINICIO;
+            // =========================
+            // 2) Combos existentes (para no chocar con AK)
+            // =========================
+            var existentes = await _OracleContext.PREDESCUENTOS_MASTERs
+                .AsNoTracking()
+                .Where(m => m.BU_NOMBRE == buNombre &&
+                            m.COD_CLIENTE == codCliente &&
+                            m.CONSECUTIVO == consecutivo)
+                .Select(m => new { m.COD_LINEA, m.COD_CLASE, m.COD_ARTICULO })
+                .ToListAsync();
 
-            if (!fechaInicio.HasValue || fechaInicio.Value == default)
-                fechaInicio = solicitud.FECHA_APLICACION;
+            var combosInsertados = new HashSet<string>(
+                existentes.Select(e => MakeKey(e.COD_LINEA, e.COD_CLASE, e.COD_ARTICULO)),
+                StringComparer.OrdinalIgnoreCase
+            );
 
-            if (!fechaInicio.HasValue || fechaInicio.Value == default)
-                fechaInicio = solicitud.FECHASOLICITUD;
-
-            DateTime? fechaFin = solicitud.FECHAFIN;
-
-            if (fechaFin.HasValue && fechaFin.Value == default)
-                fechaFin = null;
-
-            var articulosExplicitos = detalles
-                .Select(d => Normalizar(d.COD_ARTICULO))
-                .Where(x => !string.IsNullOrWhiteSpace(x))
-                .Select(x => x!)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            var bloqueadosExplicitos = await ObtenerArticulosNoPromoActivosAsync(
-                articulosExplicitos,
-                buNombre,
-                "CR_3",
-                HttpContext.RequestAborted);
-
-            var noAceptanExplicitos = await ObtenerArticulosNoAceptanDescuentoAsync(
-                articulosExplicitos,
-                buNombre,
-                "LCR_3",
-                HttpContext.RequestAborted);
-
-            bool esPromo =
-                !string.IsNullOrWhiteSpace(solicitud.TIPODESCUENTO) &&
-                solicitud.TIPODESCUENTO.Contains(
-                    "promocional",
-                    StringComparison.OrdinalIgnoreCase);
-
-            var sinFijoVigente = esPromo
-                ? await ObtenerArticulosSinDescuentoClienteVigenteAsync(
-                    articulosExplicitos,
-                    codCliente,
-                    buNombre,
-                    HttpContext.RequestAborted)
-                : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            // Todas las llaves solicitadas se consideran parte del DELTA.
-            // Aunque una llave haya dejado de ser elegible entre el guardado y la
-            // aprobación, debe eliminarse su versión anterior de PREDESCLASEORACLE.
-            var filasSolicitadas = detalles
-                .Select(d => (
-                    CategoryCode: Normalizar(d.COD_LINEA),
-                    SubcategoryCode: Normalizar(d.COD_CLASE),
-                    ItemNumber: Normalizar(d.COD_ARTICULO),
-                    Porcentaje: d.VALOR
-                ))
-                .Where(x => !string.IsNullOrWhiteSpace(x.CategoryCode))
-                .GroupBy(x => new
-                {
-                    x.CategoryCode,
-                    x.SubcategoryCode,
-                    x.ItemNumber
-                })
-                .Select(g => g.Last())
-                .ToList();
-
-            var filas = filasSolicitadas
-                .Where(x =>
-                    string.IsNullOrWhiteSpace(x.ItemNumber) ||
-                    (
-                        !bloqueadosExplicitos.Contains(x.ItemNumber!) &&
-                        !noAceptanExplicitos.Contains(x.ItemNumber!) &&
-                        !sinFijoVigente.Contains(x.ItemNumber!)
-                    ))
-                .ToList();
-
-            var filasValidas = new List<(
-                string? CategoryCode,
-                string? SubcategoryCode,
-                string? ItemNumber,
-                decimal Porcentaje)>();
-
-            foreach (var fila in filas)
+            // =========================
+            // 3) Preparar maps de valores (VALOR) por scope
+            // =========================
+            var artValor = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+            foreach (var d in detalles.Where(d => !string.IsNullOrWhiteSpace(d.COD_ARTICULO)))
             {
-                if (!string.IsNullOrWhiteSpace(fila.ItemNumber))
-                {
-                    filasValidas.Add(fila);
-                    continue;
-                }
-
-                if (await ExisteArticuloElegibleEnScopeAsync(
-                    fila.CategoryCode,
-                    fila.SubcategoryCode,
-                    buNombre,
-                    codCliente,
-                    solicitud.TIPODESCUENTO,
-                    HttpContext.RequestAborted))
-                {
-                    filasValidas.Add(fila);
-                }
+                var art = T(d.COD_ARTICULO);
+                if (!artValor.ContainsKey(art))
+                    artValor[art] = d.VALOR;
             }
 
-            Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? trxPropia = null;
+            var pairValor = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+            foreach (var d in detalles.Where(d => string.IsNullOrWhiteSpace(d.COD_ARTICULO) &&
+                                                 !string.IsNullOrWhiteSpace(d.COD_CLASE)))
+            {
+                var pk = MakePairKey(d.COD_LINEA, d.COD_CLASE);
+                if (!pairValor.ContainsKey(pk))
+                    pairValor[pk] = d.VALOR;
+            }
 
-            if (_OracleContext.Database.CurrentTransaction == null)
-                trxPropia = await _OracleContext.Database.BeginTransactionAsync();
+            var lineValor = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+            foreach (var d in detalles.Where(d => !string.IsNullOrWhiteSpace(d.COD_LINEA) &&
+                                                 string.IsNullOrWhiteSpace(d.COD_CLASE) &&
+                                                 string.IsNullOrWhiteSpace(d.COD_ARTICULO)))
+            {
+                var ln = T(d.COD_LINEA);
+                if (!lineValor.ContainsKey(ln))
+                    lineValor[ln] = d.VALOR;
+            }
+
+            // =========================
+            // 4) Conexión Oracle (1 sola apertura)
+            // =========================
+            var connection = _OracleContext.Database.GetDbConnection();
+            bool cerrarAlFinal = false;
+
+            if (connection.State != System.Data.ConnectionState.Open)
+            {
+                await connection.OpenAsync();
+                cerrarAlFinal = true;
+            }
+
+            var invByArticulo = new Dictionary<string, (string CodLinea, string CodClase, string Medida)>(StringComparer.OrdinalIgnoreCase);
+            var invRowsByPairs = new List<(string CodArticulo, string CodLinea, string CodClase, string Medida)>(capacity: 1024);
+            var invRowsByLines = new List<(string CodArticulo, string CodLinea, string CodClase, string Medida)>(capacity: 1024);
 
             try
             {
-                // Mantiene semántica DELTA:
-                // solamente reemplaza las llaves presentes en esta solicitud.
-                // No borra descuentos de otras llaves que la solicitud no tocó.
-                // Primero se quita cualquier versión anterior de TODAS las llaves
-                // solicitadas; luego se insertan únicamente las que siguen válidas.
-                foreach (var fila in filasSolicitadas)
+                // Q1: por artículos
+                var codArticulosUnicos = artValor.Keys.ToList();
+                if (codArticulosUnicos.Count > 0)
                 {
-                    await _OracleContext.Database.ExecuteSqlInterpolatedAsync($@"
-                        DELETE FROM PREDESCLASEORACLE
-                         WHERE TRIM(ORGANIZATION_CODE) = {organizationCode}
-                           AND TRIM(IDCLIENTE) = {codCliente}
-                           AND NVL(TRIM(CATEGORY_CODE), '##NULL##') =
-                               NVL({fila.CategoryCode}, '##NULL##')
-                           AND NVL(TRIM(SUBCATEGORY_CODE), '##NULL##') =
-                               NVL({fila.SubcategoryCode}, '##NULL##')
-                           AND NVL(TRIM(ITEM_NUMBER), '##NULL##') =
-                               NVL({fila.ItemNumber}, '##NULL##')
-                    ");
+                    foreach (var chunk in Chunk(codArticulosUnicos, 900))
+                    {
+                        using var cmd = connection.CreateCommand();
+                        var paramNames = new List<string>(chunk.Count);
+
+                        for (int i = 0; i < chunk.Count; i++)
+                        {
+                            var p = cmd.CreateParameter();
+                            p.ParameterName = "a" + i;
+                            p.Value = chunk[i];
+                            cmd.Parameters.Add(p);
+                            paramNames.Add(":" + p.ParameterName);
+                        }
+
+                        cmd.CommandText = $@"
+                        SELECT COD_ARTICULO, COD_LINEA, COD_CLASE, MEDIDA
+                        FROM INV_ARTICULO
+                        WHERE COD_ARTICULO IN ({string.Join(",", paramNames)})";
+
+                        using var reader = await cmd.ExecuteReaderAsync();
+                        while (await reader.ReadAsync())
+                        {
+                            var codArt = T(reader["COD_ARTICULO"]?.ToString());
+                            if (string.IsNullOrWhiteSpace(codArt)) continue;
+
+                            invByArticulo[codArt] = (
+                                T(reader["COD_LINEA"]?.ToString()),
+                                T(reader["COD_CLASE"]?.ToString()),
+                                T(reader["MEDIDA"]?.ToString())
+                            );
+                        }
+                    }
                 }
 
-                foreach (var fila in filasValidas)
+                // Q2: por pares (linea,clase)
+                var pairKeys = pairValor.Keys.ToList();
+                if (pairKeys.Count > 0)
                 {
-                    await _OracleContext.Database.ExecuteSqlInterpolatedAsync($@"
-                        INSERT INTO PREDESCLASEORACLE
-                        (
-                            ORGANIZATION_CODE,
-                            IDCLIENTE,
-                            CATEGORY_CODE,
-                            SUBCATEGORY_CODE,
-                            ITEM_NUMBER,
-                            PORCENTAJE,
-                            FECHA_INICIO,
-                            FECHA_FIN
-                        )
-                        VALUES
-                        (
-                            {organizationCode},
-                            {codCliente},
-                            {fila.CategoryCode},
-                            {fila.SubcategoryCode},
-                            {fila.ItemNumber},
-                            {fila.Porcentaje},
-                            {fechaInicio},
-                            {fechaFin}
-                        )
-                    ");
+                    var pairs = pairKeys
+                        .Select(k =>
+                        {
+                            var parts = k.Split('|');
+                            return (Linea: parts.Length > 0 ? parts[0] : "", Clase: parts.Length > 1 ? parts[1] : "");
+                        })
+                        .Where(x => !string.IsNullOrWhiteSpace(x.Linea) && !string.IsNullOrWhiteSpace(x.Clase))
+                        .ToList();
+
+                    foreach (var chunk in Chunk(pairs, 200))
+                    {
+                        using var cmd = connection.CreateCommand();
+
+                        var whereParts = new List<string>(chunk.Count);
+                        for (int i = 0; i < chunk.Count; i++)
+                        {
+                            var pL = cmd.CreateParameter();
+                            pL.ParameterName = "l" + i;
+                            pL.Value = chunk[i].Linea;
+                            cmd.Parameters.Add(pL);
+
+                            var pC = cmd.CreateParameter();
+                            pC.ParameterName = "c" + i;
+                            pC.Value = chunk[i].Clase;
+                            cmd.Parameters.Add(pC);
+
+                            whereParts.Add($"(COD_LINEA = :{pL.ParameterName} AND COD_CLASE = :{pC.ParameterName})");
+                        }
+
+                        cmd.CommandText = $@"
+                        SELECT COD_ARTICULO, COD_LINEA, COD_CLASE, MEDIDA
+                        FROM INV_ARTICULO
+                        WHERE {string.Join(" OR ", whereParts)}";
+
+                        using var reader = await cmd.ExecuteReaderAsync();
+                        while (await reader.ReadAsync())
+                        {
+                            var codArt = T(reader["COD_ARTICULO"]?.ToString());
+                            if (string.IsNullOrWhiteSpace(codArt)) continue;
+
+                            invRowsByPairs.Add((
+                                codArt,
+                                T(reader["COD_LINEA"]?.ToString()),
+                                T(reader["COD_CLASE"]?.ToString()),
+                                T(reader["MEDIDA"]?.ToString())
+                            ));
+                        }
+                    }
                 }
 
-                if (trxPropia != null)
-                    await trxPropia.CommitAsync();
-            }
-            catch
-            {
-                if (trxPropia != null)
-                    await trxPropia.RollbackAsync();
-                throw;
+                // Q3: por líneas
+                var lineasUnicas = lineValor.Keys.ToList();
+                if (lineasUnicas.Count > 0)
+                {
+                    foreach (var chunk in Chunk(lineasUnicas, 900))
+                    {
+                        using var cmd = connection.CreateCommand();
+                        var paramNames = new List<string>(chunk.Count);
+
+                        for (int i = 0; i < chunk.Count; i++)
+                        {
+                            var p = cmd.CreateParameter();
+                            p.ParameterName = "ln" + i;
+                            p.Value = chunk[i];
+                            cmd.Parameters.Add(p);
+                            paramNames.Add(":" + p.ParameterName);
+                        }
+
+                        cmd.CommandText = $@"
+                        SELECT COD_ARTICULO, COD_LINEA, COD_CLASE, MEDIDA
+                        FROM INV_ARTICULO
+                        WHERE COD_LINEA IN ({string.Join(",", paramNames)})";
+
+                        using var reader = await cmd.ExecuteReaderAsync();
+                        while (await reader.ReadAsync())
+                        {
+                            var codArt = T(reader["COD_ARTICULO"]?.ToString());
+                            if (string.IsNullOrWhiteSpace(codArt)) continue;
+
+                            invRowsByLines.Add((
+                                codArt,
+                                T(reader["COD_LINEA"]?.ToString()),
+                                T(reader["COD_CLASE"]?.ToString()),
+                                T(reader["MEDIDA"]?.ToString())
+                            ));
+                        }
+                    }
+                }
             }
             finally
             {
-                if (trxPropia != null)
-                    await trxPropia.DisposeAsync();
+                if (cerrarAlFinal && connection.State == System.Data.ConnectionState.Open)
+                    await connection.CloseAsync();
+            }
+
+
+            // =========================
+            // 4.2) (NUEVO) Validar que el artículo tenga DESCUENTO FIJO en XXORA_DISCOUNT_LIST
+            //      (END_DATE IS NULL) para este cliente.
+            //      Si NO existe => NO se genera ese artículo en PREDESCUENTOS_MASTER.
+            // =========================
+            var candidateItems = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            // candidatos desde las 3 fuentes (artículo explícito, por clase, por línea)
+            foreach (var k in invByArticulo.Keys)
+                if (!string.IsNullOrWhiteSpace(k)) candidateItems.Add(T(k));
+
+            foreach (var r in invRowsByPairs)
+                if (!string.IsNullOrWhiteSpace(r.CodArticulo)) candidateItems.Add(T(r.CodArticulo));
+
+            foreach (var r in invRowsByLines)
+                if (!string.IsNullOrWhiteSpace(r.CodArticulo)) candidateItems.Add(T(r.CodArticulo));
+
+            if (candidateItems.Count == 0)
+                return;
+
+            // =========================================================
+            // REGLA GLOBAL: excluir ART_NO_PROMO ACTIVO
+            // Aplica a FIJO y PROMOCIONAL y a artículos que llegaron
+            // explícitos, por clase o por línea.
+            // =========================================================
+            var noPromoActivos = await ObtenerArticulosNoPromoActivosAsync(
+                candidateItems,
+                buNombre,
+                organizationCode,
+                HttpContext.RequestAborted);
+
+            // =========================================================
+            // 4.1) Validar ACCEPTADESCUENTO = 'S' en XXORA_ITEM_MASTER
+            // =========================================================
+
+            // OJO:
+            // PREDESCUENTOS_MASTER usa CR_3,
+            // pero XXORA_ITEM_MASTER está trabajando con LCR_3.
+            const string organizationItemMaster = "LCR_3";
+
+            var acceptedItems = new HashSet<string>(
+                StringComparer.OrdinalIgnoreCase
+            );
+
+            foreach (var chunk in Chunk(candidateItems.ToList(), 900))
+            {
+                var itemsAceptados = await _OracleContext.XXORA_ITEM_MASTERs
+                    .AsNoTracking()
+                    .Where(x =>
+                        x.BU_NAME != null &&
+                        x.ORGANIZATION_CODE != null &&
+                        x.ITEM_NUMBER != null &&
+                        x.ACCEPTADESCUENTO != null &&
+
+                        x.BU_NAME.Trim().ToUpper() ==
+                            buNombre.Trim().ToUpper() &&
+
+                        x.ORGANIZATION_CODE.Trim().ToUpper() ==
+                            organizationItemMaster &&
+
+                        chunk.Contains(x.ITEM_NUMBER.Trim()) &&
+
+                        x.ACCEPTADESCUENTO.Trim().ToUpper() == "S"
+                    )
+                    .Select(x => x.ITEM_NUMBER)
+                    .Distinct()
+                    .ToListAsync();
+
+                foreach (var item in itemsAceptados)
+                {
+                    if (!string.IsNullOrWhiteSpace(item))
+                        acceptedItems.Add(T(item));
+                }
+            }
+
+            // Helper
+            bool AceptaDescuento(string codArt)
+            {
+                return !string.IsNullOrWhiteSpace(codArt) &&
+                       acceptedItems.Contains(T(codArt));
+            }
+
+            // set de artículos que SÍ tienen fijo (END_DATE NULL) en XXORA para este cliente
+            var fixedItems = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var chunk in Chunk(candidateItems.ToList(), 900))
+            {
+                var rows = await _OracleContext.XXORA_DISCOUNT_LISTs
+                    .AsNoTracking()
+                    .Where(x =>
+                        x.BU_NAME == buNombre &&
+                        x.PARTY_NUMBER == codCliente &&
+                        x.ITEM_NUMBER != null &&
+                        chunk.Contains(x.ITEM_NUMBER) &&
+                        x.END_DATE == null // ✅ FIJO
+                    )
+                    .Select(x => x.ITEM_NUMBER)
+                    .Distinct()
+                    .ToListAsync();
+
+                foreach (var it in rows)
+                    if (!string.IsNullOrWhiteSpace(it))
+                        fixedItems.Add(T(it));
+            }
+
+            bool PuedeGenerarEnMaster(string codArt)
+            {
+                var item = T(codArt);
+
+                return !string.IsNullOrWhiteSpace(item) &&
+                       !noPromoActivos.Contains(item) &&
+                       AceptaDescuento(item) &&
+                       TieneFijoEnXxora(item);
+            }
+
+            // helper: true si el artículo tiene fijo
+            bool TieneFijoEnXxora(string codArt)
+                => !string.IsNullOrWhiteSpace(codArt) && fixedItems.Contains(T(codArt));
+
+
+
+            // =========================
+            // 5) Construir inserts en memoria (prioridad: artículo > clase > línea)
+            // =========================
+            var nuevos = new List<PREDESCUENTOS_MASTER>(capacity: 4096);
+
+            // 5.1 Artículo explícito
+            foreach (var kv in artValor)
+            {
+                var codArt = kv.Key;
+                var porcentaje = kv.Value;
+
+                // ✅ NUEVO: si no tiene fijo en XXORA, no se genera
+                if (!PuedeGenerarEnMaster(codArt))
+                    continue;
+
+                if (!invByArticulo.TryGetValue(codArt, out var art))
+                    continue;
+
+                var key = MakeKey(art.CodLinea, art.CodClase, codArt);
+                if (!combosInsertados.Add(key))
+                    continue;
+
+                nuevos.Add(new PREDESCUENTOS_MASTER
+                {
+                    CONSECUTIVO = consecutivo,
+                    ORGANIZATION_CODE = organizationCode,
+                    BU_NOMBRE = buNombre,
+                    COD_CLIENTE = codCliente,
+                    COD_LINEA = art.CodLinea,
+                    COD_CLASE = art.CodClase,
+                    COD_ARTICULO = codArt,
+                    MEDIDA = art.Medida,
+
+                    // ✅ fechas solicitud
+                    FECHA_INICIO = fechaInicioMaster,
+                    FECHA_FIN = fechaFinMaster,
+
+                    PORCENTAJE = porcentaje,
+                    COD_USUARIO = usuario,
+                    FECHA = fechaTexto,
+                    LOCAL1 = "S",
+                    REPLICA1 = "S"
+                });
+            }
+
+            // 5.2 Por clase (sin artículo)
+            foreach (var row in invRowsByPairs)
+            {
+                // ✅ NUEVO
+                if (!PuedeGenerarEnMaster(row.CodArticulo))
+                    continue;
+
+                var pairKey = MakePairKey(row.CodLinea, row.CodClase);
+                if (!pairValor.TryGetValue(pairKey, out var porcentaje))
+                    continue;
+
+                var key = MakeKey(row.CodLinea, row.CodClase, row.CodArticulo);
+                if (!combosInsertados.Add(key))
+                    continue;
+
+                nuevos.Add(new PREDESCUENTOS_MASTER
+                {
+                    CONSECUTIVO = consecutivo,
+                    ORGANIZATION_CODE = organizationCode,
+                    BU_NOMBRE = buNombre,
+                    COD_CLIENTE = codCliente,
+                    COD_LINEA = row.CodLinea,
+                    COD_CLASE = row.CodClase,
+                    COD_ARTICULO = row.CodArticulo,
+                    MEDIDA = row.Medida,
+
+                    // ✅ fechas solicitud
+                    FECHA_INICIO = fechaInicioMaster,
+                    FECHA_FIN = fechaFinMaster,
+
+                    PORCENTAJE = porcentaje,
+                    COD_USUARIO = usuario,
+                    FECHA = fechaTexto,
+                    LOCAL1 = "S",
+                    REPLICA1 = "S"
+                });
+            }
+
+            // 5.3 Solo línea
+            foreach (var row in invRowsByLines)
+            {
+                // ✅ NUEVO
+                if (!PuedeGenerarEnMaster(row.CodArticulo))
+                    continue;
+
+                if (!lineValor.TryGetValue(T(row.CodLinea), out var porcentaje))
+                    continue;
+
+                var key = MakeKey(row.CodLinea, row.CodClase, row.CodArticulo);
+                if (!combosInsertados.Add(key))
+                    continue;
+
+                nuevos.Add(new PREDESCUENTOS_MASTER
+                {
+                    CONSECUTIVO = consecutivo,
+                    ORGANIZATION_CODE = organizationCode,
+                    BU_NOMBRE = buNombre,
+                    COD_CLIENTE = codCliente,
+                    COD_LINEA = row.CodLinea,
+                    COD_CLASE = row.CodClase,
+                    COD_ARTICULO = row.CodArticulo,
+                    MEDIDA = row.Medida,
+
+                    // ✅ fechas solicitud
+                    FECHA_INICIO = fechaInicioMaster,
+                    FECHA_FIN = fechaFinMaster,
+
+                    PORCENTAJE = porcentaje,
+                    COD_USUARIO = usuario,
+                    FECHA = fechaTexto,
+                    LOCAL1 = "S",
+                    REPLICA1 = "S"
+                });
+            }
+
+            if (nuevos.Count == 0)
+                return;
+
+            // =========================
+            // 6) Insert masivo (más rápido en EF)
+            // =========================
+            var prevAutoDetect = _OracleContext.ChangeTracker.AutoDetectChangesEnabled;
+            _OracleContext.ChangeTracker.AutoDetectChangesEnabled = false;
+
+            try
+            {
+                _OracleContext.PREDESCUENTOS_MASTERs.AddRange(nuevos);
+                await _OracleContext.SaveChangesAsync();
+            }
+            finally
+            {
+                _OracleContext.ChangeTracker.AutoDetectChangesEnabled = prevAutoDetect;
             }
         }
-
 
 
         // Comparador case-insensitive para (BU, Party)
@@ -4182,16 +3572,14 @@ namespace SolicitudesDescuentos.Controllers
         }
 
         // Rango ORIGINAL por solicitud:
-        // - Fijo/CLIENTE: inicio = FECHA_APLICACION (fallback FECHAINICIO/FECHASOLICITUD),
-        //   fin = FECHASOLICITUD + 5 años.
-        // - Promocional: inicio = FECHAINICIO (fallback FECHASOLICITUD), fin = FECHAFIN.
+        // - Fijo: inicio = FECHA_APLICACION (fallback FECHAINICIO/FECHASOLICITUD), fin vacío
+        // - Promocional: inicio = FECHAINICIO (fallback FECHASOLICITUD), fin = FECHAFIN
         private static (DateTime? Start, DateTime? End) GetRangoOriginal(PREDESCUENTO pre)
         {
             if (string.Equals(pre.TIPODESCUENTO, "Descuento Fijo", StringComparison.OrdinalIgnoreCase))
             {
                 var start = pre.FECHA_APLICACION ?? pre.FECHAINICIO ?? pre.FECHASOLICITUD;
-                var end = pre.FECHASOLICITUD.AddYears(5);
-                return (start, end);
+                return (start, null);
             }
             else
             {
@@ -4212,8 +3600,7 @@ namespace SolicitudesDescuentos.Controllers
             if (esFijo)
             {
                 var start = pre.FECHA_APLICACION ?? pre.FECHAINICIO ?? pre.FECHASOLICITUD;
-                var end = pre.FECHASOLICITUD.AddYears(5);
-                return (start, end);
+                return (start, null);
             }
             else
             {

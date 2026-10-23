@@ -619,7 +619,7 @@ namespace SolicitudesDescuentos.Data
 
                 entity.ToTable("PREDESCLASEORACLE");
 
-                entity.HasIndex(e => new { e.ORGANIZATION_CODE, e.IDCLIENTE, e.CATEGORY_CODE, e.SUBCATEGORY_CODE, e.ITEM_NUMBER }, "PREDESCLASEORACLE_UQ")
+                entity.HasIndex(e => new { e.ORGANIZATION_CODE, e.IDCLIENTE, e.RULE_DISCOUNT_NAME, e.CATEGORY_CODE, e.SUBCATEGORY_CODE, e.ITEM_NUMBER }, "PREDESCLASEORACLE_UQ")
                     .IsUnique();
 
                 entity.Property(e => e.CATEGORY_CODE)
@@ -643,6 +643,10 @@ namespace SolicitudesDescuentos.Data
                     .IsUnicode(false);
 
                 entity.Property(e => e.PORCENTAJE).HasColumnType("NUMBER(5,2)");
+
+                entity.Property(e => e.RULE_DISCOUNT_NAME)
+                    .HasMaxLength(20)
+                    .IsUnicode(false);
 
                 entity.Property(e => e.SUBCATEGORY_CODE)
                     .HasMaxLength(820)

@@ -13,5 +13,6 @@ namespace SolicitudesDescuentos.ModelsOracle
         public decimal PORCENTAJE { get; set; }
         public DateTime? FECHA_INICIO { get; set; }
         public DateTime? FECHA_FIN { get; set; }
+        public string? RULE_DISCOUNT_NAME { get; set; }
     }
 }
