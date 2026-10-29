@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using Microsoft.Extensions.Options;
 
 namespace SolicitudesDescuentos.Services.Tiendas;
@@ -7,117 +7,98 @@ public sealed class TiendasDescuentosHostedService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<TiendasDescuentosHostedService> _logger;
-    private readonly TiendasDescuentosWorkerOptions _options;
+    private readonly IOptionsMonitor<TiendasDescuentosWorkerOptions> _options;
 
     public TiendasDescuentosHostedService(
         IServiceScopeFactory scopeFactory,
         ILogger<TiendasDescuentosHostedService> logger,
-        IOptions<TiendasDescuentosWorkerOptions> options)
+        IOptionsMonitor<TiendasDescuentosWorkerOptions> options)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
-        _options = options.Value;
+        _options = options;
     }
 
-    protected override async Task ExecuteAsync(
-        CancellationToken stoppingToken)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!_options.Habilitado)
-        {
-            _logger.LogInformation(
-                "[JOB TIENDAS] Worker deshabilitado.");
-
-            return;
-        }
-
-        var intervalHours =
-            _options.IntervalHours > 0
-                ? _options.IntervalHours
-                : 8;
-
-        var intervalo =
-            TimeSpan.FromHours(intervalHours);
-
-        _logger.LogInformation(
-            "[JOB TIENDAS] Worker iniciado. Intervalo={Intervalo}.",
-            intervalo);
+        _logger.LogInformation("[JOB TIENDAS] Worker iniciado.");
+        bool? estadoAnterior = null;
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            var reloj = Stopwatch.StartNew();
+            var configuracion = _options.CurrentValue;
+            bool habilitado = configuracion.Habilitado;
 
-            try
+            if (estadoAnterior != habilitado)
             {
-                using var jobLock =
-                    CrossProcessJobLock.TryAcquire(
-                        "TiendasDescuentosHostedService");
+                _logger.LogInformation(
+                    habilitado
+                        ? "[JOB TIENDAS] Habilitado en appsettings.json."
+                        : "[JOB TIENDAS] Deshabilitado en appsettings.json: no se sincronizan descuentos con tiendas.");
+                estadoAnterior = habilitado;
+            }
 
-                if (!jobLock.Acquired)
+            if (habilitado)
+            {
+                var reloj = Stopwatch.StartNew();
+
+                try
                 {
-                    _logger.LogInformation(
-                        "[JOB TIENDAS] Ciclo omitido: otra instancia ya está ejecutándose.");
-                }
-                else
-                {
-                    _logger.LogInformation(
-                        "[JOB TIENDAS] ===== INICIO CICLO =====");
-
-                    using var scope =
-                        _scopeFactory.CreateScope();
-
-                    var service =
-                        scope.ServiceProvider
-                            .GetRequiredService<ITiendasDescuentosService>();
-
-                    var resultado =
-                        await service.SincronizarAsync(
-                            stoppingToken);
-
-                    reloj.Stop();
-
-                    if (!resultado.Ok)
+                    using var jobLock = CrossProcessJobLock.TryAcquire("TiendasDescuentosHostedService");
+                    if (!jobLock.Acquired)
                     {
-                        _logger.LogWarning(
-                            "[JOB TIENDAS] Finalizó con advertencia: {Mensaje}",
-                            resultado.Mensaje);
+                        _logger.LogInformation(
+                            "[JOB TIENDAS] Ciclo omitido: otra instancia ya está ejecutándose.");
                     }
                     else
                     {
-                        _logger.LogInformation(
-                            "[JOB TIENDAS] ===== FIN CICLO ===== Duración={DuracionMs} ms.",
-                            reloj.ElapsedMilliseconds);
+                        _logger.LogInformation("[JOB TIENDAS] ===== INICIO CICLO =====");
+
+                        using var scope = _scopeFactory.CreateScope();
+                        var service = scope.ServiceProvider.GetRequiredService<ITiendasDescuentosService>();
+                        var resultado = await service.SincronizarAsync(stoppingToken);
+
+                        reloj.Stop();
+                        if (!resultado.Ok)
+                        {
+                            _logger.LogWarning(
+                                "[JOB TIENDAS] Finalizó con advertencia: {Mensaje}",
+                                resultado.Mensaje);
+                        }
+                        else
+                        {
+                            _logger.LogInformation(
+                                "[JOB TIENDAS] ===== FIN CICLO ===== Duración={DuracionMs} ms.",
+                                reloj.ElapsedMilliseconds);
+                        }
                     }
                 }
-            }
-            catch (OperationCanceledException)
-                when (stoppingToken.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (Exception ex)
-            {
-                reloj.Stop();
-
-                _logger.LogError(
-                    ex,
-                    "[JOB TIENDAS] ERROR después de {DuracionMs} ms.",
-                    reloj.ElapsedMilliseconds);
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    reloj.Stop();
+                    _logger.LogError(ex,
+                        "[JOB TIENDAS] ERROR después de {DuracionMs} ms.",
+                        reloj.ElapsedMilliseconds);
+                }
             }
 
             try
             {
-                await Task.Delay(
-                    intervalo,
-                    stoppingToken);
+                var horas = _options.CurrentValue.IntervalHours > 0
+                    ? _options.CurrentValue.IntervalHours
+                    : 8;
+                await Task.Delay(TimeSpan.FromHours(horas), stoppingToken);
             }
-            catch (OperationCanceledException)
-                when (stoppingToken.IsCancellationRequested)
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
                 break;
             }
         }
 
-        _logger.LogInformation(
-            "[JOB TIENDAS] Worker detenido.");
+        _logger.LogInformation("[JOB TIENDAS] Worker detenido.");
     }
 }

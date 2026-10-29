@@ -9,53 +9,70 @@ public class PredescuentosHostedService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<PredescuentosHostedService> _logger;
-    private readonly DescuentosWorkerOptions _options;
+    private readonly IOptionsMonitor<DescuentosWorkerOptions> _options;
     private const int CommandTimeoutSeconds = 900;
 
     public PredescuentosHostedService(
         IServiceScopeFactory scopeFactory,
         ILogger<PredescuentosHostedService> logger,
-        IOptions<DescuentosWorkerOptions> options)
+        IOptionsMonitor<DescuentosWorkerOptions> options)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
-        _options = options.Value;
+        _options = options;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("PredescuentosHostedService iniciado.");
+        bool? estadoAnterior = null;
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            try
+            // IOptionsMonitor lee el valor actualizado de appsettings.json.
+            var configuracion = _options.CurrentValue;
+            bool habilitado = configuracion.Habilitado;
+
+            if (estadoAnterior != habilitado)
             {
-                // Mantener el bloqueo también durante la llamada al procedimiento.
-                using var jobLock = CrossProcessJobLock.TryAcquire("PredescuentosHostedService");
-                if (jobLock.Acquired)
-                {
-                    await EjecutarCicloAsync(stoppingToken);
-                }
-                else
-                {
-                    _logger.LogInformation(
-                        "[JOB DESCUENTOS] Ciclo omitido: otra instancia está en ejecución.");
-                }
+                _logger.LogInformation(
+                    habilitado
+                        ? "[JOB DESCUENTOS] Habilitado: ZIP/SFTP y GENERAR_PREDESCLASEORACLE."
+                        : "[JOB DESCUENTOS] Deshabilitado en appsettings.json: no se procesan descuentos ni se ejecuta el procedimiento.");
+                estadoAnterior = habilitado;
             }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+
+            if (habilitado)
             {
-                break;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "[JOB DESCUENTOS] Error inesperado.");
+                try
+                {
+                    // El bloqueo cubre tanto la subida como la reconstrucción en Oracle.
+                    using var jobLock = CrossProcessJobLock.TryAcquire("PredescuentosHostedService");
+                    if (jobLock.Acquired)
+                    {
+                        await EjecutarCicloAsync(stoppingToken);
+                    }
+                    else
+                    {
+                        _logger.LogInformation(
+                            "[JOB DESCUENTOS] Ciclo omitido: otra instancia está en ejecución.");
+                    }
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "[JOB DESCUENTOS] Error inesperado.");
+                }
             }
 
             try
             {
-                // Se respeta appsettings.json, que NO se modifica.
+                // Los segundos se mantienen tal como están configurados.
                 await Task.Delay(
-                    TimeSpan.FromSeconds(Math.Max(1, _options.IntervalSeconds)),
+                    TimeSpan.FromSeconds(Math.Max(1, _options.CurrentValue.IntervalSeconds)),
                     stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -87,7 +104,8 @@ public class PredescuentosHostedService : BackgroundService
 
         stoppingToken.ThrowIfCancellationRequested();
 
-        // Se ejecuta también cuando no hubo solicitudes ni archivos.
+        // Siempre ejecutar el procedimiento cuando este job está HABILITADO,
+        // aunque no haya ZIP pendientes o falle SFTP.
         try
         {
             using var scope = _scopeFactory.CreateScope();

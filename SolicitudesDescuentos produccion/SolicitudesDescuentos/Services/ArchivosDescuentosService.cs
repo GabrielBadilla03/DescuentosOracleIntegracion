@@ -1557,112 +1557,15 @@ public class ArchivosDescuentosService : IArchivosDescuentosService
             }
         }
 
-        var anyItemInOtherProcessedRequest = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        // 2. Luego valida si ya se procesó en otra solicitud APROBADA y GENERADA del mismo tipo.
-        // No importa si la fecha de solicitud es anterior, igual o posterior.
-        // Si la actual es PROMOCION, solo busca promociones.
-        // Si la actual es CLIENTE/FIJO, solo busca cliente/fijo.
-        if (!esReversa)
-        {
-            foreach (var buRaw in buAll)
-            {
-                var bu = N(buRaw);
-
-                foreach (var chunkRaw in ChunkList(itemsAll.Select(N), 700))
-                {
-                    var chunk = chunkRaw
-                        .Where(x => !string.IsNullOrWhiteSpace(x))
-                        .Distinct(StringComparer.OrdinalIgnoreCase)
-                        .ToList();
-
-                    if (chunk.Count == 0)
-                        continue;
-
-                    /*
-                     * Las solicitudes ya procesadas también se comparan contra
-                     * PREDESCUENTOS_MASTER. Así se contemplan los artículos que
-                     * originalmente provinieron de una clase o una línea completa;
-                     * PREDETDESCUENTO solo contiene COD_ARTICULO en los detalles
-                     * explícitos y no representa el conjunto final resuelto.
-                     */
-                    var masterProcesadoQuery =
-                        from h in _OracleContext.PREDESCUENTOs.AsNoTracking()
-                        join m in _OracleContext.PREDESCUENTOS_MASTERs.AsNoTracking()
-                            on new
-                            {
-                                BU = h.BU_NOMBRE,
-                                Cliente = h.COD_CLIENTE,
-                                Consecutivo = h.CONSECUTIVO
-                            }
-                            equals new
-                            {
-                                BU = m.BU_NOMBRE,
-                                Cliente = m.COD_CLIENTE,
-                                Consecutivo = m.CONSECUTIVO
-                            }
-                        where h.BU_NOMBRE != null
-                           && h.TIPODESCUENTO != null
-                           && h.GENERADO != null
-                           && h.ESTADO != null
-                           && h.CONSECUTIVO != null
-                           && m.COD_ARTICULO != null
-                           && h.BU_NOMBRE.Trim().ToUpper() == bu
-                           && h.GENERADO.Trim().ToUpper() == "S"
-                           && h.ESTADO.Trim().ToUpper() == "APROBADO"
-                           && !consecSet.Contains(h.CONSECUTIVO)
-                           && chunk.Contains(m.COD_ARTICULO.Trim().ToUpper())
-                        select new
-                        {
-                            h.BU_NOMBRE,
-                            h.TIPODESCUENTO,
-                            m.COD_ARTICULO
-                        };
-
-                    if (tipo == "promocional")
-                    {
-                        // Si la solicitud actual es PROMOCION, solo valida promociones aprobadas/generadas.
-                        masterProcesadoQuery = masterProcesadoQuery.Where(x =>
-                            x.TIPODESCUENTO.Trim().ToUpper().Contains("PROMO"));
-                    }
-                    else
-                    {
-                        // Si la solicitud actual es CLIENTE/FIJO, solo valida cliente/fijo aprobadas/generadas.
-                        masterProcesadoQuery = masterProcesadoQuery.Where(x =>
-                            x.TIPODESCUENTO.Trim().ToUpper().Contains("CLIENT") ||
-                            x.TIPODESCUENTO.Trim().ToUpper().Contains("FIJO") ||
-                            x.TIPODESCUENTO.Trim().ToUpper().Contains("ACTIVO"));
-                    }
-
-                    var rowsMasterProcesado = await masterProcesadoQuery
-                        .Distinct()
-                        .ToListAsync(ct);
-
-                    foreach (var r in rowsMasterProcesado)
-                    {
-                        var item = N(r.COD_ARTICULO);
-
-                        if (item != "")
-                            anyItemInOtherProcessedRequest.Add(KeyBUItemBucket(bu, item, bucketName));
-                    }
-                }
-            }
-        }
+        // PricingTerms y MatrixDimensions solo validan contra XXORA_DISCOUNT_LIST.
+        // Una solicitud anterior con GENERADO='S' no confirma la importacion en Fusion.
 
         string MdAction(string bu, string item)
         {
             var key = KeyBUItemBucket(bu, item, bucketName);
 
-            // 1. Primero valida XXORA_DISCOUNT_LIST por tipo
-            if (anyItemInXxora.Contains(key))
-                return ACTION_NOOP;
-
-            // 2. Luego valida si ya se procesó en otra solicitud anterior del mismo tipo
-            if (anyItemInOtherProcessedRequest.Contains(key))
-                return ACTION_NOOP;
-
-            // 3. Si no existe en ninguno, CREATE
-            return ACTION_CREATE;
+            // Determinar operacion solo mediante XXORA_DISCOUNT_LIST por BU, item y tipo.
+            return anyItemInXxora.Contains(key) ? ACTION_NOOP : ACTION_CREATE;
         }
 
 
@@ -1678,16 +1581,8 @@ public class ArchivosDescuentosService : IArchivosDescuentosService
 
             var key = KeyBUItemBucket(bu, item, bucketName);
 
-            // 1. Primero valida XXORA_DISCOUNT_LIST por tipo
-            if (anyItemInXxora.Contains(key))
-                return ACTION_NOOP;
-
-            // 2. Luego valida si ya se procesó en otra solicitud aprobada/generada del mismo tipo
-            if (anyItemInOtherProcessedRequest.Contains(key))
-                return ACTION_NOOP;
-
-            // 3. Si no existe en ninguno, CREATE
-            return ACTION_CREATE;
+            // Determinar operacion solo mediante XXORA_DISCOUNT_LIST por BU, item y tipo.
+            return anyItemInXxora.Contains(key) ? ACTION_NOOP : ACTION_CREATE;
         }
 
         string MatrixDimensionsAction(string bu, string item)
