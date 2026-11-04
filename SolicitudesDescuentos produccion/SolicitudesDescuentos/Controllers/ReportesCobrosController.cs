@@ -541,10 +541,76 @@ namespace SolicitudesDescuentos.Controllers
             var vm = new ResumenCobrosAgentePageVm
             {
                 Filtro = filtro,
-                GruposAgente = await ObtenerGruposAgenteAsync(filtro.BuNombre)
+                GruposAgente = await ObtenerGruposAgenteAsync(filtro.BuNombre),
+                ClientesSinPorcentajeVendedor =
+                    await ObtenerClientesSinPorcentajeVendedorAsync(filtro.BuNombre)
             };
 
             return View(vm);
+        }
+
+        /// <summary>
+        /// Advierte al entrar a Comisiones sobre los clientes SHIP_TO que no
+        /// tienen porcentaje de vendedor configurado para esta unidad de negocio.
+        /// Un mismo cliente/vendedor puede aparecer en varios sitios de Oracle;
+        /// solo se advierte si ninguno de esos registros tiene porcentaje.
+        /// Así se evita mostrar duplicados y falsos positivos cuando ya
+        /// existe una configuración válida para la misma relación.
+        /// </summary>
+        private async Task<List<ClienteSinPorcentajeVendedorVm>>
+            ObtenerClientesSinPorcentajeVendedorAsync(string? buNombre)
+        {
+            var bu = string.IsNullOrWhiteSpace(buNombre)
+                ? "LANCO_CR"
+                : Normalizar(buNombre);
+
+            // Proyectar únicamente los campos necesarios, sin cargar el
+            // conjunto completo de columnas de XXORA_CUSTOMER_MASTER.
+            var registros = await _context.XXORA_CUSTOMER_MASTERs
+                .AsNoTracking()
+                .Where(x =>
+                    x.BU_NOMBRE != null &&
+                    x.BU_NOMBRE.Trim().ToUpper() == bu &&
+                    x.SITIO != null &&
+                    x.SITIO.Trim().ToUpper() == "SHIP_TO" &&
+                    x.IDCLIENTE != null &&
+                    x.IDCLIENTE.Trim() != "")
+                .Select(x => new
+                {
+                    x.IDCLIENTE,
+                    x.NOMBRE_CLIENTE,
+                    x.PARTY_NAME,
+                    x.IDVENDEDOR,
+                    x.VENDEDOR,
+                    x.PORCIENTO_VENDEDOR
+                })
+                .ToListAsync();
+
+            return registros
+                .Select(x => new
+                {
+                    Cliente = Normalizar(x.IDCLIENTE),
+                    Nombre = (x.NOMBRE_CLIENTE ?? x.PARTY_NAME ?? "").Trim(),
+                    Vendedor = Normalizar(
+                        string.IsNullOrWhiteSpace(x.IDVENDEDOR)
+                            ? x.VENDEDOR
+                            : x.IDVENDEDOR),
+                    x.PORCIENTO_VENDEDOR
+                })
+                .GroupBy(x => new { x.Cliente, x.Vendedor })
+                .Where(grupo => grupo.All(x =>
+                    string.IsNullOrWhiteSpace(x.PORCIENTO_VENDEDOR)))
+                .Select(grupo => new ClienteSinPorcentajeVendedorVm
+                {
+                    IdCliente = grupo.Key.Cliente,
+                    NombreCliente = grupo
+                        .Select(x => x.Nombre)
+                        .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)) ?? "",
+                    Vendedor = grupo.Key.Vendedor
+                })
+                .OrderBy(x => x.IdCliente, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.Vendedor, StringComparer.OrdinalIgnoreCase)
+                .ToList();
         }
 
         private async Task<List<string>> ObtenerGruposAgenteAsync(string? buNombre)
