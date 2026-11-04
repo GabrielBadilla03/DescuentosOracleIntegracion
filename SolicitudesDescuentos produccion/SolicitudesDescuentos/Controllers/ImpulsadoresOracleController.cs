@@ -192,6 +192,107 @@ namespace SolicitudesDescuentos.Controllers
             return Json(resultado);
         }
 
+        // Resolución exacta del código digitado, sin límites de resultados
+        // de los buscadores (que sí ofrecen coincidencias parciales).
+        [HttpGet]
+        public async Task<IActionResult> ResolverCliente(string? codigo)
+        {
+            var id = Normalizar(codigo);
+
+            if (string.IsNullOrWhiteSpace(id))
+                return BadRequest(new { mensaje = "Digite un código de cliente." });
+
+            var cliente = await _oracleContext.XXORA_CUSTOMER_MASTERs
+                .AsNoTracking()
+                .Where(x =>
+                    x.BU_NOMBRE == BuFija &&
+                    x.SITIO == SitioCliente &&
+                    x.IDCLIENTE != null &&
+                    x.IDCLIENTE.Trim().ToUpper() == id)
+                .Select(x => new
+                {
+                    codigo = x.IDCLIENTE,
+                    nombre = x.NOMBRE_CLIENTE
+                })
+                .FirstOrDefaultAsync();
+
+            if (cliente == null)
+                return NotFound(new { mensaje = "El cliente SHIP_TO no existe." });
+
+            return Json(new
+            {
+                codigo = (cliente.codigo ?? "").Trim(),
+                nombre = (cliente.nombre ?? "").Trim()
+            });
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ResolverEmpleado(string? codigo)
+        {
+            var id = Normalizar(codigo);
+
+            if (string.IsNullOrWhiteSpace(id))
+                return BadRequest(new { mensaje = "Digite la cédula del empleado." });
+
+            var empleado = await _lancoContext.PLAEMPLEADOs
+                .AsNoTracking()
+                .Where(x =>
+                    x.CIA == CiaLanco &&
+                    x.EMPLEADO != null &&
+                    x.EMPLEADO.Trim().ToUpper() == id)
+                .Select(x => new
+                {
+                    codigo = x.EMPLEADO,
+                    nombre = x.NOMBRE
+                })
+                .FirstOrDefaultAsync();
+
+            if (empleado == null)
+                return NotFound(new { mensaje = "La cédula no existe en PLAEMPLEADO (001)." });
+
+            return Json(new
+            {
+                codigo = (empleado.codigo ?? "").Trim(),
+                nombre = (empleado.nombre ?? "").Trim()
+            });
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ResolverAgente(string? codigo)
+        {
+            var id = Normalizar(codigo);
+
+            if (string.IsNullOrWhiteSpace(id))
+                return BadRequest(new { mensaje = "Digite un código de agente." });
+
+            var agente = await _oracleContext.GEN_VENDEDORs
+                .AsNoTracking()
+                .Where(x =>
+                    x.BU_NOMBRE == BuFija &&
+                    ((x.IDVENDEDOR != null &&
+                      x.IDVENDEDOR.Trim().ToUpper() == id) ||
+                     (x.REGISTRY_ID != null &&
+                      x.REGISTRY_ID.Trim().ToUpper() == id)))
+                .OrderBy(x => x.IDVENDEDOR)
+                .Select(x => new
+                {
+                    codigo = x.IDVENDEDOR,
+                    registro = x.REGISTRY_ID,
+                    nombre = x.NOMBRE_VENDEDOR
+                })
+                .FirstOrDefaultAsync();
+
+            if (agente == null)
+                return NotFound(new { mensaje = "El código de agente no existe." });
+
+            return Json(new
+            {
+                // Preferir el ID de vendedor que emplea el filtro por agente.
+                codigo = (agente.codigo ?? agente.registro ?? "").Trim(),
+                nombre = (agente.nombre ?? "").Trim()
+            });
+        }
+
         // Este formulario se usa únicamente para agregar registros nuevos.
         // La edición de registros existentes se realiza en línea con
         // ActualizarPorcentaje, sin recargar la página.
