@@ -7,6 +7,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SolicitudesDescuentos", "So
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TomaFisica", "TomaFisica\TomaFisica.csproj", "{4AB4C11F-ADAB-471F-A17A-1B0218E63165}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DescuentosOracle.Core", "DescuentosOracle.Core\DescuentosOracle.Core.csproj", "{DE85AE17-F323-4AE8-A65D-DCABE60B8715}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DescuentosOracleWorker", "DescuentosOracleWorker\DescuentosOracleWorker.csproj", "{11391683-2827-4EAF-A196-A364226FE59C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +25,14 @@ Global
 		{4AB4C11F-ADAB-471F-A17A-1B0218E63165}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4AB4C11F-ADAB-471F-A17A-1B0218E63165}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4AB4C11F-ADAB-471F-A17A-1B0218E63165}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DE85AE17-F323-4AE8-A65D-DCABE60B8715}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DE85AE17-F323-4AE8-A65D-DCABE60B8715}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DE85AE17-F323-4AE8-A65D-DCABE60B8715}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DE85AE17-F323-4AE8-A65D-DCABE60B8715}.Release|Any CPU.Build.0 = Release|Any CPU
+		{11391683-2827-4EAF-A196-A364226FE59C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{11391683-2827-4EAF-A196-A364226FE59C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{11391683-2827-4EAF-A196-A364226FE59C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{11391683-2827-4EAF-A196-A364226FE59C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

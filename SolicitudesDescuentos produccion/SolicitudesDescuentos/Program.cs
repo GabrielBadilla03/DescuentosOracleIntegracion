@@ -3,9 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using SolicitudesDescuentos.Data;
-using SolicitudesDescuentos.ModelsOracle;
 using SolicitudesDescuentos.Services;
-using SolicitudesDescuentos.Services.Tiendas;
 using System.IO;
 using QuestPDF.Infrastructure;
 
@@ -13,32 +11,12 @@ var builder = WebApplication.CreateBuilder(args);
 
 var contentRoot = builder.Environment.ContentRootPath;
 
-string ResolverRutaProyecto(string? ruta)
-{
-    if (string.IsNullOrWhiteSpace(ruta))
-        return "";
-
-    ruta = ruta.Replace("{ContentRoot}", contentRoot);
-
-    if (Path.IsPathRooted(ruta))
-        return Path.GetFullPath(ruta);
-
-    return Path.GetFullPath(Path.Combine(contentRoot, ruta));
-}
-
 // Resolver wallet Oracle
 var oracleConnection = builder.Configuration.GetConnectionString("Oracle");
 if (!string.IsNullOrWhiteSpace(oracleConnection))
 {
     oracleConnection = oracleConnection.Replace("{ContentRoot}", contentRoot);
     builder.Configuration["ConnectionStrings:Oracle"] = oracleConnection;
-}
-
-// Resolver llave privada SFTP
-var privateKeyPath = builder.Configuration["DescuentosSftp:PrivateKeyPath"];
-if (!string.IsNullOrWhiteSpace(privateKeyPath))
-{
-    builder.Configuration["DescuentosSftp:PrivateKeyPath"] = ResolverRutaProyecto(privateKeyPath);
 }
 
 // Las acciones de ReportesCobros y SeguimientoFacturas requieren PRICE_EDITOR,
@@ -61,23 +39,9 @@ builder.Services.AddDbContext<OracleContext>(options =>
 builder.Services.AddDbContext<LancoTiendasContext>(options =>
     options.UseOracle(builder.Configuration.GetConnectionString("LANCOTIENDAS")));
 
-builder.Services.Configure<TiendasDescuentosWorkerOptions>(
-    builder.Configuration.GetSection("TiendasDescuentosWorker"));
-builder.Services.AddScoped<ITiendasDescuentosService, TiendasDescuentosService>();
-builder.Services.AddHostedService<TiendasDescuentosHostedService>();
-
-builder.Services.Configure<DescuentosWorkerOptions>(
-    builder.Configuration.GetSection("DescuentosWorker"));
-builder.Services.Configure<DescuentosSftpOptions>(
-    builder.Configuration.GetSection("DescuentosSftp"));
-
+// La web conserva la generación manual de archivos.
+// Todos los procesos automáticos se hospedan solamente en DescuentosOracleWorker.
 builder.Services.AddScoped<IArchivosDescuentosService, ArchivosDescuentosService>();
-builder.Services.AddScoped<IDescuentosBatchService, DescuentosBatchService>();
-builder.Services.AddHostedService<PredescuentosHostedService>();
-
-builder.Services.AddSingleton<ISftpFingerprintProvider, SftpFingerprintProvider>();
-builder.Services.AddHostedService<SftpFingerprintStartupService>();
-
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {

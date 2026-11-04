@@ -43,4 +43,7 @@
 		<PackageReference Include="WinSCP" Version="6.5.6" />
 	</ItemGroup>
 
+	<ItemGroup>
+		<ProjectReference Include="..\DescuentosOracle.Core\DescuentosOracle.Core.csproj" />
+	</ItemGroup>
 </Project>
