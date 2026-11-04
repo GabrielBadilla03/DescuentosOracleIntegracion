@@ -2970,26 +2970,26 @@ namespace SolicitudesDescuentos.Controllers
             var row = 1;
 
             ws.Cell(row, 1).Value = "Cuentas Por Cobrar";
-            ws.Cell(row, 4).Value =
+            ws.Cell(row, 3).Value =
                 "LANCO & HARRIS MFG. CORP. SRL";
             ws.Range(row, 3, row, 5).Merge();
             ws.Cell(row, 8).Value = "Pagina 1";
             row++;
 
-            ws.Cell(row, 4).Value = "PRINCIPAL";
+            ws.Cell(row, 3).Value = "PRINCIPAL";
             ws.Range(row, 3, row, 5).Merge();
             ws.Cell(row, 8).Value =
                 DateTime.Now.ToString("dd/MM/yyyy HH:mm");
             row++;
 
-            ws.Cell(row, 4).Value =
+            ws.Cell(row, 3).Value =
                 "Cobros Diarios por Agente";
             ws.Range(row, 3, row, 5).Merge();
             ws.Range(row, 3, row, 5)
                 .Style.Font.Bold = true;
             row++;
 
-            ws.Cell(row, 4).Value =
+            ws.Cell(row, 3).Value =
                 $"Desde: {filtro.FechaDesde:dd/MM/yyyy}, " +
                 $"Hasta: {filtro.FechaHasta:dd/MM/yyyy}.";
             ws.Range(row, 3, row, 5).Merge();
