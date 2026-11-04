@@ -25,7 +25,21 @@
     string porcentajeTexto = ViewBag.PorcentajeTexto as string ?? "";
 }
 
-<div class="container-fluid py-3">
+<style>
+.impulsadores-page{max-width:1440px;margin-inline:auto}
+.impulsadores-page .card{border:1px solid #dfe6ed;border-radius:12px;box-shadow:0 4px 15px rgba(15,23,42,.055)!important;overflow:hidden}
+.impulsadores-page .card-header{background:#f7f9fc;padding:16px 20px}
+.impulsadores-page .card-body{padding:20px}
+.impulsadores-page .form-label{font-weight:600}
+.impulsadores-page .imp-nombre{background:#f8fafc;color:#475569}
+.impulsadores-page .imp-info{font-size:.8rem;color:#64748b;margin-top:4px}
+.impulsadores-page .imp-status{font-size:.78rem;min-height:16px;margin-top:3px}
+.impulsadores-page .imp-status:empty{display:none}
+.impulsadores-page .js-resolver-codigo{min-width:0;font-variant-numeric:tabular-nums}
+.impulsadores-page #tablaImpulsadores th{white-space:nowrap}
+@media(max-width:767px){.impulsadores-page .card-body{padding:13px}}
+</style>
+<div class="container-fluid py-3 impulsadores-page">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <div>
             <h2 class="mb-1">Administrar impulsadores</h2>
@@ -71,7 +85,7 @@
 
     <div class="card shadow-sm mb-4">
         <div class="card-header">
-            <strong>Agregar impulsador</strong>
+            <strong>Agregar impulsador</strong><div class="imp-info">Escribí el cliente y la cédula del empleado; el nombre aparecerá al salir del campo.</div>
         </div>
 
         <div class="card-body">
@@ -84,14 +98,14 @@
                      class="alert alert-danger"></div>
 
                 <div class="row g-3 align-items-end">
-                    <div class="col-12 col-lg-5">
+                    <div class="col-12 col-md-6 col-xl-5">
                         <label class="form-label">Cliente SHIP_TO</label>
 
                         <div class="input-group">
                             <input asp-for="Edicion.Cliente"
                                    id="Cliente"
-                                   class="form-control"
-                                   readonly
+                                   class="form-control js-resolver-codigo" data-resolver-tipo="cliente" data-nombre-target="NombreCliente" autocomplete="off"
+                                  
                                    placeholder="Seleccione el cliente" />
 
                             <button type="button"
@@ -106,19 +120,20 @@
 
                         <input asp-for="Edicion.NombreCliente"
                                id="NombreCliente"
-                               class="form-control form-control-sm mt-1"
+                               class="form-control form-control-sm mt-1 imp-nombre"
                                readonly
                                placeholder="Nombre del cliente" />
+                    <div class="imp-status" data-status-for="Cliente" aria-live="polite"></div>
                     </div>
 
-                    <div class="col-12 col-lg-5">
-                        <label class="form-label">Empleado</label>
+                    <div class="col-12 col-md-6 col-xl-5">
+                        <label class="form-label">Cédula / código de empleado</label>
 
                         <div class="input-group">
                             <input asp-for="Edicion.Empleado"
                                    id="Empleado"
-                                   class="form-control"
-                                   readonly
+                                   class="form-control js-resolver-codigo" data-resolver-tipo="empleado" data-nombre-target="NombreEmpleado" autocomplete="off"
+                                  
                                    placeholder="Seleccione el empleado" />
 
                             <button type="button"
@@ -133,12 +148,13 @@
 
                         <input asp-for="Edicion.NombreEmpleado"
                                id="NombreEmpleado"
-                               class="form-control form-control-sm mt-1"
+                               class="form-control form-control-sm mt-1 imp-nombre"
                                readonly
                                placeholder="Nombre del empleado" />
+                    <div class="imp-status" data-status-for="Empleado" aria-live="polite"></div>
                     </div>
 
-                    <div class="col-12 col-sm-6 col-lg-2">
+                    <div class="col-12 col-md-4 col-xl-2">
                         <label for="Porcentaje" class="form-label">Porcentaje</label>
 
                         <div class="input-group">
@@ -166,12 +182,14 @@
 
     <div class="card shadow-sm">
         <div class="card-header">
+            <div class="mb-3"><strong>Filtros de consulta</strong><div class="imp-info">Podés digitar los códigos directamente o usar Buscar.</div></div>
             <form asp-action="Index"
                   asp-controller="ImpulsadoresOracle"
                   method="get"
+                   id="formFiltrosImpulsadores"
                   class="row g-3 align-items-end">
 
-                <div class="col-12 col-md-6 col-xl-3">
+                <div class="col-12 col-md-6 col-xl-4">
                     <label for="clienteDesde" class="form-label">Cliente desde</label>
 
                     <div class="input-group">
@@ -179,8 +197,8 @@
                                id="clienteDesde"
                                name="clienteDesde"
                                value="@clienteDesde"
-                               class="form-control"
-                               readonly
+                               class="form-control js-resolver-codigo" data-resolver-tipo="cliente" data-nombre-target="clienteDesdeNombre" autocomplete="off"
+                              
                                placeholder="Seleccione el cliente inicial" />
 
                         <button type="button"
@@ -204,13 +222,14 @@
                     <input type="text"
                            id="clienteDesdeNombre"
                            value="@clienteDesdeNombre"
-                           class="form-control form-control-sm mt-1"
+                           class="form-control form-control-sm mt-1 imp-nombre"
                            readonly
                            tabindex="-1"
                            placeholder="Nombre del cliente seleccionado" />
+                    <div class="imp-status" data-status-for="clienteDesde" aria-live="polite"></div>
                 </div>
 
-                <div class="col-12 col-md-6 col-xl-3">
+                <div class="col-12 col-md-6 col-xl-4">
                     <label for="clienteHasta" class="form-label">Cliente hasta</label>
 
                     <div class="input-group">
@@ -218,8 +237,8 @@
                                id="clienteHasta"
                                name="clienteHasta"
                                value="@clienteHasta"
-                               class="form-control"
-                               readonly
+                               class="form-control js-resolver-codigo" data-resolver-tipo="cliente" data-nombre-target="clienteHastaNombre" autocomplete="off"
+                              
                                placeholder="Seleccione el cliente final" />
 
                         <button type="button"
@@ -243,13 +262,14 @@
                     <input type="text"
                            id="clienteHastaNombre"
                            value="@clienteHastaNombre"
-                           class="form-control form-control-sm mt-1"
+                           class="form-control form-control-sm mt-1 imp-nombre"
                            readonly
                            tabindex="-1"
                            placeholder="Nombre del cliente seleccionado" />
+                    <div class="imp-status" data-status-for="clienteHasta" aria-live="polite"></div>
                 </div>
 
-                <div class="col-12 col-md-6 col-xl-3">
+                <div class="col-12 col-md-6 col-xl-4">
                     <label for="empleadoDesde" class="form-label">Empleado desde</label>
 
                     <div class="input-group">
@@ -257,8 +277,8 @@
                                id="empleadoDesde"
                                name="empleadoDesde"
                                value="@empleadoDesde"
-                               class="form-control"
-                               readonly
+                               class="form-control js-resolver-codigo" data-resolver-tipo="empleado" data-nombre-target="empleadoDesdeNombre" autocomplete="off"
+                              
                                placeholder="Seleccione el empleado inicial" />
 
                         <button type="button"
@@ -282,13 +302,14 @@
                     <input type="text"
                            id="empleadoDesdeNombre"
                            value="@empleadoDesdeNombre"
-                           class="form-control form-control-sm mt-1"
+                           class="form-control form-control-sm mt-1 imp-nombre"
                            readonly
                            tabindex="-1"
                            placeholder="Nombre del empleado seleccionado" />
+                    <div class="imp-status" data-status-for="empleadoDesde" aria-live="polite"></div>
                 </div>
 
-                <div class="col-12 col-md-6 col-xl-3">
+                <div class="col-12 col-md-6 col-xl-4">
                     <label for="empleadoHasta" class="form-label">Empleado hasta</label>
 
                     <div class="input-group">
@@ -296,8 +317,8 @@
                                id="empleadoHasta"
                                name="empleadoHasta"
                                value="@empleadoHasta"
-                               class="form-control"
-                               readonly
+                               class="form-control js-resolver-codigo" data-resolver-tipo="empleado" data-nombre-target="empleadoHastaNombre" autocomplete="off"
+                              
                                placeholder="Seleccione el empleado final" />
 
                         <button type="button"
@@ -321,13 +342,14 @@
                     <input type="text"
                            id="empleadoHastaNombre"
                            value="@empleadoHastaNombre"
-                           class="form-control form-control-sm mt-1"
+                           class="form-control form-control-sm mt-1 imp-nombre"
                            readonly
                            tabindex="-1"
                            placeholder="Nombre del empleado seleccionado" />
+                    <div class="imp-status" data-status-for="empleadoHasta" aria-live="polite"></div>
                 </div>
 
-                <div class="col-12 col-md-6 col-xl-3">
+                <div class="col-12 col-md-6 col-xl-4">
                     <label for="agenteVenta" class="form-label">Agente de venta</label>
 
                     <div class="input-group">
@@ -335,8 +357,8 @@
                                id="agenteVenta"
                                name="agenteVenta"
                                value="@agenteVenta"
-                               class="form-control"
-                               readonly
+                               class="form-control js-resolver-codigo" data-resolver-tipo="agente" data-nombre-target="agenteVentaNombre" autocomplete="off"
+                              
                                placeholder="Seleccione un agente" />
 
                         <button type="button"
@@ -359,10 +381,11 @@
                     <input type="text"
                            id="agenteVentaNombre"
                            value="@agenteVentaNombre"
-                           class="form-control form-control-sm mt-1"
+                           class="form-control form-control-sm mt-1 imp-nombre"
                            readonly
                            tabindex="-1"
                            placeholder="Nombre del agente seleccionado" />
+                    <div class="imp-status" data-status-for="agenteVenta" aria-live="polite"></div>
                 </div>
 
                 <div class="col-12 d-flex flex-wrap justify-content-end gap-2">
@@ -545,6 +568,11 @@
             const urlAgentes = '@Url.Action("BuscarAgentes", "ImpulsadoresOracle")';
             const urlActualizar = '@Url.Action("ActualizarPorcentaje", "ImpulsadoresOracle")';
             const urlEliminar = '@Url.Action("EliminarAjax", "ImpulsadoresOracle")';
+            const resolverUrls = {
+                cliente: '@Url.Action("ResolverCliente", "ImpulsadoresOracle")',
+                empleado: '@Url.Action("ResolverEmpleado", "ImpulsadoresOracle")',
+                agente: '@Url.Action("ResolverAgente", "ImpulsadoresOracle")'
+            };
 
             const token = document.querySelector(
                 '#formToken input[name="__RequestVerificationToken"]')?.value || '';
@@ -615,6 +643,79 @@
                 }
 
                 return datos;
+            }
+
+
+            // Consulta exacta: nunca selecciona automáticamente coincidencias parciales.
+            const nombreDe = input => document.getElementById(input.dataset.nombreTarget || '');
+            function estadoDe(input, mensaje='', estilo='text-muted') {
+                const estado=document.querySelector('[data-status-for="'+input.id+'"]');
+                if(estado){estado.textContent=mensaje;estado.className='imp-status '+estilo;}
+            }
+            function asignar(input, codigo, nombre) {
+                input.value=String(codigo||'').trim();
+                if(nombreDe(input)) nombreDe(input).value=String(nombre||'').trim();
+                input.dataset.validado=input.value.toUpperCase();
+                input.dataset.version=String(Number(input.dataset.version||0)+1);
+                input.classList.remove('is-invalid');
+                estadoDe(input);
+            }
+            async function resolver(input) {
+                const codigo=input.value.trim();
+                const version=Number(input.dataset.version||0)+1;
+                input.dataset.version=String(version);
+                input.value=codigo;
+                if(!codigo){asignar(input,'','');return true;}
+                if(input.dataset.validado===codigo.toUpperCase()&&nombreDe(input)?.value.trim()) return true;
+                input.dataset.validado='';
+                if(nombreDe(input))nombreDe(input).value='';
+                estadoDe(input,'Validando...','text-muted');
+                try {
+                    const res=await fetch(resolverUrls[input.dataset.resolverTipo]+'?codigo='+encodeURIComponent(codigo),
+                        {headers:{'Accept':'application/json'}});
+                    let data=null;try{data=await res.json();}catch{}
+                    if(Number(input.dataset.version)!==version||input.value.trim()!==codigo) return false;
+                    if(!res.ok||!data?.codigo)throw Error(data?.mensaje||'Código no encontrado.');
+                    asignar(input,data.codigo,data.nombre);
+                    return true;
+                }catch(ex){
+                    if(Number(input.dataset.version)!==version||input.value.trim()!==codigo)return false;
+                    input.classList.add('is-invalid');
+                    estadoDe(input,ex.message||'Error al validar.','text-danger');
+                    return false;
+                }
+            }
+            document.querySelectorAll('.js-resolver-codigo').forEach(input=>{
+                if(input.value.trim()&&nombreDe(input)?.value.trim())input.dataset.validado=input.value.trim().toUpperCase();
+                input.addEventListener('input',()=>{
+                    input.dataset.version=String(Number(input.dataset.version||0)+1);
+                    input.dataset.validado='';
+                    if(nombreDe(input))nombreDe(input).value='';
+                    input.classList.remove('is-invalid');
+                    estadoDe(input);
+                });
+                input.addEventListener('blur',()=>{void resolver(input);});
+                input.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();input.blur();}});
+            });
+            for(const id of ['formImpulsador','formFiltrosImpulsadores']) {
+                const form=document.getElementById(id);if(!form)continue;
+                let enviado=false;
+                form.addEventListener('submit',async e=>{
+                    if(enviado)return;
+                    e.preventDefault();
+                    let ok=true;
+                    for(const input of form.querySelectorAll('.js-resolver-codigo')){
+                        if(!input.value.trim()&&id==='formImpulsador'){
+                            input.classList.add('is-invalid');estadoDe(input,'Código obligatorio.','text-danger');ok=false;
+                        }else if(input.value.trim()&&(input.dataset.validado!==input.value.trim().toUpperCase()||
+                            !nombreDe(input)?.value.trim())){
+                            if(!await resolver(input))ok=false;
+                        }
+                    }
+                    if(!ok){form.querySelector('.js-resolver-codigo.is-invalid')?.focus();return;}
+                    if(!form.reportValidity())return;
+                    enviado=true;form.requestSubmit();
+                });
             }
 
             async function cargarClientes() {
@@ -979,7 +1080,7 @@
                     const nombreInput = document.getElementById(
                         boton.dataset.nombreTarget || '');
 
-                    if (codigoInput) codigoInput.value = '';
+                    if (codigoInput) asignar(codigoInput, '', '');
                     if (nombreInput) nombreInput.value = '';
                 });
             });
@@ -1003,11 +1104,7 @@
                 const boton = evento.target.closest('.seleccionar-agente');
                 if (!boton || !agenteCodigoDestino) return;
 
-                agenteCodigoDestino.value = boton.dataset.codigo || '';
-
-                if (agenteNombreDestino) {
-                    agenteNombreDestino.value = boton.dataset.nombre || '';
-                }
+                asignar(agenteCodigoDestino, boton.dataset.codigo || '', boton.dataset.nombre || '');
 
                 modalAgentes.hide();
             });
@@ -1016,11 +1113,7 @@
                 const boton = evento.target.closest('.seleccionar-cliente');
                 if (!boton || !clienteCodigoDestino) return;
 
-                clienteCodigoDestino.value = boton.dataset.codigo || '';
-
-                if (clienteNombreDestino) {
-                    clienteNombreDestino.value = boton.dataset.nombre || '';
-                }
+                asignar(clienteCodigoDestino, boton.dataset.codigo || '', boton.dataset.nombre || '');
 
                 modalClientes.hide();
             });
@@ -1029,11 +1122,7 @@
                 const boton = evento.target.closest('.seleccionar-empleado');
                 if (!boton || !empleadoCodigoDestino) return;
 
-                empleadoCodigoDestino.value = boton.dataset.codigo || '';
-
-                if (empleadoNombreDestino) {
-                    empleadoNombreDestino.value = boton.dataset.nombre || '';
-                }
+                asignar(empleadoCodigoDestino, boton.dataset.codigo || '', boton.dataset.nombre || '');
 
                 modalEmpleados.hide();
             });
