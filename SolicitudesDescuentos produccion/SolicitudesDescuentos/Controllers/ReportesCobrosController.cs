@@ -9,7 +9,6 @@
 
 using ClosedXML.Excel;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using QuestPDF.Fluent;
@@ -22,7 +21,6 @@ using System.Globalization;
 using QDocument = QuestPDF.Fluent.Document;
 using QLicenseType = QuestPDF.Infrastructure.LicenseType;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Configuration;
 using System.Data;
 using System.Data.Common;
 using System.Threading;
@@ -34,7 +32,6 @@ namespace SolicitudesDescuentos.Controllers
         private readonly OracleContext _context;
         private readonly LancoDbContext _lancoContext;
         private readonly IMemoryCache _cache;
-        private readonly IConfiguration _configuration;
 
         private static readonly SemaphoreSlim CalculoComisionesLock = new(1, 1);
         private static readonly SemaphoreSlim ActualizacionNaviusLock = new(1, 1);
@@ -42,13 +39,12 @@ namespace SolicitudesDescuentos.Controllers
         private const string SucursalFija = "001";
         private const string LineaCobroFija = "001";
         private const string DescripcionLineaCobroFija = "CREDITO NORMAL";
-        // Moneda base real del negocio. Ya no se expone al usuario.
-        private const string MonedaBaseSistema = "CRC";
 
         public sealed class ParametrosCalculoComisionVm
         {
             public int AnoFiscal { get; set; }
             public int Periodo { get; set; }
+            public string? MonedaBase { get; set; }
             public string? TipoChkDev1 { get; set; }
             public string? TipoChkDev2 { get; set; }
             public string? TipoDescuento { get; set; }
@@ -163,81 +159,11 @@ namespace SolicitudesDescuentos.Controllers
         public ReportesCobrosController(
             OracleContext context,
             LancoDbContext lancoContext,
-            IMemoryCache cache,
-            IConfiguration configuration)
+            IMemoryCache cache)
         {
             _context = context;
             _lancoContext = lancoContext;
             _cache = cache;
-            _configuration = configuration;
-        }
-
-        private string? ObtenerAssignIdUsuario()
-        {
-            return User.FindFirst("AssignId")?.Value?.Trim();
-        }
-
-        private static bool AssignIdPermiteTodos(string? assignId)
-        {
-            return string.Equals(
-                assignId?.Trim(),
-                "All",
-                StringComparison.OrdinalIgnoreCase);
-        }
-
-        private void AplicarRestriccionVendedorUsuario(
-            ResumenCobrosAgenteFiltroVm filtro)
-        {
-            var assignId = ObtenerAssignIdUsuario();
-
-            // Una sesión sin AssignId no debe heredar acceso global.
-            // OnActionExecuting bloquea esa sesión antes de llegar a la acción.
-            if (string.IsNullOrWhiteSpace(assignId) ||
-                AssignIdPermiteTodos(assignId))
-            {
-                return;
-            }
-
-            /*
-             * Seguridad de servidor:
-             * aunque VendedorDesde/VendedorHasta vengan manipulados por URL,
-             * siempre se reemplazan por el vendedor asignado al usuario.
-             */
-            filtro.VendedorDesde = assignId;
-            filtro.VendedorHasta = assignId;
-        }
-
-        public override void OnActionExecuting(
-            ActionExecutingContext context)
-        {
-            base.OnActionExecuting(context);
-
-            var assignId = ObtenerAssignIdUsuario();
-
-            /*
-             * Todos los usuarios que entren a este controller deben haber
-             * iniciado sesión con el nuevo claim AssignId.
-             *
-             * Esto también evita que un cookie creado antes del cambio de login
-             * pueda entrar sin restricción de vendedor.
-             */
-            if (string.IsNullOrWhiteSpace(assignId))
-            {
-                context.Result = Forbid();
-                return;
-            }
-
-            /*
-             * Toda acción de reportes que recibe "filtro" queda protegida
-             * automáticamente. Esto incluye PDF, Excel y la pantalla principal.
-             */
-            if (context.ActionArguments.TryGetValue(
-                    "filtro",
-                    out var filtroArgumento) &&
-                filtroArgumento is ResumenCobrosAgenteFiltroVm filtro)
-            {
-                AplicarRestriccionVendedorUsuario(filtro);
-            }
         }
 
         private sealed class CatalogosReporte
@@ -615,62 +541,10 @@ namespace SolicitudesDescuentos.Controllers
             var vm = new ResumenCobrosAgentePageVm
             {
                 Filtro = filtro,
-                GruposAgente = await ObtenerGruposAgenteAsync(filtro.BuNombre),
-                ClientesSinPorcentajeVendedor =
-                    await ObtenerClientesSinPorcentajeVendedorAsync(filtro.BuNombre)
+                GruposAgente = await ObtenerGruposAgenteAsync(filtro.BuNombre)
             };
 
             return View(vm);
-        }
-
-        private async Task<List<ClienteSinPorcentajeVendedorVm>>
-            ObtenerClientesSinPorcentajeVendedorAsync(string? buNombre)
-        {
-            var bu = string.IsNullOrWhiteSpace(buNombre)
-                ? "LANCO_CR"
-                : buNombre.Trim().ToUpperInvariant();
-
-            // XXORA_CUSTOMER_MASTER puede tener más de una fila por cliente
-            // (por ejemplo, por sitio). Se consultan los registros sin porcentaje
-            // y luego se muestra una sola fila por IDCLIENTE en la advertencia.
-            var registros = await _context.XXORA_CUSTOMER_MASTERs
-                 .AsNoTracking()
-                 .Where(c =>
-                     c.BU_NOMBRE != null &&
-                     c.BU_NOMBRE.Trim().ToUpper() == bu &&
-                     c.IDCLIENTE != null &&
-                     c.IDCLIENTE.Trim() != "" &&
-                     c.PARTY_SITE_NUMBER != null &&
-                     c.PORCIENTO_VENDEDOR == null &&
-                     _context.XXORA_COMISIONEs.Any(x =>
-                         x.SITIO != null &&
-                         x.SITIO.Trim() == c.PARTY_SITE_NUMBER.Trim()
-                     ))
-                 .Select(c => new
-                 {
-                     IdCliente = c.IDCLIENTE!,
-                     NombreCliente = c.NOMBRE_CLIENTE,
-                     Vendedor = c.IDVENDEDOR ?? c.VENDEDOR,
-                     PartySiteNumber = c.PARTY_SITE_NUMBER
-                 })
-                 .ToListAsync();
-
-            return registros
-                .Select(x => new ClienteSinPorcentajeVendedorVm
-                {
-                    IdCliente = (x.IdCliente ?? "").Trim(),
-                    NombreCliente = (x.NombreCliente ?? "").Trim(),
-                    Vendedor = (x.Vendedor ?? "").Trim()
-                })
-                .Where(x => !string.IsNullOrWhiteSpace(x.IdCliente))
-                .GroupBy(
-                    x => x.IdCliente,
-                    StringComparer.OrdinalIgnoreCase)
-                .Select(g => g.First())
-                .OrderBy(
-                    x => x.IdCliente,
-                    StringComparer.OrdinalIgnoreCase)
-                .ToList();
         }
 
         private async Task<List<string>> ObtenerGruposAgenteAsync(string? buNombre)
@@ -696,24 +570,8 @@ namespace SolicitudesDescuentos.Controllers
         [HttpGet]
         public async Task<IActionResult> BuscarVendedores(string? filtro, string? buNombre)
         {
-            var assignId = ObtenerAssignIdUsuario();
-
-            if (string.IsNullOrWhiteSpace(assignId))
-                return Forbid();
-
-            var puedeVerTodos = AssignIdPermiteTodos(assignId);
-
-            var bu = string.IsNullOrWhiteSpace(buNombre)
-                ? "LANCO_CR"
-                : buNombre.Trim();
-
-            /*
-             * Un usuario con AssignId específico solamente puede encontrar
-             * su propio vendedor. El texto enviado por el navegador se ignora.
-             */
-            var q = puedeVerTodos
-                ? Normalizar(filtro)
-                : Normalizar(assignId);
+            var bu = string.IsNullOrWhiteSpace(buNombre) ? "LANCO_CR" : buNombre.Trim();
+            var q = Normalizar(filtro);
 
             var vendedores = await _context.GEN_VENDEDORs
                 .AsNoTracking()
@@ -736,9 +594,6 @@ namespace SolicitudesDescuentos.Controllers
                     categoria = (x.CATEGORIA ?? "").Trim()
                 })
                 .Where(x => !string.IsNullOrWhiteSpace(x.codigo))
-                .Where(x =>
-                    puedeVerTodos ||
-                    Normalizar(x.codigo) == Normalizar(assignId))
                 .GroupBy(x => x.codigo)
                 .Select(g => g.First())
                 .ToList();
@@ -751,9 +606,6 @@ namespace SolicitudesDescuentos.Controllers
     string? filtro,
     string? buNombre)
         {
-            if (string.IsNullOrWhiteSpace(ObtenerAssignIdUsuario()))
-                return Forbid();
-
             var bu = string.IsNullOrWhiteSpace(buNombre)
                 ? "LANCO_CR"
                 : buNombre.Trim().ToUpperInvariant();
@@ -814,15 +666,16 @@ namespace SolicitudesDescuentos.Controllers
         // ---------------------------------------------------------------------
         // Actualización Navius / planilla.
         //
-        // - Antes de copiar datos se recalculan agentes e impulsadores en CRC.
-        // - Para el año/período del REPORTE se reconstruyen desde cero:
+        // - NO borra información histórica de Navius.
+        // - Solo agrega registros nuevos a:
         //      NUEVO.CXC_AGE_COBRO
         //      NUEVO.CXC_EMPLEADO_COBRO
-        // - Solamente se elimina el año/período que se está actualizando; los
-        //   demás períodos históricos de Navius permanecen intactos.
-        // - No utiliza CXC_DETAGE_COBRO ni CXC_CLIENTE_COBRO para la copia.
+        // - No utiliza CXC_DETAGE_COBRO ni CXC_CLIENTE_COBRO.
         // - AnoFiscal / Periodo = período del REPORTE.
         // - IdPeriodoPlanilla = período de PLANILLA digitado por el usuario.
+        //
+        // Si una fila ya existe por su llave en Navius, se conserva tal cual
+        // y no vuelve a insertarse.
         // ---------------------------------------------------------------------
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -831,59 +684,8 @@ namespace SolicitudesDescuentos.Controllers
             ParametrosCalculoComisionVm parametros,
             int? idPeriodoPlanilla)
         {
-            /*
-             * El input HTML type=number envía el decimal utilizando punto:
-             *
-             *     454.44
-             *
-             * En un POST, dependiendo de la cultura del servidor,
-             * el model binder puede interpretar ese punto como separador
-             * de miles y convertir:
-             *
-             *     454.44 -> 45444
-             *
-             * Por eso para la actualización de Navius se vuelve a leer
-             * el valor original del formulario y se convierte expresamente
-             * con InvariantCulture.
-             */
-            var tipoCambioRaw =
-                Request.Form["TipoCambio"].ToString().Trim();
-
-            if (!decimal.TryParse(
-                    tipoCambioRaw,
-                    NumberStyles.Number,
-                    CultureInfo.InvariantCulture,
-                    out var tipoCambioCorrecto) ||
-                tipoCambioCorrecto <= 0)
-            {
-                TempData["NaviusError"] =
-                    $"El tipo de cambio '{tipoCambioRaw}' no es válido.";
-
-                return RedirigirActualizacionNavius(
-                    filtro,
-                    parametros,
-                    idPeriodoPlanilla);
-            }
-
-            /*
-             * Sobrescribir el valor que pudo haber interpretado
-             * incorrectamente el model binder.
-             */
-            filtro.TipoCambio = tipoCambioCorrecto;
-
             PrepararFiltro(filtro);
             PrepararParametrosCalculo(filtro, parametros);
-
-            if (filtro.TipoCambio <= 0)
-            {
-                TempData["NaviusError"] =
-                    "El tipo de cambio debe ser mayor que cero.";
-
-                return RedirigirActualizacionNavius(
-                    filtro,
-                    parametros,
-                    idPeriodoPlanilla);
-            }
 
             var bu = string.IsNullOrWhiteSpace(filtro.BuNombre)
                 ? "LANCO_CR"
@@ -926,25 +728,6 @@ namespace SolicitudesDescuentos.Controllers
                     idPeriodoPlanilla);
             }
 
-            // La moneda seleccionada en pantalla es únicamente la moneda del reporte.
-            // Navius y la planilla siempre deben alimentarse con montos calculados en CRC.
-            // Se crea un filtro independiente para no alterar la selección del usuario
-            // cuando se redirija nuevamente a la pantalla.
-            var filtroCalculoNavius = new ResumenCobrosAgenteFiltroVm
-            {
-                BuNombre = filtro.BuNombre,
-                FechaDesde = filtro.FechaDesde,
-                FechaHasta = filtro.FechaHasta,
-                TipoCambio = filtro.TipoCambio,
-                VendedorDesde = filtro.VendedorDesde,
-                VendedorHasta = filtro.VendedorHasta,
-                ClienteDesde = filtro.ClienteDesde,
-                ClienteHasta = filtro.ClienteHasta,
-                GrupoAgente = filtro.GrupoAgente,
-                Moneda = "CRC",
-                ChequeDevuelto = filtro.ChequeDevuelto
-            };
-
             await ActualizacionNaviusLock.WaitAsync();
 
             try
@@ -953,47 +736,8 @@ namespace SolicitudesDescuentos.Controllers
                 var periodoReporte = checked((short)parametros.Periodo);
 
                 /*
-                 * IMPORTANTE:
-                 * Antes de leer CXC_AGE_COBRO y CXC_EMPLEADO_COBRO se fuerza
-                 * nuevamente el cálculo completo en CRC.
-                 *
-                 * Esto evita que una generación previa del reporte en USD deje
-                 * CXC_AGE_COBRO con importes en dólares y luego esos mismos montos
-                 * sean enviados a Navius/planilla como si fueran colones.
-                 *
-                 * Se usa el mismo lock del cálculo de reportes para impedir que
-                 * otro PDF/Excel recalcule las tablas al mismo tiempo.
-                 */
-                await CalculoComisionesLock.WaitAsync();
-
-                try
-                {
-                    await EjecutarCalculoAgentesAsync(
-                        filtroCalculoNavius,
-                        parametros);
-
-                    await EjecutarCalculoImpulsadoresAsync(
-                        filtroCalculoNavius,
-                        parametros);
-
-                    // Las tablas quedaron físicamente preparadas en CRC.
-                    // La caché debe reflejar ese estado. Si el usuario vuelve
-                    // a pedir USD después de la actualización, la firma será
-                    // diferente y el reporte se recalculará correctamente en USD.
-                    _cache.Set(
-                        UltimaFirmaCalculoCacheKey,
-                        ConstruirFirmaCalculo(
-                            filtroCalculoNavius,
-                            parametros));
-                }
-                finally
-                {
-                    CalculoComisionesLock.Release();
-                }
-
-                /*
-                 * Únicamente después del recálculo en CRC se leen estas dos
-                 * tablas para actualizar PLAPAGOPLANILLA.
+                 * Únicamente se necesitan estas dos tablas para actualizar
+                 * PLAPAGOPLANILLA.
                  */
                 var agentes = await _context.CXC_AGE_COBROs
                     .AsNoTracking()
@@ -1042,23 +786,13 @@ namespace SolicitudesDescuentos.Controllers
                         transaction.GetDbTransaction();
 
                     /*
-                     * El período seleccionado se sincroniza como una fotografía
-                     * completa del cálculo recién generado en CRC.
+                     * IMPORTANTE:
+                     * No se ejecuta ningún DELETE.
                      *
-                     * Se eliminan primero los datos anteriores de ese mismo
-                     * año/período en Navius y después se reinsertan desde cero.
-                     * Los demás períodos históricos no se modifican.
-                     *
-                     * Todo se ejecuta dentro de esta misma transacción: si falla
-                     * un INSERT o el paquete de planilla, el ROLLBACK restaura
-                     * también los registros eliminados.
+                     * Los MERGE de abajo únicamente hacen INSERT cuando la
+                     * llave todavía no existe. La información histórica de
+                     * Navius queda intacta.
                      */
-                    await LimpiarPeriodoNaviusAsync(
-                        connection,
-                        dbTransaction,
-                        parametros.AnoFiscal,
-                        parametros.Periodo);
-
                     var agentesInsertados =
                         await InsertarAgentesNaviusAsync(
                             connection,
@@ -1072,35 +806,13 @@ namespace SolicitudesDescuentos.Controllers
                             empleados);
 
                     /*
-                     * Al haberse limpiado previamente el período, cada fila de
-                     * BG_INTUSER debe insertarse nuevamente. Si no coincide la
-                     * cantidad, se aborta antes de tocar PLAPAGOPLANILLA.
-                     */
-                    if (agentesInsertados != agentes.Count)
-                    {
-                        throw new InvalidOperationException(
-                            $"La sincronización de CXC_AGE_COBRO quedó incompleta. " +
-                            $"Esperados: {agentes.Count:N0}; " +
-                            $"insertados: {agentesInsertados:N0}.");
-                    }
-
-                    if (empleadosInsertados != empleados.Count)
-                    {
-                        throw new InvalidOperationException(
-                            $"La sincronización de CXC_EMPLEADO_COBRO quedó incompleta. " +
-                            $"Esperados: {empleados.Count:N0}; " +
-                            $"insertados: {empleadosInsertados:N0}.");
-                    }
-
-                    /*
                      * El paquete mantiene ACTUALIZAR_PLANILLA recibiendo
                      * solamente el ID de planilla.
                      *
                      * CONFIGURAR_PERIODO_REPORTE guarda para esta misma sesión
                      * Oracle el año/período del reporte que se debe usar.
-                     * Para este punto NUEVO.CXC_AGE_COBRO y
-                     * NUEVO.CXC_EMPLEADO_COBRO ya representan exactamente el
-                     * cálculo CRC actual del período.
+                     * Esto es necesario porque ahora las tablas CXC conservan
+                     * información de períodos anteriores.
                      */
                     await EjecutarPaquetePlanillaAsync(
                         connection,
@@ -1114,13 +826,11 @@ namespace SolicitudesDescuentos.Controllers
                     TempData["NaviusOk"] =
                         $"Navius y la planilla {idPeriodoPlanilla.Value} " +
                         $"se actualizaron correctamente. " +
-                        $"El cálculo se ejecutó nuevamente en CRC. " +
-                        $"CXC_AGE_COBRO reiniciado e insertado: " +
-                        $"{agentesInsertados:N0} registros. " +
-                        $"CXC_EMPLEADO_COBRO reiniciado e insertado: " +
-                        $"{empleadosInsertados:N0} registros. " +
-                        $"Año {parametros.AnoFiscal}, " +
-                        $"período {parametros.Periodo}.";
+                        $"CXC_AGE_COBRO nuevos: {agentesInsertados:N0} " +
+                        $"de {agentes.Count:N0}; " +
+                        $"CXC_EMPLEADO_COBRO nuevos: " +
+                        $"{empleadosInsertados:N0} de {empleados.Count:N0}. " +
+                        $"Los registros que ya existían se conservaron.";
                 }
                 catch
                 {
@@ -1172,6 +882,7 @@ namespace SolicitudesDescuentos.Controllers
                     ClienteHasta = filtro.ClienteHasta,
                     VendedorDesde = filtro.VendedorDesde,
                     VendedorHasta = filtro.VendedorHasta,
+                    MonedaBase = parametros.MonedaBase,
                     TipoChkDev1 = parametros.TipoChkDev1,
                     TipoChkDev2 = parametros.TipoChkDev2,
                     TipoDescuento = parametros.TipoDescuento,
@@ -1242,52 +953,6 @@ namespace SolicitudesDescuentos.Controllers
             await command.ExecuteNonQueryAsync();
         }
 
-        private static async Task LimpiarPeriodoNaviusAsync(
-            DbConnection connection,
-            DbTransaction transaction,
-            int anoFiscal,
-            int periodoReporte)
-        {
-            /*
-             * Se reconstruye únicamente el período que se está enviando.
-             * Primero se eliminan empleados y luego agentes para respetar
-             * cualquier posible relación referencial entre ambas tablas.
-             */
-            const string sql = @"
-                BEGIN
-                    DELETE FROM NUEVO.CXC_EMPLEADO_COBRO
-                     WHERE TRIM(COD_CIA) = '001'
-                       AND ANO_FISCAL = :P_ANO_FISCAL
-                       AND PER_PROCESO = :P_PER_PROCESO;
-
-                    DELETE FROM NUEVO.CXC_AGE_COBRO
-                     WHERE TRIM(COD_CIA) = '001'
-                       AND TRIM(SUCURSAL) = '001'
-                       AND ANO_FISCAL = :P_ANO_FISCAL
-                       AND PER_PROCESO = :P_PER_PROCESO;
-                END;";
-
-            await using var command =
-                CrearComandoNavius(
-                    connection,
-                    transaction,
-                    sql);
-
-            CrearParametroNavius(
-                command,
-                "P_ANO_FISCAL",
-                DbType.Int32,
-                anoFiscal);
-
-            CrearParametroNavius(
-                command,
-                "P_PER_PROCESO",
-                DbType.Int32,
-                periodoReporte);
-
-            await command.ExecuteNonQueryAsync();
-        }
-
         private static async Task<int>
             InsertarAgentesNaviusAsync(
                 DbConnection connection,
@@ -1295,43 +960,74 @@ namespace SolicitudesDescuentos.Controllers
                 IReadOnlyCollection<CXC_AGE_COBRO> filas)
         {
             /*
-             * El período ya fue eliminado por LimpiarPeriodoNaviusAsync.
-             * Por eso aquí se hace INSERT directo: cada fila calculada en
-             * BG_INTUSER debe quedar nuevamente en NUEVO.CXC_AGE_COBRO.
+             * Llave de NUEVO.CXC_AGE_COBRO:
+             * COD_CIA, SUCURSAL, COD_AGENTE,
+             * ANO_FISCAL, PER_PROCESO, COD_COMISION.
+             *
+             * Si ya existe, NO se actualiza ni se borra.
              */
             const string sql = @"
-                INSERT INTO NUEVO.CXC_AGE_COBRO
+                MERGE INTO NUEVO.CXC_AGE_COBRO D
+                USING
                 (
-                    COD_CIA,
-                    SUCURSAL,
-                    COD_AGENTE,
-                    ANO_FISCAL,
-                    PER_PROCESO,
-                    COD_COMISION,
-                    MON_COBRADO,
-                    MON_COMISION,
-                    POSFECOBMES,
-                    POSFENOCOB,
-                    LOCAL1,
-                    REPLICA1,
-                    COBROBRUTO
+                    SELECT
+                        '001' AS COD_CIA,
+                        '001' AS SUCURSAL,
+                        :P_COD_AGENTE AS COD_AGENTE,
+                        :P_ANO_FISCAL AS ANO_FISCAL,
+                        :P_PER_PROCESO AS PER_PROCESO,
+                        :P_COD_COMISION AS COD_COMISION,
+                        :P_MON_COBRADO AS MON_COBRADO,
+                        :P_MON_COMISION AS MON_COMISION,
+                        :P_LOCAL1 AS LOCAL1,
+                        :P_REPLICA1 AS REPLICA1,
+                        :P_COBROBRUTO AS COBROBRUTO
+                    FROM DUAL
+                ) S
+                ON
+                (
+                    D.COD_CIA = S.COD_CIA
+                    AND D.SUCURSAL = S.SUCURSAL
+                    AND TRIM(D.COD_AGENTE) =
+                        TRIM(S.COD_AGENTE)
+                    AND D.ANO_FISCAL = S.ANO_FISCAL
+                    AND D.PER_PROCESO = S.PER_PROCESO
+                    AND TRIM(D.COD_COMISION) =
+                        TRIM(S.COD_COMISION)
                 )
-                VALUES
-                (
-                    '001',
-                    '001',
-                    :P_COD_AGENTE,
-                    :P_ANO_FISCAL,
-                    :P_PER_PROCESO,
-                    :P_COD_COMISION,
-                    :P_MON_COBRADO,
-                    :P_MON_COMISION,
-                    NULL,
-                    NULL,
-                    :P_LOCAL1,
-                    :P_REPLICA1,
-                    :P_COBROBRUTO
-                )";
+                WHEN NOT MATCHED THEN
+                    INSERT
+                    (
+                        COD_CIA,
+                        SUCURSAL,
+                        COD_AGENTE,
+                        ANO_FISCAL,
+                        PER_PROCESO,
+                        COD_COMISION,
+                        MON_COBRADO,
+                        MON_COMISION,
+                        POSFECOBMES,
+                        POSFENOCOB,
+                        LOCAL1,
+                        REPLICA1,
+                        COBROBRUTO
+                    )
+                    VALUES
+                    (
+                        S.COD_CIA,
+                        S.SUCURSAL,
+                        S.COD_AGENTE,
+                        S.ANO_FISCAL,
+                        S.PER_PROCESO,
+                        S.COD_COMISION,
+                        S.MON_COBRADO,
+                        S.MON_COMISION,
+                        NULL,
+                        NULL,
+                        S.LOCAL1,
+                        S.REPLICA1,
+                        S.COBROBRUTO
+                    )";
 
             await using var command =
                 CrearComandoNavius(
@@ -1429,37 +1125,66 @@ namespace SolicitudesDescuentos.Controllers
                 IReadOnlyCollection<CXC_EMPLEADO_COBRO> filas)
         {
             /*
-             * El período ya fue eliminado por LimpiarPeriodoNaviusAsync.
-             * Se reinserta exactamente el detalle de impulsadores recién
-             * calculado en CRC, incluyendo porcentajes y comisiones actuales.
+             * La llave configurada en Navius para CXC_EMPLEADO_COBRO es:
+             * COD_CIA, COD_CLIENTE, EMPLEADO,
+             * ANO_FISCAL, PER_PROCESO.
+             *
+             * Si la llave ya existe, la fila se conserva sin modificar.
              */
             const string sql = @"
-                INSERT INTO NUEVO.CXC_EMPLEADO_COBRO
+                MERGE INTO NUEVO.CXC_EMPLEADO_COBRO D
+                USING
                 (
-                    COD_CIA,
-                    COD_AGENTE,
-                    COD_CLIENTE,
-                    EMPLEADO,
-                    ANO_FISCAL,
-                    PER_PROCESO,
-                    PORCENTAJE,
-                    COBROBRUTO,
-                    MON_COBRADO,
-                    MON_COMISION
+                    SELECT
+                        '001' AS COD_CIA,
+                        :P_COD_AGENTE AS COD_AGENTE,
+                        :P_COD_CLIENTE AS COD_CLIENTE,
+                        :P_EMPLEADO AS EMPLEADO,
+                        :P_ANO_FISCAL AS ANO_FISCAL,
+                        :P_PER_PROCESO AS PER_PROCESO,
+                        :P_PORCENTAJE AS PORCENTAJE,
+                        :P_COBROBRUTO AS COBROBRUTO,
+                        :P_MON_COBRADO AS MON_COBRADO,
+                        :P_MON_COMISION AS MON_COMISION
+                    FROM DUAL
+                ) S
+                ON
+                (
+                    D.COD_CIA = S.COD_CIA
+                    AND TRIM(D.COD_CLIENTE) =
+                        TRIM(S.COD_CLIENTE)
+                    AND TRIM(D.EMPLEADO) =
+                        TRIM(S.EMPLEADO)
+                    AND D.ANO_FISCAL = S.ANO_FISCAL
+                    AND D.PER_PROCESO = S.PER_PROCESO
                 )
-                VALUES
-                (
-                    '001',
-                    :P_COD_AGENTE,
-                    :P_COD_CLIENTE,
-                    :P_EMPLEADO,
-                    :P_ANO_FISCAL,
-                    :P_PER_PROCESO,
-                    :P_PORCENTAJE,
-                    :P_COBROBRUTO,
-                    :P_MON_COBRADO,
-                    :P_MON_COMISION
-                )";
+                WHEN NOT MATCHED THEN
+                    INSERT
+                    (
+                        COD_CIA,
+                        COD_AGENTE,
+                        COD_CLIENTE,
+                        EMPLEADO,
+                        ANO_FISCAL,
+                        PER_PROCESO,
+                        PORCENTAJE,
+                        COBROBRUTO,
+                        MON_COBRADO,
+                        MON_COMISION
+                    )
+                    VALUES
+                    (
+                        S.COD_CIA,
+                        S.COD_AGENTE,
+                        S.COD_CLIENTE,
+                        S.EMPLEADO,
+                        S.ANO_FISCAL,
+                        S.PER_PROCESO,
+                        S.PORCENTAJE,
+                        S.COBROBRUTO,
+                        S.MON_COBRADO,
+                        S.MON_COMISION
+                    )";
 
             await using var command =
                 CrearComandoNavius(
@@ -1677,6 +1402,22 @@ namespace SolicitudesDescuentos.Controllers
 
                 foreach (var grupo in grupos)
                 {
+                    row++;
+
+                    ws.Cell(row, 1).Value = "Grupo";
+                    ws.Cell(row, 2).Value =
+                        grupo.Key.GrupoCodigo;
+                    ws.Cell(row, 3).Value =
+                        grupo.Key.GrupoDescripcion;
+
+                    ws.Range(row, 1, row, 5)
+                        .Style.Font.Bold = true;
+
+                    ws.Range(row, 1, row, 5)
+                        .Style.Fill.BackgroundColor =
+                            XLColor.FromHtml("#E9ECEF");
+
+                    row++;
 
                     foreach (var agente in grupo
                         .OrderBy(x => x.CodVendedor))
@@ -1739,6 +1480,23 @@ namespace SolicitudesDescuentos.Controllers
                         row += 2;
                     }
 
+                    ws.Cell(row, 2).Value = "TOTAL GRUPO";
+                    ws.Cell(row, 3).Value =
+                        grupo.Sum(x => x.Monto);
+                    ws.Cell(row, 4).Value =
+                        grupo.Sum(
+                            x => x.MontoFacturaSinImpuesto);
+                    ws.Cell(row, 5).Value =
+                        grupo.Sum(x => x.MontoComision);
+
+                    ws.Range(row, 2, row, 5)
+                        .Style.Font.Bold = true;
+
+                    ws.Range(row, 2, row, 5)
+                        .Style.Border.TopBorder =
+                            XLBorderStyleValues.Medium;
+
+                    row++;
                 }
 
                 row++;
@@ -1986,6 +1744,30 @@ namespace SolicitudesDescuentos.Controllers
 
                             foreach (var grupo in grupos)
                             {
+                                table.Cell()
+                                    .ColumnSpan(5)
+                                    .PaddingTop(8)
+                                    .PaddingBottom(2)
+                                    .Text(text =>
+                                    {
+                                        text.Span("GRUPO ")
+                                            .Bold()
+                                            .FontSize(8);
+
+                                        text.Span(
+                                                grupo.Key.GrupoCodigo)
+                                            .Bold()
+                                            .FontSize(8);
+
+                                        text.Span("  ")
+                                            .FontSize(8);
+
+                                        text.Span(
+                                                grupo.Key
+                                                    .GrupoDescripcion)
+                                            .Bold()
+                                            .FontSize(8);
+                                    });
 
                                 foreach (var agente in grupo
                                     .OrderBy(
@@ -2106,6 +1888,49 @@ namespace SolicitudesDescuentos.Controllers
                                         .FontSize(7)
                                         .Bold();
                                 }
+
+                                table.Cell()
+                                    .Element(BodyStyleResumen)
+                                    .Text("");
+
+                                table.Cell()
+                                    .Element(BodyStyleResumen)
+                                    .AlignRight()
+                                    .Text("TOTAL GRUPO")
+                                    .FontSize(7)
+                                    .Bold();
+
+                                table.Cell()
+                                    .Element(BodyStyleResumen)
+                                    .AlignRight()
+                                    .Text(
+                                        FormatoMonto(
+                                            grupo.Sum(
+                                                x => x.Monto)))
+                                    .FontSize(7)
+                                    .Bold();
+
+                                table.Cell()
+                                    .Element(BodyStyleResumen)
+                                    .AlignRight()
+                                    .Text(
+                                        FormatoMonto(
+                                            grupo.Sum(
+                                                x =>
+                                                    x.MontoFacturaSinImpuesto)))
+                                    .FontSize(7)
+                                    .Bold();
+
+                                table.Cell()
+                                    .Element(BodyStyleResumen)
+                                    .AlignRight()
+                                    .Text(
+                                        FormatoMonto(
+                                            grupo.Sum(
+                                                x =>
+                                                    x.MontoComision)))
+                                    .FontSize(7)
+                                    .Bold();
                             }
 
                             table.Cell()
@@ -2464,27 +2289,6 @@ namespace SolicitudesDescuentos.Controllers
         }
 
 
-        private string ObtenerNombreJefe(string? grupoDescripcion)
-        {
-            var grupo = (grupoDescripcion ?? "").Trim();
-
-            if (string.IsNullOrWhiteSpace(grupo))
-                return "";
-
-            // GetSection().GetChildren() permite comparar sin depender de
-            // mayúsculas/minúsculas del nombre escrito en appsettings.json.
-            var coincidencia = _configuration
-                .GetSection("NombreJefes")
-                .GetChildren()
-                .FirstOrDefault(x =>
-                    string.Equals(
-                        (x.Key ?? "").Trim(),
-                        grupo,
-                        StringComparison.OrdinalIgnoreCase));
-
-            return (coincidencia?.Value ?? "").Trim();
-        }
-
         private static string ObtenerDescripcionGrupo(string? grupo)
         {
             return Normalizar(grupo) switch
@@ -2497,35 +2301,8 @@ namespace SolicitudesDescuentos.Controllers
                 "KM" => "KAM 2",
                 "OF" => "OFICINA",
                 "PE" => "PEGAMENTOS",
-                _ => (grupo ?? "").Trim()
+                _ => grupo ?? ""
             };
-        }
-
-        // El nombre del jefe se utiliza EXCLUSIVAMENTE en el reporte
-        // Cobros Diarios por Agente (PDF / Excel).
-        private string ObtenerTituloGrupoCobrosDiarios(
-            string? grupoCodigo,
-            string? grupoDescripcion)
-        {
-            var codigo = (grupoCodigo ?? "").Trim();
-            var descripcion = string.IsNullOrWhiteSpace(grupoDescripcion)
-                ? ObtenerDescripcionGrupo(codigo)
-                : grupoDescripcion.Trim();
-
-            var nombreJefe = ObtenerNombreJefe(descripcion);
-
-            var partes = new List<string>();
-
-            if (!string.IsNullOrWhiteSpace(codigo))
-                partes.Add($"Grupo {codigo}");
-
-            if (!string.IsNullOrWhiteSpace(descripcion))
-                partes.Add(descripcion);
-
-            if (!string.IsNullOrWhiteSpace(nombreJefe))
-                partes.Add($"Jefe: {nombreJefe}");
-
-            return string.Join(" - ", partes);
         }
 
         private static decimal ConvertirMontoImpulsador(
@@ -2554,52 +2331,12 @@ namespace SolicitudesDescuentos.Controllers
                 $"Moneda de reporte no soportada: {moneda}. Solo se permiten CRC y USD.");
         }
 
-        private static decimal ConvertirMonedaReporte(
-            decimal monto,
-            string? monedaOrigen,
-            string? monedaDestino,
-            decimal tipoCambio)
-        {
-            var origen = Normalizar(monedaOrigen);
-            var destino = Normalizar(monedaDestino);
-
-            if (origen != "CRC" && origen != "USD")
-            {
-                throw new InvalidOperationException(
-                    $"Moneda origen no soportada: {origen}. Solo se permiten CRC y USD.");
-            }
-
-            if (destino != "CRC" && destino != "USD")
-            {
-                throw new InvalidOperationException(
-                    $"Moneda destino no soportada: {destino}. Solo se permiten CRC y USD.");
-            }
-
-            if (origen == destino)
-                return monto;
-
-            if (tipoCambio <= 0)
-            {
-                throw new InvalidOperationException(
-                    "El tipo de cambio debe ser mayor que cero para convertir monedas.");
-            }
-
-            // TipoCambio = CRC por 1 USD.
-            var convertido =
-                origen == "USD" && destino == "CRC"
-                    ? monto * tipoCambio
-                    : monto / tipoCambio; // CRC -> USD
-
-            return Math.Round(
-                convertido,
-                2,
-                MidpointRounding.AwayFromZero);
-        }
-
         private static decimal ConvertirMonto(decimal monto, string? moneda, decimal tipoCambio)
         {
-            // CALCULA_COMISIONES ya guarda los importes de agentes en la
-            // moneda seleccionada en P_MONEDA. No se vuelve a convertir aquí.
+            // Los procedimientos ya guardan los importes en la moneda final:
+            // - agentes: moneda solicitada en P_MONEDA;
+            // - impulsadores: moneda base.
+            // No se debe volver a aplicar el tipo de cambio en el controller.
             return monto;
         }
 
@@ -2638,6 +2375,10 @@ namespace SolicitudesDescuentos.Controllers
 
             if (parametros.Periodo < 1 || parametros.Periodo > 12)
                 parametros.Periodo = fechaBase.Month;
+
+            parametros.MonedaBase = string.IsNullOrWhiteSpace(parametros.MonedaBase)
+                ? "CRC"
+                : parametros.MonedaBase.Trim().ToUpperInvariant();
 
             parametros.TipoChkDev1 = string.IsNullOrWhiteSpace(parametros.TipoChkDev1)
                 ? "CHD"
@@ -2704,7 +2445,7 @@ namespace SolicitudesDescuentos.Controllers
                     AgregarParametro(command, "P_MONEDA", filtro.Moneda, DbType.String);
                     AgregarParametro(command, "P_ANO", parametros.AnoFiscal, DbType.Int32);
                     AgregarParametro(command, "P_PER", parametros.Periodo, DbType.Int32);
-                    AgregarParametro(command, "P_COD_MONEDA_BASE", MonedaBaseSistema, DbType.String);
+                    AgregarParametro(command, "P_COD_MONEDA_BASE", parametros.MonedaBase, DbType.String);
                     AgregarParametro(command, "P_TIPO_CAMBIO", filtro.TipoCambio, DbType.Decimal);
                     AgregarParametro(command, "P_TIPO_CHKDEV", parametros.TipoChkDev1, DbType.String);
                     AgregarParametro(command, "P_TIPO_CHKDEV1", parametros.TipoChkDev2, DbType.String);
@@ -2742,7 +2483,7 @@ namespace SolicitudesDescuentos.Controllers
                     AgregarParametro(command, "P_SUC", SucursalFija, DbType.String);
                     AgregarParametro(command, "P_ANO", parametros.AnoFiscal, DbType.Int32);
                     AgregarParametro(command, "P_PERIODO", parametros.Periodo, DbType.Int32);
-                    AgregarParametro(command, "P_COD_MONEDA_BASE", MonedaBaseSistema, DbType.String);
+                    AgregarParametro(command, "P_COD_MONEDA_BASE", parametros.MonedaBase, DbType.String);
                     AgregarParametro(command, "P_TIPO_CAMBIO", filtro.TipoCambio, DbType.Decimal);
                     AgregarParametro(command, "P_TIPO_CHKDEV", parametros.TipoChkDev1, DbType.String);
                     AgregarParametro(command, "P_TIPO_CHKDEV1", parametros.TipoChkDev2, DbType.String);
@@ -2788,9 +2529,12 @@ namespace SolicitudesDescuentos.Controllers
                     await EjecutarCalculoAgentesAsync(filtro, parametros);
                     await EjecutarCalculoImpulsadoresAsync(filtro, parametros);
 
+                    // El cálculo se reutiliza un máximo de 5 minutos;
+                    // cualquier cambio en los parámetros fuerza otro cálculo.
                     _cache.Set(
                         UltimaFirmaCalculoCacheKey,
-                        firmaActual);
+                        firmaActual,
+                        TimeSpan.FromMinutes(5));
                 }
 
                 return await consultarResultados();
@@ -2805,25 +2549,15 @@ namespace SolicitudesDescuentos.Controllers
             ResumenCobrosAgenteFiltroVm filtro,
             ParametrosCalculoComisionVm parametros)
         {
-            /*
-             * La firma contiene únicamente parámetros que realmente modifican
-             * los resultados generados por CALCULA_COMISIONES y COBROSCLIENTE.
-             *
-             * Los filtros de visualización se aplican al consultar las tablas
-             * ya calculadas y NO deben provocar un recálculo completo:
-             * - GrupoAgente
-             * - ClienteDesde / ClienteHasta
-             * - VendedorDesde / VendedorHasta
-             * - ChequeDevuelto
-             *
-             * FechaDesde / FechaHasta tampoco forman parte de la firma porque
-             * PrepararParametrosCalculo las deriva siempre de AnoFiscal + Periodo.
-             *
-             * Cuando esta firma cambia, se mantienen ejecutándose juntos:
-             * CALCULA_COMISIONES + COBROSCLIENTE.
-             */
             static string Texto(string? valor) =>
                 Normalizar(valor);
+
+            static string Fecha(DateTime? valor) =>
+                valor.HasValue
+                    ? valor.Value.ToString(
+                        "yyyyMMdd",
+                        CultureInfo.InvariantCulture)
+                    : "";
 
             static string Numero(decimal valor) =>
                 valor.ToString(
@@ -2833,12 +2567,21 @@ namespace SolicitudesDescuentos.Controllers
             return string.Join(
                 "|",
                 Texto(filtro.BuNombre),
+                Fecha(filtro.FechaDesde),
+                Fecha(filtro.FechaHasta),
                 Texto(filtro.Moneda),
                 Numero(filtro.TipoCambio),
+                Texto(filtro.ChequeDevuelto),
+                Texto(filtro.GrupoAgente),
+                Texto(filtro.ClienteDesde),
+                Texto(filtro.ClienteHasta),
+                Texto(filtro.VendedorDesde),
+                Texto(filtro.VendedorHasta),
                 parametros.AnoFiscal.ToString(
                     CultureInfo.InvariantCulture),
                 parametros.Periodo.ToString(
                     CultureInfo.InvariantCulture),
+                Texto(parametros.MonedaBase),
                 Texto(parametros.TipoChkDev1),
                 Texto(parametros.TipoChkDev2),
                 Texto(parametros.TipoDescuento),
@@ -2918,8 +2661,7 @@ namespace SolicitudesDescuentos.Controllers
         // - Fuente exclusiva: XXORA_COMISIONES.
         // - Factura: NUM_TRX_APLICADA.
         // - Cobros Dia: MONTO_ORIGINAL_FACTURA, conservando el impuesto.
-        // - Moneda: MONEDA_FACTURA; solo se incluyen movimientos de la moneda seleccionada.
-        //   No se convierten ni se mezclan CRC y USD en este reporte.
+        // - Moneda: MONEDA_FACTURA; CRC y USD nunca se mezclan.
         // - Descuentos: DESCUENTO.
         // - Chk Dev.: CHEQUE_DEVUELTO.
         // - Cobro Neto = Cobros Dia - Chk Dev. - Descuentos.
@@ -3095,83 +2837,50 @@ namespace SolicitudesDescuentos.Controllers
                                     }
                                     else
                                     {
-                                        var grupos = filas
-                                            .GroupBy(x => new
-                                            {
-                                                x.GrupoCodigo,
-                                                x.GrupoDescripcion
-                                            })
-                                            .OrderBy(
-                                                x => x.Key.GrupoCodigo,
-                                                StringComparer.OrdinalIgnoreCase)
-                                            .ToList();
-
-                                        foreach (var grupo in grupos)
+                                        foreach (var fila in filas)
                                         {
-                                            var tituloGrupo =
-                                                ObtenerTituloGrupoCobrosDiarios(
-                                                    grupo.Key.GrupoCodigo,
-                                                    grupo.Key.GrupoDescripcion);
+                                            table.Cell()
+                                                .Element(BodyStyleCobrosDiarios)
+                                                .Text(fila.CodAgente);
 
-                                            if (!string.IsNullOrWhiteSpace(tituloGrupo))
-                                            {
-                                                table.Cell()
-                                                    .ColumnSpan(7)
-                                                    .PaddingTop(5)
-                                                    .PaddingBottom(2)
-                                                    .Text(tituloGrupo)
-                                                    .FontSize(6.5f)
-                                                    .Bold();
-                                            }
+                                            table.Cell()
+                                                .Element(BodyStyleCobrosDiarios)
+                                                .Text(fila.NombreAgente);
 
-                                            foreach (var fila in grupo
-                                                .OrderBy(
-                                                    x => x.CodAgente,
-                                                    StringComparer.OrdinalIgnoreCase))
-                                            {
-                                                table.Cell()
-                                                    .Element(BodyStyleCobrosDiarios)
-                                                    .Text(fila.CodAgente);
+                                            table.Cell()
+                                                .Element(BodyStyleCobrosDiarios)
+                                                .AlignRight()
+                                                .Text(
+                                                    FormatoMontoCobrosDiarios(
+                                                        fila.CobrosDia));
 
-                                                table.Cell()
-                                                    .Element(BodyStyleCobrosDiarios)
-                                                    .Text(fila.NombreAgente);
+                                            table.Cell()
+                                                .Element(BodyStyleCobrosDiarios)
+                                                .AlignRight()
+                                                .Text(
+                                                    FormatoMontoCobrosDiarios(
+                                                        fila.ChequesDevueltos));
 
-                                                table.Cell()
-                                                    .Element(BodyStyleCobrosDiarios)
-                                                    .AlignRight()
-                                                    .Text(
-                                                        FormatoMontoCobrosDiarios(
-                                                            fila.CobrosDia));
+                                            table.Cell()
+                                                .Element(BodyStyleCobrosDiarios)
+                                                .AlignRight()
+                                                .Text(
+                                                    FormatoMontoCobrosDiarios(
+                                                        fila.Descuentos));
 
-                                                table.Cell()
-                                                    .Element(BodyStyleCobrosDiarios)
-                                                    .AlignRight()
-                                                    .Text(
-                                                        FormatoMontoCobrosDiarios(
-                                                            fila.ChequesDevueltos));
+                                            table.Cell()
+                                                .Element(BodyStyleCobrosDiarios)
+                                                .AlignRight()
+                                                .Text(
+                                                    FormatoMontoCobrosDiarios(
+                                                        fila.CobroNeto));
 
-                                                table.Cell()
-                                                    .Element(BodyStyleCobrosDiarios)
-                                                    .AlignRight()
-                                                    .Text(
-                                                        FormatoMontoCobrosDiarios(
-                                                            fila.Descuentos));
-
-                                                table.Cell()
-                                                    .Element(BodyStyleCobrosDiarios)
-                                                    .AlignRight()
-                                                    .Text(
-                                                        FormatoMontoCobrosDiarios(
-                                                            fila.CobroNeto));
-
-                                                table.Cell()
-                                                    .Element(BodyStyleCobrosDiarios)
-                                                    .AlignRight()
-                                                    .Text(
-                                                        FormatoMontoCobrosDiarios(
-                                                            fila.CobrosMes));
-                                            }
+                                            table.Cell()
+                                                .Element(BodyStyleCobrosDiarios)
+                                                .AlignRight()
+                                                .Text(
+                                                    FormatoMontoCobrosDiarios(
+                                                        fila.CobrosMes));
                                         }
 
                                         table.Cell()
@@ -3336,48 +3045,17 @@ namespace SolicitudesDescuentos.Controllers
             }
             else
             {
-                var grupos = filas
-                    .GroupBy(x => new
-                    {
-                        x.GrupoCodigo,
-                        x.GrupoDescripcion
-                    })
-                    .OrderBy(
-                        x => x.Key.GrupoCodigo,
-                        StringComparer.OrdinalIgnoreCase)
-                    .ToList();
-
-                foreach (var grupo in grupos)
+                foreach (var fila in filas)
                 {
-                    var tituloGrupo =
-                        ObtenerTituloGrupoCobrosDiarios(
-                            grupo.Key.GrupoCodigo,
-                            grupo.Key.GrupoDescripcion);
-
-                    if (!string.IsNullOrWhiteSpace(tituloGrupo))
-                    {
-                        ws.Cell(row, 1).Value = tituloGrupo;
-                        ws.Range(row, 1, row, 7).Merge();
-                        ws.Range(row, 1, row, 7)
-                            .Style.Font.Bold = true;
-                        row++;
-                    }
-
-                    foreach (var fila in grupo
-                        .OrderBy(
-                            x => x.CodAgente,
-                            StringComparer.OrdinalIgnoreCase))
-                    {
-                        ws.Cell(row, 1).Value = fila.CodAgente;
-                        ws.Cell(row, 2).Value = fila.NombreAgente;
-                        ws.Cell(row, 3).Value = fila.CobrosDia;
-                        ws.Cell(row, 4).Value =
-                            fila.ChequesDevueltos;
-                        ws.Cell(row, 5).Value = fila.Descuentos;
-                        ws.Cell(row, 6).Value = fila.CobroNeto;
-                        ws.Cell(row, 7).Value = fila.CobrosMes;
-                        row++;
-                    }
+                    ws.Cell(row, 1).Value = fila.CodAgente;
+                    ws.Cell(row, 2).Value = fila.NombreAgente;
+                    ws.Cell(row, 3).Value = fila.CobrosDia;
+                    ws.Cell(row, 4).Value =
+                        fila.ChequesDevueltos;
+                    ws.Cell(row, 5).Value = fila.Descuentos;
+                    ws.Cell(row, 6).Value = fila.CobroNeto;
+                    ws.Cell(row, 7).Value = fila.CobrosMes;
+                    row++;
                 }
 
                 ws.Cell(row, 1).Value =
@@ -3470,12 +3148,11 @@ namespace SolicitudesDescuentos.Controllers
              * Este filtro aplica únicamente al reporte
              * Cobros Diarios por Agente.
              *
-             * La moneda seleccionada funciona como FILTRO, no como moneda destino:
-             * - CRC: se incluyen únicamente movimientos con MONEDA_FACTURA = CRC.
-             * - USD: se incluyen únicamente movimientos con MONEDA_FACTURA = USD.
+             * La separación se hace con MONEDA_FACTURA:
+             * - CRC: únicamente facturas en colones.
+             * - USD: únicamente facturas en dólares.
              *
-             * En este reporte NO se convierten ni se mezclan monedas mediante
-             * el tipo de cambio. Los importes se muestran en su moneda original.
+             * No se convierte ni se mezcla ninguna moneda.
              */
             var monedaReporte =
                 string.Equals(
@@ -3516,15 +3193,9 @@ namespace SolicitudesDescuentos.Controllers
                    TRIM(UPPER({bu}))
                AND X.FECHA_RECIBO >= {fechaDesde}
                AND X.FECHA_RECIBO < {fechaHastaExclusiva}
-               -- Un movimiento sin SITIO no tiene relación válida con
-               -- XXORA_CUSTOMER_MASTER.PARTY_SITE_NUMBER.
-               AND TRIM(X.SITIO) IS NOT NULL
                AND X.VENDEDOR IS NOT NULL
                AND X.NUM_TRX_APLICADA IS NOT NULL
                AND X.MONEDA_FACTURA IS NOT NULL
-
-               -- En Cobros Diarios por Agente la moneda seleccionada es un filtro.
-               -- No se convierten ni se mezclan CRC y USD.
                AND TRIM(UPPER(X.MONEDA_FACTURA)) =
                    TRIM(UPPER({monedaReporte}))
 
@@ -3699,10 +3370,7 @@ namespace SolicitudesDescuentos.Controllers
 
                     Factura =
                         Normalizar(
-                            x.NUM_TRX_APLICADA),
-
-                    MonedaOrigen =
-                        Normalizar(x.MONEDA_FACTURA)
+                            x.NUM_TRX_APLICADA)
                 })
                 .ToList();
 
@@ -3767,12 +3435,6 @@ namespace SolicitudesDescuentos.Controllers
                             Math.Abs(montoCheque));
                 }
 
-                /*
-                 * IMPORTANTE: este reporte no hace conversión de moneda.
-                 * Los movimientos ya fueron filtrados por MONEDA_FACTURA
-                 * según la moneda seleccionada (CRC o USD), por lo que se
-                 * acumulan sus importes originales directamente.
-                 */
                 trabajo.Periodo.Cobros +=
                     montoFactura;
 
@@ -5088,18 +4750,18 @@ namespace SolicitudesDescuentos.Controllers
                 {
                     CodAgente = codAgente,
                     NombreAgente =
-                        agente?.NOMBRE_VENDEDOR ??
-                        codAgente,
+         agente?.NOMBRE_VENDEDOR ??
+         codAgente,
 
                     GrupoCodigo = grupoCodigo,
                     GrupoDescripcion =
-                        ObtenerDescripcionGrupo(grupoCodigo),
+         ObtenerDescripcionGrupo(grupoCodigo),
 
                     CodCliente = codCliente,
                     NombreCliente =
-                        cliente?.NOMBRE_CLIENTE ??
-                        cliente?.PARTY_NAME ??
-                        codCliente,
+                     cliente?.NOMBRE_CLIENTE ??
+                     cliente?.PARTY_NAME ??
+                     codCliente,
 
                     CobroBruto = ConvertirMontoImpulsador(
                      cobro.COBROBRUTO,
