@@ -37,6 +37,18 @@
 .impulsadores-page .imp-status:empty{display:none}
 .impulsadores-page .js-resolver-codigo{min-width:0;font-variant-numeric:tabular-nums}
 .impulsadores-page #tablaImpulsadores th{white-space:nowrap}
+/* Cinco filtros en una sola fila en pantallas de escritorio (>= 1200px). */
+@@media(min-width:1200px){
+    .impulsadores-page .imp-filtros-cinco > .imp-filtro{
+        flex:0 0 20%;
+        width:20%;
+        min-width:0;
+    }
+    .impulsadores-page .imp-filtros-cinco > .imp-filtro .input-group > .btn{
+        padding-left:.45rem;
+        padding-right:.45rem;
+    }
+}
 @@media(max-width:767px){.impulsadores-page .card-body{padding:13px}}
 </style>
 <div class="container-fluid py-3 impulsadores-page">
@@ -187,9 +199,9 @@
                   asp-controller="ImpulsadoresOracle"
                   method="get"
                    id="formFiltrosImpulsadores"
-                  class="row g-3 align-items-end">
+                  class="row g-3 align-items-end imp-filtros-cinco">
 
-                <div class="col-12 col-md-6 col-xl-4">
+                <div class="col-12 col-md-6 imp-filtro">
                     <label for="clienteDesde" class="form-label">Cliente desde</label>
 
                     <div class="input-group">
@@ -229,7 +241,7 @@
                     <div class="imp-status" data-status-for="clienteDesde" aria-live="polite"></div>
                 </div>
 
-                <div class="col-12 col-md-6 col-xl-4">
+                <div class="col-12 col-md-6 imp-filtro">
                     <label for="clienteHasta" class="form-label">Cliente hasta</label>
 
                     <div class="input-group">
@@ -269,7 +281,7 @@
                     <div class="imp-status" data-status-for="clienteHasta" aria-live="polite"></div>
                 </div>
 
-                <div class="col-12 col-md-6 col-xl-4">
+                <div class="col-12 col-md-6 imp-filtro">
                     <label for="empleadoDesde" class="form-label">Empleado desde</label>
 
                     <div class="input-group">
@@ -309,7 +321,7 @@
                     <div class="imp-status" data-status-for="empleadoDesde" aria-live="polite"></div>
                 </div>
 
-                <div class="col-12 col-md-6 col-xl-4">
+                <div class="col-12 col-md-6 imp-filtro">
                     <label for="empleadoHasta" class="form-label">Empleado hasta</label>
 
                     <div class="input-group">
@@ -349,7 +361,7 @@
                     <div class="imp-status" data-status-for="empleadoHasta" aria-live="polite"></div>
                 </div>
 
-                <div class="col-12 col-md-6 col-xl-4">
+                <div class="col-12 col-md-6 imp-filtro">
                     <label for="agenteVenta" class="form-label">Agente de venta</label>
 
                     <div class="input-group">
@@ -365,7 +377,7 @@
                                 class="btn btn-outline-secondary btn-buscar-agente"
                                 data-codigo-target="agenteVenta"
                                 data-nombre-target="agenteVentaNombre">
-                            F9
+                            Buscar
                         </button>
 
                         <button type="button"
