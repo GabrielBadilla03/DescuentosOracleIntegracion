@@ -554,8 +554,9 @@ namespace SolicitudesDescuentos.Controllers
         /// tienen porcentaje de vendedor configurado para esta unidad de negocio.
         /// Un mismo cliente/vendedor puede aparecer en varios sitios de Oracle;
         /// solo se advierte si ninguno de esos registros tiene porcentaje.
-        /// Así se evita mostrar duplicados y falsos positivos cuando ya
-        /// existe una configuración válida para la misma relación.
+        /// Además, el cliente debe tener al menos un registro en
+        /// XXORA_COMISIONES para la misma BU, sin restringir la fecha.
+        /// Así se evita mostrar duplicados y clientes sin movimientos.
         /// </summary>
         private async Task<List<ClienteSinPorcentajeVendedorVm>>
             ObtenerClientesSinPorcentajeVendedorAsync(string? buNombre)
@@ -574,7 +575,15 @@ namespace SolicitudesDescuentos.Controllers
                     x.SITIO != null &&
                     x.SITIO.Trim().ToUpper() == "SHIP_TO" &&
                     x.IDCLIENTE != null &&
-                    x.IDCLIENTE.Trim() != "")
+                    x.IDCLIENTE.Trim() != "" &&
+                    // Debe tener al menos un cobro/comisión en la misma BU.
+                    // Any se traduce a EXISTS: no carga todos los movimientos.
+                    _context.XXORA_COMISIONEs.Any(comision =>
+                        comision.BU_NOMBRE != null &&
+                        comision.BU_NOMBRE.Trim().ToUpper() == bu &&
+                        comision.ID_CLIENTE != null &&
+                        comision.ID_CLIENTE.Trim().ToUpper() ==
+                            x.IDCLIENTE.Trim().ToUpper()))
                 .Select(x => new
                 {
                     x.IDCLIENTE,
