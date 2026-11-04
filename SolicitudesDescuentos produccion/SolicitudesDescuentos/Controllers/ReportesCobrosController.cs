@@ -32,6 +32,7 @@ namespace SolicitudesDescuentos.Controllers
         private readonly OracleContext _context;
         private readonly LancoDbContext _lancoContext;
         private readonly IMemoryCache _cache;
+        private readonly IConfiguration _configuration;
 
         private static readonly SemaphoreSlim CalculoComisionesLock = new(1, 1);
         private static readonly SemaphoreSlim ActualizacionNaviusLock = new(1, 1);
@@ -159,11 +160,13 @@ namespace SolicitudesDescuentos.Controllers
         public ReportesCobrosController(
             OracleContext context,
             LancoDbContext lancoContext,
-            IMemoryCache cache)
+            IMemoryCache cache,
+            IConfiguration configuration)
         {
             _context = context;
             _lancoContext = lancoContext;
             _cache = cache;
+            _configuration = configuration;
         }
 
         private sealed class CatalogosReporte
@@ -1466,37 +1469,8 @@ namespace SolicitudesDescuentos.Controllers
             }
             else
             {
-                var grupos = agentes
-                    .GroupBy(x => new
-                    {
-                        x.GrupoCodigo,
-                        x.GrupoDescripcion
-                    })
-                    .OrderBy(x => x.Key.GrupoCodigo)
-                    .ToList();
-
-                foreach (var grupo in grupos)
+                foreach (var agente in OrdenarAgentesPorCodigo(agentes))
                 {
-                    row++;
-
-                    ws.Cell(row, 1).Value = "Grupo";
-                    ws.Cell(row, 2).Value =
-                        grupo.Key.GrupoCodigo;
-                    ws.Cell(row, 3).Value =
-                        grupo.Key.GrupoDescripcion;
-
-                    ws.Range(row, 1, row, 5)
-                        .Style.Font.Bold = true;
-
-                    ws.Range(row, 1, row, 5)
-                        .Style.Fill.BackgroundColor =
-                            XLColor.FromHtml("#E9ECEF");
-
-                    row++;
-
-                    foreach (var agente in grupo
-                        .OrderBy(x => x.CodVendedor))
-                    {
                         ws.Cell(row, 1).Value = "Agente";
                         ws.Cell(row, 2).Value =
                             $"{agente.CodVendedor} - " +
@@ -1553,25 +1527,6 @@ namespace SolicitudesDescuentos.Controllers
                                 XLBorderStyleValues.Thin;
 
                         row += 2;
-                    }
-
-                    ws.Cell(row, 2).Value = "TOTAL GRUPO";
-                    ws.Cell(row, 3).Value =
-                        grupo.Sum(x => x.Monto);
-                    ws.Cell(row, 4).Value =
-                        grupo.Sum(
-                            x => x.MontoFacturaSinImpuesto);
-                    ws.Cell(row, 5).Value =
-                        grupo.Sum(x => x.MontoComision);
-
-                    ws.Range(row, 2, row, 5)
-                        .Style.Font.Bold = true;
-
-                    ws.Range(row, 2, row, 5)
-                        .Style.Border.TopBorder =
-                            XLBorderStyleValues.Medium;
-
-                    row++;
                 }
 
                 row++;
@@ -1625,6 +1580,57 @@ namespace SolicitudesDescuentos.Controllers
                 fileName);
         }
 
+
+        // Orden numérico de códigos de agente (2, 07, 10...), sin agrupar por categoría.
+        private static IOrderedEnumerable<ResumenAgenteComisionesFila> OrdenarAgentesPorCodigo(
+            IEnumerable<ResumenAgenteComisionesFila> agentes)
+        {
+            return agentes
+                .OrderBy(x => long.TryParse(x.CodVendedor, out var numero)
+                    ? numero : long.MaxValue)
+                .ThenBy(x => x.CodVendedor, StringComparer.OrdinalIgnoreCase);
+        }
+
+        // GEN_VENDEDOR.CATEGORIA llega como "COMERCIAL 1", "COMERCIAL 2",
+        // "PEGAMENTOS", "INDUSTRIA 1", etc. El appsettings usa los nombres
+        // legibles (NombreJefes:Comercial 1, :Industria...). Aceptamos
+        // también los códigos históricos C1/C2/PE/I1.
+        private string ObtenerNombreJefePorGrupo(string? grupoAgente)
+        {
+            var clave = Normalizar(grupoAgente) switch
+            {
+                "C1" or "COMERCIAL 1" => "Comercial 1",
+                "C2" or "COMERCIAL 2" => "Comercial 2",
+                "PE" or "PEGAMENTOS" => "Pegamentos",
+                "I1" or "INDUSTRIA" or "INDUSTRIA 1" => "Industria",
+                _ => null
+            };
+
+            return clave == null
+                ? ""
+                : (_configuration[$"NombreJefes:{clave}"] ?? "").Trim();
+        }
+
+        // Un jefe se muestra en el encabezado solo si se eligió su grupo
+        // (o cuando todos los agentes mostrados pertenecen a un único grupo).
+        // Para "Todos" con grupos diferentes no se atribuye un jefe incorrecto.
+        private string ObtenerNombreJefeReporte(
+            ResumenCobrosAgenteFiltroVm filtro,
+            IReadOnlyCollection<CobrosDiariosAgenteFila> filas)
+        {
+            if (!string.IsNullOrWhiteSpace(filtro.GrupoAgente))
+                return ObtenerNombreJefePorGrupo(filtro.GrupoAgente);
+
+            var grupos = filas
+                .Select(x => Normalizar(x.GrupoCodigo))
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            return grupos.Count == 1
+                ? ObtenerNombreJefePorGrupo(grupos[0])
+                : "";
+        }
 
         private static IContainer HeaderStyleResumen(IContainer container)
         {
@@ -1807,47 +1813,8 @@ namespace SolicitudesDescuentos.Controllers
                                 return;
                             }
 
-                            var grupos = agentes
-                                .GroupBy(x => new
-                                {
-                                    x.GrupoCodigo,
-                                    x.GrupoDescripcion
-                                })
-                                .OrderBy(
-                                    x => x.Key.GrupoCodigo)
-                                .ToList();
-
-                            foreach (var grupo in grupos)
+                            foreach (var agente in OrdenarAgentesPorCodigo(agentes))
                             {
-                                table.Cell()
-                                    .ColumnSpan(5)
-                                    .PaddingTop(8)
-                                    .PaddingBottom(2)
-                                    .Text(text =>
-                                    {
-                                        text.Span("GRUPO ")
-                                            .Bold()
-                                            .FontSize(8);
-
-                                        text.Span(
-                                                grupo.Key.GrupoCodigo)
-                                            .Bold()
-                                            .FontSize(8);
-
-                                        text.Span("  ")
-                                            .FontSize(8);
-
-                                        text.Span(
-                                                grupo.Key
-                                                    .GrupoDescripcion)
-                                            .Bold()
-                                            .FontSize(8);
-                                    });
-
-                                foreach (var agente in grupo
-                                    .OrderBy(
-                                        x => x.CodVendedor))
-                                {
                                     table.Cell()
                                         .ColumnSpan(5)
                                         .PaddingTop(5)
@@ -1962,50 +1929,6 @@ namespace SolicitudesDescuentos.Controllers
                                                     .MontoComision))
                                         .FontSize(7)
                                         .Bold();
-                                }
-
-                                table.Cell()
-                                    .Element(BodyStyleResumen)
-                                    .Text("");
-
-                                table.Cell()
-                                    .Element(BodyStyleResumen)
-                                    .AlignRight()
-                                    .Text("TOTAL GRUPO")
-                                    .FontSize(7)
-                                    .Bold();
-
-                                table.Cell()
-                                    .Element(BodyStyleResumen)
-                                    .AlignRight()
-                                    .Text(
-                                        FormatoMonto(
-                                            grupo.Sum(
-                                                x => x.Monto)))
-                                    .FontSize(7)
-                                    .Bold();
-
-                                table.Cell()
-                                    .Element(BodyStyleResumen)
-                                    .AlignRight()
-                                    .Text(
-                                        FormatoMonto(
-                                            grupo.Sum(
-                                                x =>
-                                                    x.MontoFacturaSinImpuesto)))
-                                    .FontSize(7)
-                                    .Bold();
-
-                                table.Cell()
-                                    .Element(BodyStyleResumen)
-                                    .AlignRight()
-                                    .Text(
-                                        FormatoMonto(
-                                            grupo.Sum(
-                                                x =>
-                                                    x.MontoComision)))
-                                    .FontSize(7)
-                                    .Bold();
                             }
 
                             table.Cell()
@@ -2272,8 +2195,9 @@ namespace SolicitudesDescuentos.Controllers
                                 x => x.CodComision)
                             .ToList()
                 })
-                .OrderBy(x => x.GrupoCodigo)
-                .ThenBy(x => x.CodVendedor)
+                .OrderBy(x => long.TryParse(x.CodVendedor, out var numero)
+                    ? numero : long.MaxValue)
+                .ThenBy(x => x.CodVendedor, StringComparer.OrdinalIgnoreCase)
                 .ToList();
         }
 
@@ -2761,6 +2685,7 @@ namespace SolicitudesDescuentos.Controllers
                 QLicenseType.Community;
 
             var fechaGeneracion = DateTime.Now;
+            var nombreJefeReporte = ObtenerNombreJefeReporte(filtro, filas);
 
             var pdfBytes = QDocument.Create(container =>
             {
@@ -2843,6 +2768,12 @@ namespace SolicitudesDescuentos.Controllers
                                             $"{LineaCobroFija} " +
                                             DescripcionLineaCobroFija)
                                         .Bold();
+
+                                    if (!string.IsNullOrWhiteSpace(nombreJefeReporte))
+                                    {
+                                        text.Span("        Jefe: ").Bold();
+                                        text.Span(nombreJefeReporte).Bold();
+                                    }
                                 });
 
                             content.Item()
@@ -3051,6 +2982,7 @@ namespace SolicitudesDescuentos.Controllers
                 () => ObtenerCobrosDiariosAgenteAsync(
                     filtro,
                     parametros));
+            var nombreJefeReporte = ObtenerNombreJefeReporte(filtro, filas);
 
             using var wb = new XLWorkbook();
             var ws = wb.Worksheets.Add("Cobros diarios");
@@ -3088,6 +3020,12 @@ namespace SolicitudesDescuentos.Controllers
                 $"{LineaCobroFija} " +
                 DescripcionLineaCobroFija;
             ws.Range(row, 2, row, 4).Merge();
+            if (!string.IsNullOrWhiteSpace(nombreJefeReporte))
+            {
+                ws.Cell(row, 5).Value = $"Jefe: {nombreJefeReporte}";
+                ws.Range(row, 5, row, 7).Merge();
+                ws.Range(row, 5, row, 7).Style.Font.Bold = true;
+            }
             ws.Range(row, 1, row, 4)
                 .Style.Font.Bold = true;
             row++;
