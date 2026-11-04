@@ -138,7 +138,6 @@ namespace SolicitudesDescuentos.Controllers
             public string NombreAgente { get; set; } = "";
             public string GrupoCodigo { get; set; } = "";
             public string GrupoDescripcion { get; set; } = "";
-            public string NombreJefe { get; set; } = "";
 
             public decimal CobrosDia { get; set; }
             public decimal ChequesDevueltos { get; set; }
@@ -1592,22 +1591,45 @@ namespace SolicitudesDescuentos.Controllers
                 .ThenBy(x => x.CodVendedor, StringComparer.OrdinalIgnoreCase);
         }
 
-        // GEN_VENDEDOR.CATEGORIA usa códigos distintos de las claves
-        // configuradas en appsettings.json / NombreJefes.
-        private string ObtenerNombreJefePorGrupo(string? codigoGrupo)
+        // GEN_VENDEDOR.CATEGORIA llega como "COMERCIAL 1", "COMERCIAL 2",
+        // "PEGAMENTOS", "INDUSTRIA 1", etc. El appsettings usa los nombres
+        // legibles (NombreJefes:Comercial 1, :Industria...). Aceptamos
+        // también los códigos históricos C1/C2/PE/I1.
+        private string ObtenerNombreJefePorGrupo(string? grupoAgente)
         {
-            var clave = Normalizar(codigoGrupo) switch
+            var clave = Normalizar(grupoAgente) switch
             {
-                "C1" => "Comercial 1",
-                "C2" => "Comercial 2",
-                "PE" => "Pegamentos",
-                "I1" => "Industria",
+                "C1" or "COMERCIAL 1" => "Comercial 1",
+                "C2" or "COMERCIAL 2" => "Comercial 2",
+                "PE" or "PEGAMENTOS" => "Pegamentos",
+                "I1" or "INDUSTRIA" or "INDUSTRIA 1" => "Industria",
                 _ => null
             };
 
             return clave == null
                 ? ""
                 : (_configuration[$"NombreJefes:{clave}"] ?? "").Trim();
+        }
+
+        // Un jefe se muestra en el encabezado solo si se eligió su grupo
+        // (o cuando todos los agentes mostrados pertenecen a un único grupo).
+        // Para "Todos" con grupos diferentes no se atribuye un jefe incorrecto.
+        private string ObtenerNombreJefeReporte(
+            ResumenCobrosAgenteFiltroVm filtro,
+            IReadOnlyCollection<CobrosDiariosAgenteFila> filas)
+        {
+            if (!string.IsNullOrWhiteSpace(filtro.GrupoAgente))
+                return ObtenerNombreJefePorGrupo(filtro.GrupoAgente);
+
+            var grupos = filas
+                .Select(x => Normalizar(x.GrupoCodigo))
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            return grupos.Count == 1
+                ? ObtenerNombreJefePorGrupo(grupos[0])
+                : "";
         }
 
         private static IContainer HeaderStyleResumen(IContainer container)
@@ -2663,6 +2685,7 @@ namespace SolicitudesDescuentos.Controllers
                 QLicenseType.Community;
 
             var fechaGeneracion = DateTime.Now;
+            var nombreJefeReporte = ObtenerNombreJefeReporte(filtro, filas);
 
             var pdfBytes = QDocument.Create(container =>
             {
@@ -2745,6 +2768,12 @@ namespace SolicitudesDescuentos.Controllers
                                             $"{LineaCobroFija} " +
                                             DescripcionLineaCobroFija)
                                         .Bold();
+
+                                    if (!string.IsNullOrWhiteSpace(nombreJefeReporte))
+                                    {
+                                        text.Span("        Jefe: ").Bold();
+                                        text.Span(nombreJefeReporte).Bold();
+                                    }
                                 });
 
                             content.Item()
@@ -2754,8 +2783,7 @@ namespace SolicitudesDescuentos.Controllers
                                     table.ColumnsDefinition(columns =>
                                     {
                                         columns.ConstantColumn(22);
-                                        columns.RelativeColumn(1.45f);
-                                        columns.RelativeColumn(1.25f);
+                                        columns.RelativeColumn(1.80f);
                                         columns.RelativeColumn(1.05f);
                                         columns.RelativeColumn(0.85f);
                                         columns.RelativeColumn(0.95f);
@@ -2769,11 +2797,6 @@ namespace SolicitudesDescuentos.Controllers
                                             .ColumnSpan(2)
                                             .Element(HeaderStyleCobrosDiarios)
                                             .Text("Agte Nombre")
-                                            .Bold();
-
-                                        header.Cell()
-                                            .Element(HeaderStyleCobrosDiarios)
-                                            .Text("Jefe")
                                             .Bold();
 
                                         header.Cell()
@@ -2810,7 +2833,7 @@ namespace SolicitudesDescuentos.Controllers
                                     if (!filas.Any())
                                     {
                                         table.Cell()
-                                            .ColumnSpan(8)
+                                            .ColumnSpan(7)
                                             .PaddingTop(12)
                                             .AlignCenter()
                                             .Text(
@@ -2829,10 +2852,6 @@ namespace SolicitudesDescuentos.Controllers
                                             table.Cell()
                                                 .Element(BodyStyleCobrosDiarios)
                                                 .Text(fila.NombreAgente);
-
-                                            table.Cell()
-                                                .Element(BodyStyleCobrosDiarios)
-                                                .Text(fila.NombreJefe);
 
                                             table.Cell()
                                                 .Element(BodyStyleCobrosDiarios)
@@ -2871,7 +2890,7 @@ namespace SolicitudesDescuentos.Controllers
                                         }
 
                                         table.Cell()
-                                            .ColumnSpan(3)
+                                            .ColumnSpan(2)
                                             .Element(TotalStyleCobrosDiarios)
                                             .Text("Totales Por Moneda:");
 
@@ -2963,6 +2982,7 @@ namespace SolicitudesDescuentos.Controllers
                 () => ObtenerCobrosDiariosAgenteAsync(
                     filtro,
                     parametros));
+            var nombreJefeReporte = ObtenerNombreJefeReporte(filtro, filas);
 
             using var wb = new XLWorkbook();
             var ws = wb.Worksheets.Add("Cobros diarios");
@@ -2973,12 +2993,12 @@ namespace SolicitudesDescuentos.Controllers
             ws.Cell(row, 3).Value =
                 "LANCO & HARRIS MFG. CORP. SRL";
             ws.Range(row, 3, row, 5).Merge();
-            ws.Cell(row, 8).Value = "Pagina 1";
+            ws.Cell(row, 7).Value = "Pagina 1";
             row++;
 
             ws.Cell(row, 3).Value = "PRINCIPAL";
             ws.Range(row, 3, row, 5).Merge();
-            ws.Cell(row, 8).Value =
+            ws.Cell(row, 7).Value =
                 DateTime.Now.ToString("dd/MM/yyyy HH:mm");
             row++;
 
@@ -3000,6 +3020,12 @@ namespace SolicitudesDescuentos.Controllers
                 $"{LineaCobroFija} " +
                 DescripcionLineaCobroFija;
             ws.Range(row, 2, row, 4).Merge();
+            if (!string.IsNullOrWhiteSpace(nombreJefeReporte))
+            {
+                ws.Cell(row, 5).Value = $"Jefe: {nombreJefeReporte}";
+                ws.Range(row, 5, row, 7).Merge();
+                ws.Range(row, 5, row, 7).Style.Font.Bold = true;
+            }
             ws.Range(row, 1, row, 4)
                 .Style.Font.Bold = true;
             row++;
@@ -3008,16 +3034,15 @@ namespace SolicitudesDescuentos.Controllers
 
             ws.Cell(row, 1).Value = "Agte";
             ws.Cell(row, 2).Value = "Nombre";
-            ws.Cell(row, 3).Value = "Jefe";
-            ws.Cell(row, 4).Value = "Cobros Dia";
-            ws.Cell(row, 5).Value = "Chk Dev.";
-            ws.Cell(row, 6).Value = "Descuentos";
-            ws.Cell(row, 7).Value = "Cobro Neto";
-            ws.Cell(row, 8).Value = "Cobros Mes";
+            ws.Cell(row, 3).Value = "Cobros Dia";
+            ws.Cell(row, 4).Value = "Chk Dev.";
+            ws.Cell(row, 5).Value = "Descuentos";
+            ws.Cell(row, 6).Value = "Cobro Neto";
+            ws.Cell(row, 7).Value = "Cobros Mes";
 
-            ws.Range(row, 1, row, 8)
+            ws.Range(row, 1, row, 7)
                 .Style.Font.Bold = true;
-            ws.Range(row, 1, row, 8)
+            ws.Range(row, 1, row, 7)
                 .Style.Border.BottomBorder =
                     XLBorderStyleValues.Thin;
             row++;
@@ -3026,8 +3051,8 @@ namespace SolicitudesDescuentos.Controllers
             {
                 ws.Cell(row, 1).Value =
                     "No hay agentes para los filtros seleccionados.";
-                ws.Range(row, 1, row, 8).Merge();
-                ws.Range(row, 1, row, 8)
+                ws.Range(row, 1, row, 7).Merge();
+                ws.Range(row, 1, row, 7)
                     .Style.Alignment.Horizontal =
                         XLAlignmentHorizontalValues.Center;
             }
@@ -3037,33 +3062,32 @@ namespace SolicitudesDescuentos.Controllers
                 {
                     ws.Cell(row, 1).Value = fila.CodAgente;
                     ws.Cell(row, 2).Value = fila.NombreAgente;
-            ws.Cell(row, 3).Value = fila.NombreJefe;
-                    ws.Cell(row, 4).Value = fila.CobrosDia;
-                    ws.Cell(row, 5).Value =
+                    ws.Cell(row, 3).Value = fila.CobrosDia;
+                    ws.Cell(row, 4).Value =
                         fila.ChequesDevueltos;
-                    ws.Cell(row, 6).Value = fila.Descuentos;
-                    ws.Cell(row, 7).Value = fila.CobroNeto;
-                    ws.Cell(row, 8).Value = fila.CobrosMes;
+                    ws.Cell(row, 5).Value = fila.Descuentos;
+                    ws.Cell(row, 6).Value = fila.CobroNeto;
+                    ws.Cell(row, 7).Value = fila.CobrosMes;
                     row++;
                 }
 
                 ws.Cell(row, 1).Value =
                     "Totales Por Moneda:";
-                ws.Range(row, 1, row, 3).Merge();
-                ws.Cell(row, 4).Value =
+                ws.Range(row, 1, row, 2).Merge();
+                ws.Cell(row, 3).Value =
                     filas.Sum(x => x.CobrosDia);
-                ws.Cell(row, 5).Value =
+                ws.Cell(row, 4).Value =
                     filas.Sum(x => x.ChequesDevueltos);
-                ws.Cell(row, 6).Value =
+                ws.Cell(row, 5).Value =
                     filas.Sum(x => x.Descuentos);
-                ws.Cell(row, 7).Value =
+                ws.Cell(row, 6).Value =
                     filas.Sum(x => x.CobroNeto);
-                ws.Cell(row, 8).Value =
+                ws.Cell(row, 7).Value =
                     filas.Sum(x => x.CobrosMes);
 
-                ws.Range(row, 1, row, 8)
+                ws.Range(row, 1, row, 7)
                     .Style.Font.Bold = true;
-                ws.Range(row, 1, row, 8)
+                ws.Range(row, 1, row, 7)
                     .Style.Border.TopBorder =
                         XLBorderStyleValues.Thin;
             }
@@ -3071,24 +3095,23 @@ namespace SolicitudesDescuentos.Controllers
             ws.SheetView.FreezeRows(headerRow);
 
             ws.Column(1).Width = 10;
-            ws.Column(2).Width = 30;
-            ws.Column(3).Width = 25;
-            ws.Columns(4, 8).Width = 19;
-            ws.Columns(4, 8)
+            ws.Column(2).Width = 38;
+            ws.Columns(3, 7).Width = 19;
+            ws.Columns(3, 7)
                 .Style.NumberFormat.Format =
                     "#,##0.00";
 
-            ws.Range(1, 1, 4, 8)
+            ws.Range(1, 1, 4, 7)
                 .Style.Alignment.Horizontal =
                     XLAlignmentHorizontalValues.Center;
 
             ws.Cell(1, 1)
                 .Style.Alignment.Horizontal =
                     XLAlignmentHorizontalValues.Left;
-            ws.Cell(1, 8)
+            ws.Cell(1, 7)
                 .Style.Alignment.Horizontal =
                     XLAlignmentHorizontalValues.Right;
-            ws.Cell(2, 8)
+            ws.Cell(2, 7)
                 .Style.Alignment.Horizontal =
                     XLAlignmentHorizontalValues.Right;
 
@@ -3446,7 +3469,6 @@ namespace SolicitudesDescuentos.Controllers
                     GrupoCodigo = x.GrupoCodigo,
                     GrupoDescripcion =
                         x.GrupoDescripcion,
-                    NombreJefe = ObtenerNombreJefePorGrupo(x.GrupoCodigo),
 
                     CobrosDia =
                         x.Periodo.Cobros,
