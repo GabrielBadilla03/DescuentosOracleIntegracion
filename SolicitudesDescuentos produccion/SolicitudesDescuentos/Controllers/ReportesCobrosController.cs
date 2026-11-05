@@ -3204,22 +3204,13 @@ namespace SolicitudesDescuentos.Controllers
               FROM BG_INTUSER.XXORA_COMISIONES X
              WHERE TRIM(UPPER(X.BU_NOMBRE)) =
                    TRIM(UPPER({bu}))
-               AND X.FECHA_RECIBO >= {fechaDesde}
-               AND X.FECHA_RECIBO < {fechaHastaExclusiva}
+               AND X.FECHA_APLICADA >= {fechaDesde}
+               AND X.FECHA_APLICADA < {fechaHastaExclusiva}
                AND X.VENDEDOR IS NOT NULL
                AND X.NUM_TRX_APLICADA IS NOT NULL
                AND X.MONEDA_FACTURA IS NOT NULL
                AND TRIM(UPPER(X.MONEDA_FACTURA)) =
                    TRIM(UPPER({monedaReporte}))
-
-               -- Excluye las facturas registradas como mano de obra.
-               AND NOT EXISTS
-               (
-                   SELECT 1
-                     FROM BG_INTUSER.XXORA_FACTURAMANOOBRA M
-                    WHERE TRIM(UPPER(M.DOCUMENTO)) =
-                          TRIM(UPPER(X.NUM_TRX_APLICADA))
-               )
         ")
                     .AsNoTracking()
                     .ToListAsync();
@@ -3449,7 +3440,7 @@ namespace SolicitudesDescuentos.Controllers
                 }
 
                 trabajo.Periodo.Cobros +=
-                    montoFactura;
+                    montoFactura + descuento;
 
                 trabajo.Periodo.Descuentos +=
                     descuento;
