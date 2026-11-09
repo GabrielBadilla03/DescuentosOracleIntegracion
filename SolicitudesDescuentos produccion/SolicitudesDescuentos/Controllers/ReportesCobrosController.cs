@@ -2146,7 +2146,7 @@ namespace SolicitudesDescuentos.Controllers
 
                 // El descuento ya no se muestra como columna separada.
                 // Se descuenta directamente del monto bruto.
-                acumulado.Monto += monto - descuento;
+                acumulado.Monto += monto;
                 acumulado.MontoFacturaSinImpuesto +=
                     montoSinImpuesto;
                 acumulado.MontoComision +=
