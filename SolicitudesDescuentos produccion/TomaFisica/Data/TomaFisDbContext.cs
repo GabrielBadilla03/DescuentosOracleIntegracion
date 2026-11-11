@@ -22,10 +22,12 @@ namespace TomaFisica.Data
         public virtual DbSet<INV_BODEGA> INV_BODEGAs { get; set; } = null!;
         public virtual DbSet<INV_DETTOMAFI> INV_DETTOMAFIs { get; set; } = null!;
         public virtual DbSet<INV_LOC> INV_LOCs { get; set; } = null!;
+        public virtual DbSet<INV_MEDIDum> INV_MEDIDAs { get; set; } = null!;
         public virtual DbSet<INV_ORIGEN> INV_ORIGENs { get; set; } = null!;
+        public virtual DbSet<INV_TIPOSINV> INV_TIPOSINVs { get; set; } = null!;
         public virtual DbSet<INV_TOMAFI> INV_TOMAFIs { get; set; } = null!;
         public virtual DbSet<LOCALIZARD> LOCALIZARDs { get; set; } = null!;
-        public virtual DbSet<PNORDENE> PNORDENEs { get; set; } = null!;
+        public virtual DbSet<PRDBATCH> PRDBATCHes { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -54,6 +56,14 @@ namespace TomaFisica.Data
                     .IsUnicode(false);
 
                 entity.Property(e => e.MULTIPLOCAJA).HasColumnType("NUMBER(8,2)");
+
+                entity.Property(e => e.ORIGEN).HasPrecision(2);
+
+                entity.Property(e => e.REQUIEREBATCH)
+                    .HasMaxLength(1)
+                    .IsUnicode(false)
+                    .HasDefaultValueSql("'S' ")
+                    .IsFixedLength();
 
                 entity.Property(e => e.SUBCATEGORIA)
                     .HasMaxLength(50)
@@ -260,6 +270,21 @@ namespace TomaFisica.Data
                     .HasConstraintName("INVBODEGA_LOC_FK");
             });
 
+            modelBuilder.Entity<INV_MEDIDum>(entity =>
+            {
+                entity.HasNoKey();
+
+                entity.ToTable("INV_MEDIDA");
+
+                entity.Property(e => e.DES_MEDIDA)
+                    .HasMaxLength(10)
+                    .IsUnicode(false);
+
+                entity.Property(e => e.MEDIDA)
+                    .HasMaxLength(10)
+                    .IsUnicode(false);
+            });
+
             modelBuilder.Entity<INV_ORIGEN>(entity =>
             {
                 entity.HasNoKey();
@@ -274,6 +299,17 @@ namespace TomaFisica.Data
                     .IsUnicode(false);
 
                 entity.Property(e => e.ORIGEN).HasPrecision(2);
+            });
+
+            modelBuilder.Entity<INV_TIPOSINV>(entity =>
+            {
+                entity.HasNoKey();
+
+                entity.ToTable("INV_TIPOSINV");
+
+                entity.Property(e => e.TIPOINVENTARIO)
+                    .HasMaxLength(30)
+                    .IsUnicode(false);
             });
 
             modelBuilder.Entity<INV_TOMAFI>(entity =>
@@ -348,29 +384,23 @@ namespace TomaFisica.Data
                     .IsUnicode(false);
             });
 
-            modelBuilder.Entity<PNORDENE>(entity =>
+            modelBuilder.Entity<PRDBATCH>(entity =>
             {
-                entity.HasKey(e => e.BATCH)
-                    .HasName("PNORDENES_PK");
+                entity.HasNoKey();
 
-                entity.ToTable("PNORDENES");
+                entity.ToTable("PRDBATCH");
+
+                entity.HasIndex(e => new { e.BATCH, e.ARTICULO }, "PRDBATCH_IDX");
+
+                entity.Property(e => e.ARTICULO)
+                    .HasMaxLength(40)
+                    .IsUnicode(false);
 
                 entity.Property(e => e.BATCH)
                     .HasMaxLength(30)
-                    .IsUnicode(false)
-                    .ValueGeneratedOnAdd();
+                    .IsUnicode(false);
 
-                entity.Property(e => e.AFECTAMP)
-                    .HasMaxLength(1)
-                    .IsUnicode(false)
-                    .HasDefaultValueSql("'S' ")
-                    .IsFixedLength();
-
-                entity.Property(e => e.COSTO).HasColumnType("NUMBER(14,4)");
-
-                entity.Property(e => e.COSTOADICIONAL)
-                    .HasColumnType("NUMBER(14,4)")
-                    .HasDefaultValueSql("0");
+                entity.Property(e => e.CANTIDAD).HasColumnType("NUMBER(14,4)");
 
                 entity.Property(e => e.COSTOTOTAL).HasColumnType("NUMBER(14,4)");
 
@@ -378,68 +408,11 @@ namespace TomaFisica.Data
                     .HasMaxLength(200)
                     .IsUnicode(false);
 
-                entity.Property(e => e.ESTADO)
-                    .HasMaxLength(1)
-                    .IsUnicode(false)
-                    .ValueGeneratedOnAdd()
-                    .HasDefaultValueSql("'P' ")
-                    .IsFixedLength();
-
                 entity.Property(e => e.FECHA).HasColumnType("DATE");
 
-                entity.Property(e => e.FECHACIERRE).HasColumnType("DATE");
+                entity.Property(e => e.PESO).HasColumnType("NUMBER(14,4)");
 
-                entity.Property(e => e.FORMULA)
-                    .HasMaxLength(40)
-                    .IsUnicode(false);
-
-                entity.Property(e => e.LISTACIERRE)
-                    .HasMaxLength(1)
-                    .IsUnicode(false)
-                    .HasDefaultValueSql("'N' ")
-                    .IsFixedLength();
-
-                entity.Property(e => e.LOCAL1)
-                    .HasMaxLength(1)
-                    .IsUnicode(false)
-                    .HasDefaultValueSql("'S' ");
-
-                entity.Property(e => e.OBSERVACIONES)
-                    .HasMaxLength(100)
-                    .IsUnicode(false);
-
-                entity.Property(e => e.PASO)
-                    .HasMaxLength(1)
-                    .IsUnicode(false)
-                    .HasDefaultValueSql("'N' ")
-                    .IsFixedLength();
-
-                entity.Property(e => e.REPLICA1)
-                    .HasMaxLength(1)
-                    .IsUnicode(false)
-                    .HasDefaultValueSql("'S' ")
-                    .IsFixedLength();
-
-                entity.Property(e => e.REPROCESO)
-                    .HasMaxLength(1)
-                    .IsUnicode(false)
-                    .HasDefaultValueSql("'N' ")
-                    .IsFixedLength();
-
-                entity.Property(e => e.RESERVADOINV)
-                    .HasMaxLength(1)
-                    .IsUnicode(false)
-                    .ValueGeneratedOnAdd()
-                    .HasDefaultValueSql("'C' ")
-                    .IsFixedLength();
-
-                entity.Property(e => e.USUARIO)
-                    .HasMaxLength(30)
-                    .IsUnicode(false);
-
-                entity.Property(e => e.VOLUMENORDER)
-                    .HasColumnType("NUMBER(14,4)")
-                    .HasDefaultValueSql("0");
+                entity.Property(e => e.VOLUMENORDER).HasColumnType("NUMBER(14,4)");
             });
 
             OnModelCreatingPartial(modelBuilder);

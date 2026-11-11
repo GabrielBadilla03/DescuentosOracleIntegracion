@@ -18,6 +18,8 @@ namespace TomaFisica.ModelsTomaFis
         public string TIPOINVENTARIO { get; set; } = null!;
         public string SUBCATEGORIA { get; set; } = null!;
         public string CATEGORIA { get; set; } = null!;
+        public byte? ORIGEN { get; set; }
+        public string REQUIEREBATCH { get; set; } = null!;
 
         public virtual ICollection<INV_ARTIC_CODBAR> INV_ARTIC_CODBARs { get; set; }
     }
