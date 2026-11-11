@@ -571,11 +571,17 @@ public class ConteoTomaFisicaController : Controller
         if (batch.Length == 0) return new BatchResult(true, "", null, null);
         if (batch.Length > 30)
             return new BatchResult(false, "El batch no puede superar 30 caracteres.", null, null);
-        var orden = await _context.PNORDENEs.AsNoTracking()
-            .Where(x => x.BATCH != null && x.BATCH.Trim().ToUpper() == batch)
-            .Select(x => new { x.BATCH, x.FECHA }).FirstOrDefaultAsync(ct);
-        return orden == null ? new BatchResult(false, $"El batch {batch} no existe.", null, null) :
-            new BatchResult(true, "", (orden.BATCH ?? "").Trim(), orden.FECHA);
+        // PRDBATCH reemplaza PNORDENES. Puede tener varias filas por batch
+        // (por articulo), por eso se elige la fecha mas reciente.
+        var batchKey = Normalizar(batch);
+        var registroBatch = await _context.PRDBATCHes.AsNoTracking()
+            .Where(x => x.BATCH != null && x.BATCH.Trim().ToUpper() == batchKey)
+            .OrderByDescending(x => x.FECHA)
+            .Select(x => new { x.BATCH, x.FECHA })
+            .FirstOrDefaultAsync(ct);
+        return registroBatch == null
+            ? new BatchResult(false, $"El batch {batch} no existe.", null, null)
+            : new BatchResult(true, "", (registroBatch.BATCH ?? "").Trim(), registroBatch.FECHA);
     }
 
     private CodigoInterpretadoResult InterpretarCodigoEscaneado(string? codigo)
