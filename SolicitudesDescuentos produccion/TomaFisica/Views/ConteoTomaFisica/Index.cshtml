@@ -123,7 +123,7 @@
                         <select id="origen" class="form-select" required><option value="">Seleccione origen</option></select>
                     </div>
                     <div>
-                        <label for="batch" class="campo-label">Batch (opcional)</label>
+                        <label id="labelBatch" for="batch" class="campo-label">Batch (opcional)</label>
                         <input id="batch" type="text" maxlength="30" class="form-control text-uppercase"
                                autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Batch" />
                     </div>
@@ -183,6 +183,7 @@
     const consultaLocaliza = $('consultaLocaliza'), consultaCodigo = $('consultaCodigo');
     const botonesModo = [...document.querySelectorAll('[data-modo]')];
     let modo = '1', secuencia = 0, articuloResuelto = '', guardando = false, totalGuardados = 0;
+    let requiereBatch = false, temporizadorAutoGuardar = null;
     let origenesDisponibles = [];
     let localizacionConfirmada = '', validacionEnCurso = null, numeroSolicitudLoc = 0;
     let versionToma = 0;
@@ -206,6 +207,11 @@
             : 'Localización → artículo → cantidad. Origen y batch opcionales.';
     }
     function limpiarArticulo() {
+        if (temporizadorAutoGuardar) clearTimeout(temporizadorAutoGuardar);
+        temporizadorAutoGuardar = null;
+        requiereBatch = false;
+        $('labelBatch').textContent = 'Batch (opcional)';
+        batch.required = false;
         articuloResuelto = '';
         codigo.value = ''; cantidad.value = ''; origen.value = ''; batch.value = '';
         $('descripcionArticulo').textContent = 'Escanee un artículo o código de barras.';
@@ -221,6 +227,8 @@
         mensaje(mensajeLocaliza, '');
     }
     function limpiarToma() {
+        if (temporizadorAutoGuardar) clearTimeout(temporizadorAutoGuardar);
+        temporizadorAutoGuardar = null;
         versionToma++;
         secuencia = 0;
         invalidarLocalizacion();
@@ -403,6 +411,10 @@
             const meta = [];
             if (data.medida) meta.push(`Medida: ${data.medida}`);
             meta.push(data.existeDetalle ? 'Registro existente' : 'Nuevo registro');
+            requiereBatch = data.requiereBatch === true;
+            $('labelBatch').textContent = requiereBatch ? 'Batch (obligatorio)' : 'Batch (opcional)';
+            batch.required = requiereBatch;
+            meta.push(requiereBatch ? 'Requiere batch' : 'Batch opcional');
             if (data.conteoActual !== null && data.conteoActual !== undefined)
                 meta.push(`Conteo actual: ${data.conteoActual}`);
             if (data.desOrigen) meta.push(`Origen: ${data.desOrigen}`);
@@ -431,6 +443,25 @@
         $('ultimosContenedor').classList.remove('d-none-forzada');
     }
 
+    // Cada registro completo se guarda al terminar su captura; Enter y el
+    // boton Guardar tambien persisten inmediatamente via GuardarConteo.
+    // Si el usuario aun escribe el batch, se espera a que salga del campo.
+    function programarAutoGuardado() {
+        if (temporizadorAutoGuardar) clearTimeout(temporizadorAutoGuardar);
+        temporizadorAutoGuardar = null;
+        if (!secuencia || !articuloResuelto || guardando || !cantidad.value.trim()) return;
+        if (modo === '1' && !origen.value.trim()) return;
+        if (requiereBatch && !batch.value.trim()) return;
+        const tomaActual = secuencia, modoActual = modo, articuloActual = articuloResuelto;
+        temporizadorAutoGuardar = setTimeout(() => {
+            temporizadorAutoGuardar = null;
+            if (secuencia !== tomaActual || modo !== modoActual ||
+                articuloResuelto !== articuloActual || guardando ||
+                document.activeElement === batch) return;
+            void guardarConteo();
+        }, 800);
+    }
+
     async function guardarConteo() {
         if (guardando) return;
         if (!secuencia) {
@@ -446,6 +477,11 @@
         if (modo === '1' && !origen.value.trim()) {
             mensaje(mensajeCaptura, 'El origen es obligatorio en Conteo 1.', 'error'); origen.focus(); return;
         }
+        if (requiereBatch && !batch.value.trim()) {
+            mensaje(mensajeCaptura, 'Este artículo requiere batch.', 'error'); batch.focus(); return;
+        }
+        if (temporizadorAutoGuardar) clearTimeout(temporizadorAutoGuardar);
+        temporizadorAutoGuardar = null;
         const tomaActual = secuencia, modoActual = modo;
         guardando = true; $('btnGuardar').disabled = true;
         mensaje(mensajeCaptura, 'Guardando conteo...', 'info');
@@ -646,6 +682,10 @@
     $('btnConsultar').addEventListener('click', () => mostrarVentana('consultar'));
     selectToma.addEventListener('change', cargarToma);
     $('btnGuardar').addEventListener('click', guardarConteo);
+    cantidad.addEventListener('change', programarAutoGuardado);
+    origen.addEventListener('change', programarAutoGuardado);
+    batch.addEventListener('change', programarAutoGuardado);
+    batch.addEventListener('blur', programarAutoGuardado);
     $('btnBuscar').addEventListener('click', consultarConteos);
     $('btnLimpiar').addEventListener('click', () => {
         consultaLocaliza.value = ''; consultaCodigo.value = '';
@@ -673,6 +713,8 @@
         if (!(await validarLocalizacion()) && document.activeElement === codigo) localiza.focus();
     });
     codigo.addEventListener('input', () => {
+        if (temporizadorAutoGuardar) clearTimeout(temporizadorAutoGuardar);
+        temporizadorAutoGuardar = null;
         articuloResuelto = '';
         $('descripcionArticulo').textContent = 'Escanee un artículo o código de barras.';
         $('descripcionArticulo').classList.add('text-muted');

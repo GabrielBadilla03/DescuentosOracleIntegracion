@@ -92,8 +92,8 @@ public class ConteoTomaFisicaController : Controller
         detalles = modoKey switch
         {
             "1" => detalles.Where(x => x.CONTEO1.HasValue && x.CONTEO1.Value >= 0),
-            "2" => detalles.Where(x => x.CONTEO2.HasValue && x.CONTEO2.Value >= 0),
-            _ => detalles.Where(x => x.CONTEO3.HasValue && x.CONTEO3.Value >= 0)
+            "2" => detalles.Where(x => x.CONTEO1.HasValue && x.CONTEO1.Value >= 0),
+            _ => detalles.Where(x => x.CONTEO2.HasValue && x.CONTEO2.Value >= 0)
         };
         var cantidad = await detalles.CountAsync(cancellationToken);
         var origenes = await _context.INV_ORIGENs.AsNoTracking()
@@ -155,6 +155,14 @@ public class ConteoTomaFisicaController : Controller
             .Select(x => new { x.CONTEO1, x.CONTEO2, x.CONTEO3, x.ORIGEN, x.BATCH, x.FECHALOTE })
             .FirstOrDefaultAsync(cancellationToken);
 
+        // Conteo 2 y verificacion solo admiten articulos registrados en la etapa anterior.
+        if (validacion.Modo == "2" && !(detalle?.CONTEO1 >= 0))
+            return BadRequest(new { ok = false,
+                mensaje = $"El articulo {articulo.Codigo} debe estar registrado en Conteo 1, en esta misma localizacion, antes de Conteo 2." });
+        if (validacion.Modo == "3" && !(detalle?.CONTEO2 >= 0))
+            return BadRequest(new { ok = false,
+                mensaje = $"El articulo {articulo.Codigo} debe estar registrado en Conteo 2, en esta misma localizacion, antes de Verificacion." });
+
         string desOrigen = "";
         if (detalle?.ORIGEN is byte origenActual)
         {
@@ -172,7 +180,8 @@ public class ConteoTomaFisicaController : Controller
             "3" => detalle?.CONTEO3, _ => null
         };
         return Json(new { ok = true, codigoArticulo = articulo.Codigo, descripcion = articulo.Descripcion,
-            medida = articulo.Medida, cantidadEscaneada = interpretacion.Cantidad,
+            medida = articulo.Medida, requiereBatch = articulo.RequiereBatch,
+             cantidadEscaneada = interpretacion.Cantidad,
             existeDetalle = detalle != null, conteoActual,
             conteo1 = detalle?.CONTEO1, conteo2 = detalle?.CONTEO2, conteo3 = detalle?.CONTEO3,
             origen = detalle?.ORIGEN, desOrigen, batch = (detalle?.BATCH ?? "").Trim(),
@@ -214,24 +223,45 @@ public class ConteoTomaFisicaController : Controller
         if (articulo == null)
             return NotFound(new { ok = false, mensaje = $"El código {interpretacion.Codigo} no corresponde a un artículo existente." });
 
-        var origenKey = (origen ?? "").Trim();
-        if (modoKey == "1" && origenKey.Length == 0)
-            return BadRequest(new { ok = false, mensaje = "El origen es obligatorio en Conteo 1." });
-        var origenResult = await ResolverOrigenAsync(origenKey, cancellationToken);
-        if (!origenResult.Ok)
-            return BadRequest(new { ok = false, mensaje = origenResult.Mensaje });
-
-        var batchKey = Normalizar(batch);
-        var batchResult = await ResolverBatchAsync(batchKey, cancellationToken);
-        if (!batchResult.Ok)
-            return BadRequest(new { ok = false, mensaje = batchResult.Mensaje });
-
         var detalle = await _context.INV_DETTOMAFIs.FirstOrDefaultAsync(x =>
             x.SECUENCIA == secuencia && x.COD_LOTE == LotePredeterminado &&
             x.LOCALIZA != null && x.COD_ARTICULO != null &&
             x.LOCALIZA.Trim().ToUpper() == localizaKey &&
             x.COD_ARTICULO.Trim().ToUpper() == articulo.CodigoNormalizado,
             cancellationToken);
+
+        if (modoKey == "2" && !(detalle?.CONTEO1 >= 0))
+            return BadRequest(new { ok = false,
+                mensaje = "Solo puede registrar Conteo 2 para articulos que ya tengan Conteo 1 en esta toma y localizacion." });
+        if (modoKey == "3" && !(detalle?.CONTEO2 >= 0))
+            return BadRequest(new { ok = false,
+                mensaje = "Solo puede registrar Verificacion para articulos que ya tengan Conteo 2 en esta toma y localizacion." });
+
+        // En etapas posteriores se conservan los datos registrados en Conteo 1
+        // cuando no se envia un nuevo origen o batch.
+        var origenKey = (origen ?? "").Trim();
+        if (modoKey != "1" && origenKey.Length == 0)
+            origenKey = detalle?.ORIGEN?.ToString(CultureInfo.InvariantCulture) ?? "";
+        if (modoKey == "1" && origenKey.Length == 0)
+            return BadRequest(new { ok = false, mensaje = "El origen es obligatorio en Conteo 1." });
+
+        var origenResult = await ResolverOrigenAsync(origenKey, cancellationToken);
+        if (!origenResult.Ok)
+            return BadRequest(new { ok = false, mensaje = origenResult.Mensaje });
+
+        var batchKey = Normalizar(batch);
+        if (modoKey != "1" && batchKey.Length == 0)
+            batchKey = Normalizar(detalle?.BATCH);
+        if (articulo.RequiereBatch && batchKey.Length == 0)
+            return BadRequest(new { ok = false,
+                mensaje = $"El articulo {articulo.Codigo} requiere batch (REQUIEREBATCH = S)." });
+
+        // El batch debe existir en PNORDENES y corresponder al articulo en PRDBATCH.
+        var batchResult = await ResolverBatchAsync(
+            batchKey, articulo.CodigoNormalizado, cancellationToken);
+        if (!batchResult.Ok)
+            return BadRequest(new { ok = false, mensaje = batchResult.Mensaje });
+
         var esNuevo = detalle == null;
         if (detalle == null)
         {
@@ -246,33 +276,15 @@ public class ConteoTomaFisicaController : Controller
             _context.INV_DETTOMAFIs.Add(detalle);
         }
 
-        // En conteos posteriores los campos son opcionales: una selección vacía conserva el dato guardado.
-        var origenReal = origenResult.Origen;
-        var descripcionOrigen = origenResult.Descripcion;
-        var batchReal = batchResult.Batch;
-        var fechaLote = batchResult.Fecha;
-        if (modoKey != "1" && !esNuevo)
-        {
-            if (origenKey.Length == 0)
-            {
-                origenReal = detalle.ORIGEN;
-                descripcionOrigen = (await ResolverOrigenAsync(origenReal?.ToString(CultureInfo.InvariantCulture),
-                    cancellationToken)).Descripcion;
-            }
-            if (batchKey.Length == 0)
-            {
-                batchReal = detalle.BATCH;
-                fechaLote = detalle.FECHALOTE;
-            }
-        }
-
+        // Cada conteo se guarda en su propio campo; el conteo 2 nunca
+        // sobrescribe el conteo 1, ni la verificacion modifica los anteriores.
         if (modoKey == "1") detalle.CONTEO1 = cantidadFinal;
         else if (modoKey == "2") detalle.CONTEO2 = cantidadFinal;
         else detalle.CONTEO3 = cantidadFinal;
-        detalle.ORIGEN = origenReal;
-        detalle.BATCH = batchReal;
-        detalle.FECHALOTE = fechaLote;
-        AplicarActualizaConteo(detalle, modoKey);
+
+        detalle.ORIGEN = origenResult.Origen;
+        detalle.BATCH = batchResult.Batch;
+        detalle.FECHALOTE = batchResult.Fecha;
         try { await _context.SaveChangesAsync(cancellationToken); }
         catch (DbUpdateException ex)
         {
@@ -327,6 +339,10 @@ public class ConteoTomaFisicaController : Controller
             query = query.Where(x => x.LOCALIZA != null && x.LOCALIZA.Trim().ToUpper() == localizaKey);
         if (articuloKey != null)
             query = query.Where(x => x.COD_ARTICULO != null && x.COD_ARTICULO.Trim().ToUpper() == articuloKey);
+        if (validacion.Modo == "2")
+            query = query.Where(x => x.CONTEO1.HasValue && x.CONTEO1.Value >= 0);
+        else if (validacion.Modo == "3")
+            query = query.Where(x => x.CONTEO2.HasValue && x.CONTEO2.Value >= 0);
 
         var detallesDb = await query.OrderBy(x => x.LOCALIZA).ThenBy(x => x.COD_ARTICULO)
             .Take(201)
@@ -412,7 +428,20 @@ public class ConteoTomaFisicaController : Controller
         var origenResult = await ResolverOrigenAsync(origenKey, cancellationToken);
         if (!origenResult.Ok)
             return BadRequest(new { ok = false, mensaje = origenResult.Mensaje });
-        var batchResult = await ResolverBatchAsync(Normalizar(batch), cancellationToken);
+        var articuloMaster = await _context.INV_ARTICULOs.AsNoTracking()
+            .Where(x => x.COD_ARTICULO != null &&
+                x.COD_ARTICULO.Trim().ToUpper() == articuloKey)
+            .Select(x => new { x.REQUIEREBATCH })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (articuloMaster == null)
+            return NotFound(new { ok = false, mensaje = $"El articulo {articuloKey} no existe en INV_ARTICULO." });
+
+        var batchKey = Normalizar(batch);
+        if (Normalizar(articuloMaster.REQUIEREBATCH) == "S" && batchKey.Length == 0)
+            return BadRequest(new { ok = false,
+                mensaje = $"El articulo {articuloKey} requiere batch (REQUIEREBATCH = S)." });
+
+        var batchResult = await ResolverBatchAsync(batchKey, articuloKey, cancellationToken);
         if (!batchResult.Ok)
             return BadRequest(new { ok = false, mensaje = batchResult.Mensaje });
 
@@ -463,6 +492,10 @@ public class ConteoTomaFisicaController : Controller
         };
         if (!anterior.HasValue)
             return BadRequest(new { ok = false, mensaje = "El conteo seleccionado ya está vacío." });
+        if (modoKey == "1" && (detalle.CONTEO2.HasValue || detalle.CONTEO3.HasValue))
+            return BadRequest(new { ok = false, mensaje = "No se puede eliminar Conteo 1 porque el articulo ya tiene Conteo 2 o Verificacion." });
+        if (modoKey == "2" && detalle.CONTEO3.HasValue)
+            return BadRequest(new { ok = false, mensaje = "No se puede eliminar Conteo 2 porque el articulo ya tiene Verificacion." });
         if (modoKey == "1") detalle.CONTEO1 = null;
         else if (modoKey == "2") detalle.CONTEO2 = null;
         else detalle.CONTEO3 = null;
@@ -545,11 +578,13 @@ public class ConteoTomaFisicaController : Controller
         var articuloKey = string.IsNullOrWhiteSpace(codigoPorBarra) ? key : Normalizar(codigoPorBarra);
         var articulo = await _context.INV_ARTICULOs.AsNoTracking()
             .Where(x => x.COD_ARTICULO != null && x.COD_ARTICULO.Trim().ToUpper() == articuloKey)
-            .Select(x => new { x.COD_ARTICULO, x.DESCRIPCION, x.MEDIDA }).FirstOrDefaultAsync(ct);
+            .Select(x => new { x.COD_ARTICULO, x.DESCRIPCION, x.MEDIDA, x.REQUIEREBATCH }).FirstOrDefaultAsync(ct);
         if (articulo == null) return null;
         var codigo = (articulo.COD_ARTICULO ?? "").Trim();
         return new ArticuloResuelto { Codigo = codigo, CodigoNormalizado = Normalizar(codigo),
-            Descripcion = (articulo.DESCRIPCION ?? "").Trim(), Medida = (articulo.MEDIDA ?? "").Trim() };
+            Descripcion = (articulo.DESCRIPCION ?? "").Trim(),
+            Medida = (articulo.MEDIDA ?? "").Trim(),
+            RequiereBatch = Normalizar(articulo.REQUIEREBATCH) == "S" };
     }
 
     private async Task<OrigenResult> ResolverOrigenAsync(string? origen, CancellationToken ct)
@@ -566,22 +601,66 @@ public class ConteoTomaFisicaController : Controller
         return new OrigenResult(true, "", registro.ORIGEN, (registro.DESCRIPCION ?? "").Trim());
     }
 
-    private async Task<BatchResult> ResolverBatchAsync(string batch, CancellationToken ct)
+    private async Task<BatchResult> ResolverBatchAsync(
+        string batch, string codigoArticulo, CancellationToken ct)
     {
-        if (batch.Length == 0) return new BatchResult(true, "", null, null);
+        if (batch.Length == 0)
+            return new BatchResult(true, "", null, null);
         if (batch.Length > 30)
             return new BatchResult(false, "El batch no puede superar 30 caracteres.", null, null);
-        // PRDBATCH reemplaza PNORDENES. Puede tener varias filas por batch
-        // (por articulo), por eso se elige la fecha mas reciente.
-        var batchKey = Normalizar(batch);
-        var registroBatch = await _context.PRDBATCHes.AsNoTracking()
-            .Where(x => x.BATCH != null && x.BATCH.Trim().ToUpper() == batchKey)
-            .OrderByDescending(x => x.FECHA)
-            .Select(x => new { x.BATCH, x.FECHA })
-            .FirstOrDefaultAsync(ct);
-        return registroBatch == null
-            ? new BatchResult(false, $"El batch {batch} no existe.", null, null)
-            : new BatchResult(true, "", (registroBatch.BATCH ?? "").Trim(), registroBatch.FECHA);
+        if (codigoArticulo.Length == 0)
+            return new BatchResult(false, "Debe indicar un articulo valido para el batch.", null, null);
+
+        // PNORDENES es el encabezado del batch. PRDBATCH relaciona
+        // ese mismo batch con los articulos de produccion.
+        // La consulta exige ambas condiciones para evitar aceptar
+        // un batch que pertenece a otro articulo.
+        var conexion = _context.Database.GetDbConnection();
+        var cerrar = conexion.State != System.Data.ConnectionState.Open;
+        if (cerrar)
+            await conexion.OpenAsync(ct);
+        try
+        {
+            using var comando = conexion.CreateCommand();
+            comando.CommandText = @"
+                SELECT BATCH, FECHA
+                FROM (
+                    SELECT P.BATCH, P.FECHA
+                    FROM TOMAFIS.PNORDENES P
+                    WHERE TRIM(UPPER(P.BATCH)) = :p_batch
+                      AND EXISTS (
+                          SELECT 1
+                          FROM TOMAFIS.PRDBATCH R
+                          WHERE TRIM(UPPER(R.BATCH)) = TRIM(UPPER(P.BATCH))
+                            AND TRIM(UPPER(R.ARTICULO)) = :p_articulo
+                      )
+                    ORDER BY P.FECHA DESC NULLS LAST
+                )
+                WHERE ROWNUM = 1";
+            var parametroBatch = comando.CreateParameter();
+            parametroBatch.ParameterName = "p_batch";
+            parametroBatch.Value = batch;
+            comando.Parameters.Add(parametroBatch);
+            var parametroArticulo = comando.CreateParameter();
+            parametroArticulo.ParameterName = "p_articulo";
+            parametroArticulo.Value = codigoArticulo;
+            comando.Parameters.Add(parametroArticulo);
+
+            using var lector = await comando.ExecuteReaderAsync(ct);
+            if (!await lector.ReadAsync(ct))
+                return new BatchResult(false,
+                    $"El batch {batch} no existe en PNORDENES para el articulo {codigoArticulo} (PRDBATCH).",
+                    null, null);
+
+            return new BatchResult(true, "",
+                lector.GetString(0).Trim(),
+                lector.IsDBNull(1) ? null : lector.GetDateTime(1));
+        }
+        finally
+        {
+            if (cerrar && conexion.State == System.Data.ConnectionState.Open)
+                await conexion.CloseAsync();
+        }
     }
 
     private CodigoInterpretadoResult InterpretarCodigoEscaneado(string? codigo)
@@ -603,29 +682,6 @@ public class ConteoTomaFisicaController : Controller
             return CodigoInterpretadoResult.Exito(articulo, cantidad);
         }
         return CodigoInterpretadoResult.Exito(entrada, null);
-    }
-
-    // Conserva la lógica de ACTUALIZA_CONTEO del controlador original.
-    private static void AplicarActualizaConteo(INV_DETTOMAFI detalle, string modo)
-    {
-        decimal cantidad;
-        if (modo == "2")
-        {
-            cantidad = detalle.CONTEO2 ?? detalle.CONTEO1 ?? 0;
-            detalle.CONTEO1 = cantidad;
-            detalle.CONTEO2 = cantidad;
-        }
-        else if (modo == "3")
-        {
-            cantidad = detalle.CONTEO3 ?? detalle.CONTEO2 ?? 0;
-            detalle.CONTEO2 = cantidad;
-            detalle.CONTEO3 = cantidad;
-        }
-        else
-        {
-            cantidad = detalle.CONTEO1 ?? 0;
-            detalle.CONTEO1 = cantidad;
-        }
     }
 
     private string ObtenerCodCia() => User.FindFirst("CodCia")?.Value?.Trim()
@@ -673,6 +729,7 @@ public class ConteoTomaFisicaController : Controller
         public string CodigoNormalizado { get; init; } = "";
         public string Descripcion { get; init; } = "";
         public string Medida { get; init; } = "";
+        public bool RequiereBatch { get; init; }
     }
     private sealed record OrigenResult(bool Ok, string Mensaje, byte? Origen, string Descripcion);
     private sealed record BatchResult(bool Ok, string Mensaje, string? Batch, DateTime? Fecha);
