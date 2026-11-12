@@ -37,3 +37,21 @@ Para detener: `sc.exe stop "DescuentosOracleWorker"`.
 6. .NET 6 ya está fuera de soporte. Planificar actualización a LTS tras validar la compatibilidad con Oracle 11g.
 
 Nota: no se cambió la lógica de descuentos, comisiones, integración ni generación manual de archivos. No se ha podido ejecutar una compilación con dotnet en este entorno.
+
+## Registro diario del Worker
+
+Los mensajes de `ILogger` de los jobs, SFTP, sincronizacion de tiendas, errores de arranque y eventos del host se guardan automaticamente en la carpeta `logs` que esta junto a `DescuentosOracleWorker.exe`. Se usa `AppContext.BaseDirectory`, no el directorio actual de Windows.
+
+Ejemplo al publicar en `C:\\Servicios\\DescuentosOracleWorker_Publicado`:
+
+```text
+C:\\Servicios\\DescuentosOracleWorker_Publicado\\
+  DescuentosOracleWorker.exe
+  logs\\
+    worker-20261112.log
+    worker-20261113.log
+```
+
+Los archivos se crean por dia al recibir eventos de log, incluyen fecha y hora, nivel, origen del mensaje, texto y excepciones. Se conservan los ultimos 30 archivos diarios (aproximadamente 30 dias con actividad). Los mensajes tambien se escriben en la consola durante pruebas. La cuenta de Windows que ejecuta el servicio necesita permisos de escritura sobre `logs`.
+
+Al actualizar el Worker, no eliminar la carpeta `logs`. El registro se inicializa antes de configurar las conexiones, por lo que tambien captura errores de inicio del host.
