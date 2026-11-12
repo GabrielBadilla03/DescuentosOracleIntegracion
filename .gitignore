@@ -427,3 +427,7 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# Configuración privada de servicios (no incluir credenciales en Git)
+**/appsettings.Private.json
+**/appsettings.Production.json
