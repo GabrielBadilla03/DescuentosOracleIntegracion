@@ -7,6 +7,8 @@ using SolicitudesDescuentos.ModelsOracle;
 using SolicitudesDescuentos.Services;
 using SolicitudesDescuentos.Services.Tiendas;
 
+//dotnet publish .\DescuentosOracleWorker.csproj -c Release -f net6.0 -r win-x64 --self-contained true /p:PublishSingleFile=false -o "C:\Servicios\DescuentosOracleWorker_Publicado"
+
 await Host.CreateDefaultBuilder(args)
     .UseWindowsService(options => options.ServiceName = "DescuentosOracleWorker")
     .ConfigureAppConfiguration((context, configuration) =>
