@@ -300,7 +300,8 @@ public class ConteoTomaFisicaController : Controller
         return Json(new { ok = true, mensaje = esNuevo ? "Conteo registrado." : "Conteo actualizado.",
             codigoArticulo = articulo.Codigo, descripcion = articulo.Descripcion, medida = articulo.Medida,
             localiza = localizaKey, lote = LotePredeterminado, origen = detalle.ORIGEN,
-            desOrigen = descripcionOrigen, batch = detalle.BATCH, fechaLote = detalle.FECHALOTE,
+            desOrigen = origenResult.Descripcion,
+            batch = detalle.BATCH, fechaLote = detalle.FECHALOTE,
             cantidad = conteoGuardado, conteo1 = detalle.CONTEO1, conteo2 = detalle.CONTEO2,
             conteo3 = detalle.CONTEO3, esNuevo });
     }
