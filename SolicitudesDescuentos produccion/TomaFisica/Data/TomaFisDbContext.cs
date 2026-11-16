@@ -17,6 +17,7 @@ namespace TomaFisica.Data
         {
         }
 
+        public virtual DbSet<AUD_INV_ARTICULO> AUD_INV_ARTICULOs { get; set; } = null!;
         public virtual DbSet<INV_ARTICULO> INV_ARTICULOs { get; set; } = null!;
         public virtual DbSet<INV_ARTIC_CODBAR> INV_ARTIC_CODBARs { get; set; } = null!;
         public virtual DbSet<INV_BODEGA> INV_BODEGAs { get; set; } = null!;
@@ -32,6 +33,48 @@ namespace TomaFisica.Data
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.HasDefaultSchema("TOMAFIS");
+
+            modelBuilder.Entity<AUD_INV_ARTICULO>(entity =>
+            {
+                entity.HasKey(e => e.ID_AUDITORIA);
+
+                entity.ToTable("AUD_INV_ARTICULO");
+
+                entity.Property(e => e.ID_AUDITORIA)
+                    .HasPrecision(18)
+                    .ValueGeneratedNever();
+
+                entity.Property(e => e.COD_ARTICULO)
+                    .HasMaxLength(20)
+                    .IsUnicode(false);
+
+                entity.Property(e => e.COD_CIA)
+                    .HasMaxLength(10)
+                    .IsUnicode(false);
+
+                entity.Property(e => e.COD_SUCURSAL)
+                    .HasMaxLength(10)
+                    .IsUnicode(false);
+
+                entity.Property(e => e.COD_USUARIO)
+                    .HasMaxLength(50)
+                    .IsUnicode(false);
+
+                entity.Property(e => e.DESCRIPCION).HasColumnType("CLOB");
+
+                entity.Property(e => e.FECHA_CAMBIO)
+                    .HasColumnType("DATE")
+                    .HasDefaultValueSql("SYSDATE ");
+
+                entity.Property(e => e.NOMBRE_USUARIO)
+                    .HasMaxLength(100)
+                    .IsUnicode(false);
+
+                entity.Property(e => e.TIPO_ACCION)
+                    .HasMaxLength(20)
+                    .IsUnicode(false)
+                    .HasDefaultValueSql("'MODIFICACION' ");
+            });
 
             modelBuilder.Entity<INV_ARTICULO>(entity =>
             {
