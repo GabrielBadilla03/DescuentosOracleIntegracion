@@ -1,0 +1,314 @@
+@{
+    ViewData["Title"] = "Mantenimiento de Batch";
+}
+
+<style>
+    .batch-page { max-width: 1180px; margin: 0 auto 32px; }
+    .batch-card { border: 1px solid #dee2e6; border-radius: 10px; box-shadow: 0 3px 12px rgba(0,0,0,.05); }
+    .batch-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .batch-form-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
+    .batch-form-grid label { display: block; font-size: .86rem; font-weight: 600; margin-bottom: 4px; }
+    .batch-full { grid-column: 1/-1; }
+    .batch-state { min-height: 24px; font-size: .9rem; }
+    .batch-state.error { color: #b02a37; }
+    .batch-state.success { color: #146c43; }
+    .batch-state.info { color: #055160; }
+    .batch-table { white-space: nowrap; }
+    .batch-table td:nth-child(3) { white-space: normal; min-width: 180px; }
+    @@media (max-width: 650px) {
+        .batch-form-grid { grid-template-columns: 1fr; }
+        .batch-actions > .btn { flex: 1; }
+    }
+</style>
+
+<div class="batch-page">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <h2 class="h5 m-0">Mantenimiento de Batch</h2>
+        <a asp-controller="TomaFisica" asp-action="Menu" class="btn btn-sm btn-outline-secondary">Volver al menú</a>
+    </div>
+
+    <div class="card batch-card mb-3">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-end flex-wrap gap-2 mb-2">
+                <label class="form-label mb-0 fw-semibold" for="batchBusqueda">Buscar por batch, artículo o descripción</label>
+                <button id="batchNuevo" class="btn btn-danger btn-sm" type="button">+ Agregar batch</button>
+            </div>
+            <div class="input-group">
+                <input type="search" id="batchBusqueda" class="form-control" maxlength="100"
+                       placeholder="Número de batch, artículo o parte de la descripción" autocomplete="off" />
+                <button type="button" class="btn btn-outline-danger" id="batchBuscar">Buscar</button>
+            </div>
+            <div id="batchEstadoBusqueda" class="batch-state mt-2" role="status"></div>
+
+            <div class="table-responsive mt-2">
+                <table class="table table-sm align-middle batch-table">
+                    <thead>
+                        <tr>
+                            <th>Batch</th>
+                            <th>Artículo</th>
+                            <th>Descripción</th>
+                            <th class="text-end">Peso</th>
+                            <th>Fecha</th>
+                            <th class="text-end">Costo total</th>
+                            <th class="text-end">Volumen orden</th>
+                            <th class="text-end">Cantidad</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="batchResultados">
+                        <tr><td colspan="9" class="text-muted">Cargando registros...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="d-flex justify-content-between align-items-center">
+                <button type="button" id="batchAnterior" class="btn btn-outline-secondary btn-sm" disabled>Anterior</button>
+                <span id="batchPagina" class="small text-muted">Página 1</span>
+                <button type="button" id="batchSiguiente" class="btn btn-outline-secondary btn-sm" disabled>Siguiente</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="batchPanel" class="card batch-card d-none">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h3 id="batchTitulo" class="h6 m-0">Nuevo batch</h3>
+                <button type="button" id="batchCerrar" class="btn btn-sm btn-outline-secondary">Cerrar</button>
+            </div>
+            <p class="small text-muted">
+                Los valores numéricos permiten hasta cuatro decimales. Al cambiar el batch o el artículo
+                de un registro existente, verifique que sus referencias en los conteos sigan siendo correctas.
+            </p>
+            <form id="batchFormulario" autocomplete="off">
+                @Html.AntiForgeryToken()
+                <input type="hidden" id="batchFila" name="Fila" />
+                <div class="batch-form-grid">
+                    <div>
+                        <label for="batchCodigo">Batch *</label>
+                        <input id="batchCodigo" name="Batch" class="form-control" required maxlength="30" />
+                    </div>
+                    <div>
+                        <label for="batchArticulo">Artículo *</label>
+                        <input id="batchArticulo" name="Articulo" class="form-control" required maxlength="40" />
+                    </div>
+                    <div class="batch-full">
+                        <label for="batchDescripcion">Descripción</label>
+                        <input id="batchDescripcion" name="Descripcion" class="form-control" maxlength="200" />
+                    </div>
+                    <div>
+                        <label for="batchPeso">Peso</label>
+                        <input id="batchPeso" name="Peso" class="form-control" type="text" inputmode="decimal" placeholder="0.0000" />
+                    </div>
+                    <div>
+                        <label for="batchFecha">Fecha</label>
+                        <input id="batchFecha" name="Fecha" class="form-control" type="date" />
+                    </div>
+                    <div>
+                        <label for="batchCosto">Costo total</label>
+                        <input id="batchCosto" name="CostoTotal" class="form-control" type="text" inputmode="decimal" placeholder="0.0000" />
+                    </div>
+                    <div>
+                        <label for="batchVolumen">Volumen orden</label>
+                        <input id="batchVolumen" name="VolumenOrder" class="form-control" type="text" inputmode="decimal" placeholder="0.0000" />
+                    </div>
+                    <div>
+                        <label for="batchCantidad">Cantidad</label>
+                        <input id="batchCantidad" name="Cantidad" class="form-control" type="text" inputmode="decimal" placeholder="0.0000" />
+                    </div>
+                </div>
+
+                <div class="form-text mt-3">
+                    Para utilizar un batch en los conteos, debe existir también su encabezado en
+                    <code>PNORDENES</code>. Este mantenimiento únicamente modifica <code>PRDBATCH</code>.
+                </div>
+                <div id="batchEstadoFormulario" class="batch-state mt-3" role="status"></div>
+                <div class="batch-actions mt-2">
+                    <button id="batchGuardar" type="submit" class="btn btn-danger">Guardar cambios</button>
+                    <button id="batchCancelar" type="button" class="btn btn-outline-secondary">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(() => {
+    const $ = id => document.getElementById(id);
+    const urlBuscar = '@Url.Action("Buscar", "MantenimientoBatch")';
+    const urlDetalle = '@Url.Action("Detalle", "MantenimientoBatch")';
+    const urlGuardar = '@Url.Action("Guardar", "MantenimientoBatch")';
+    const tabla = $('batchResultados');
+    const formulario = $('batchFormulario');
+    let pagina = 1, filtro = '', hayMas = false, cargando = false, identificadorActual = '';
+
+    const mensaje = (id, texto, tipo = '') => {
+        const elemento = $(id);
+        elemento.textContent = texto || '';
+        elemento.className = 'batch-state mt-2' + (tipo ? ' ' + tipo : '');
+    };
+    async function leerJson(respuesta) {
+        let data;
+        try { data = await respuesta.json(); } catch { /* Error HTTP sin cuerpo JSON */ }
+        if (!respuesta.ok || !data || data.ok !== true) {
+            throw new Error((data && data.mensaje) || 'No fue posible completar la operación.');
+        }
+        return data;
+    }
+    const texto = valor => valor == null ? '' : String(valor);
+    function dato(fila, valor) {
+        const td = document.createElement('td');
+        td.textContent = texto(valor);
+        fila.appendChild(td);
+        return td;
+    }
+    function llenarTabla(registros) {
+        tabla.innerHTML = '';
+        if (!registros.length) {
+            const tr = document.createElement('tr');
+            dato(tr, 'No se encontraron registros.').colSpan = 9;
+            tabla.appendChild(tr);
+            return;
+        }
+        for (const r of registros) {
+            const tr = document.createElement('tr');
+            dato(tr, r.batch);
+            dato(tr, r.articulo);
+            dato(tr, r.descripcion);
+            dato(tr, r.peso).className = 'text-end';
+            const fecha = r.fecha && /^\d{4}-\d{2}-\d{2}$/.test(r.fecha)
+                ? r.fecha.slice(8, 10) + '/' + r.fecha.slice(5, 7) + '/' + r.fecha.slice(0, 4)
+                : '';
+            dato(tr, fecha);
+            dato(tr, r.costoTotal).className = 'text-end';
+            dato(tr, r.volumenOrder).className = 'text-end';
+            dato(tr, r.cantidad).className = 'text-end';
+            const celdaAccion = document.createElement('td');
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-outline-danger btn-sm';
+            btn.textContent = 'Editar';
+            btn.addEventListener('click', () => abrir(r.fila));
+            celdaAccion.appendChild(btn);
+            tr.appendChild(celdaAccion);
+            tabla.appendChild(tr);
+        }
+    }
+    async function buscar() {
+        if (cargando) return;
+        cargando = true;
+        $('batchBuscar').disabled = true;
+        mensaje('batchEstadoBusqueda', 'Consultando registros...', 'info');
+        try {
+            const url = urlBuscar + '?' + new URLSearchParams({ buscar: filtro, pagina: String(pagina) });
+            const resultado = await leerJson(await fetch(url, { headers: {Accept: 'application/json'} }));
+            llenarTabla(resultado.registros || []);
+            hayMas = resultado.hayMas === true;
+            $('batchAnterior').disabled = pagina <= 1;
+            $('batchSiguiente').disabled = !hayMas;
+            $('batchPagina').textContent = 'Página ' + pagina;
+            mensaje('batchEstadoBusqueda', 'Seleccione Editar o agregue un nuevo batch.', 'info');
+        } catch (e) {
+            tabla.innerHTML = '';
+            mensaje('batchEstadoBusqueda', e.message, 'error');
+        } finally {
+            $('batchBuscar').disabled = false;
+            cargando = false;
+        }
+    }
+    function cerrar() {
+        identificadorActual = '';
+        formulario.reset();
+        $('batchFila').value = '';
+        $('batchPanel').classList.add('d-none');
+        mensaje('batchEstadoFormulario', '');
+    }
+    function iniciarNuevo() {
+        cerrar();
+        $('batchTitulo').textContent = 'Agregar nuevo batch';
+        $('batchGuardar').textContent = 'Agregar batch';
+        $('batchPanel').classList.remove('d-none');
+        $('batchPanel').scrollIntoView({behavior: 'smooth', block: 'start'});
+        $('batchCodigo').focus();
+    }
+    function cargarFormulario(r) {
+        $('batchFila').value = texto(r.fila);
+        $('batchCodigo').value = texto(r.batch);
+        $('batchArticulo').value = texto(r.articulo);
+        $('batchDescripcion').value = texto(r.descripcion);
+        $('batchPeso').value = texto(r.peso);
+        $('batchFecha').value = texto(r.fecha);
+        $('batchCosto').value = texto(r.costoTotal);
+        $('batchVolumen').value = texto(r.volumenOrder);
+        $('batchCantidad').value = texto(r.cantidad);
+    }
+    async function abrir(fila) {
+        identificadorActual = fila;
+        mensaje('batchEstadoBusqueda', 'Cargando detalle...', 'info');
+        try {
+            const url = urlDetalle + '?' + new URLSearchParams({fila});
+            const resultado = await leerJson(await fetch(url, {headers:{Accept:'application/json'}}));
+            if (fila !== identificadorActual) return;
+            cargarFormulario(resultado.registro);
+            $('batchTitulo').textContent = 'Editar batch';
+            $('batchGuardar').textContent = 'Guardar cambios';
+            $('batchPanel').classList.remove('d-none');
+            mensaje('batchEstadoFormulario', '');
+            mensaje('batchEstadoBusqueda', '');
+            $('batchPanel').scrollIntoView({behavior: 'smooth', block: 'start'});
+        } catch (e) {
+            mensaje('batchEstadoBusqueda', e.message, 'error');
+        }
+    }
+    formulario.addEventListener('submit', async event => {
+        event.preventDefault();
+        if (!formulario.reportValidity()) return;
+        const boton = $('batchGuardar');
+        boton.disabled = true;
+        mensaje('batchEstadoFormulario', 'Guardando batch...', 'info');
+        try {
+            const resultado = await leerJson(await fetch(urlGuardar, {
+                method: 'POST',
+                headers: {Accept: 'application/json'},
+                body: new FormData(formulario)
+            }));
+            const fueNuevo = !$('batchFila').value;
+            if (fueNuevo) cerrar();
+            await buscar();
+            const mensajeGuardado = resultado.mensaje + (resultado.aviso ? ' ' + resultado.aviso : '');
+            if (fueNuevo) {
+                mensaje('batchEstadoBusqueda', mensajeGuardado, resultado.aviso ? 'info' : 'success');
+            } else {
+                mensaje('batchEstadoFormulario', mensajeGuardado, resultado.aviso ? 'info' : 'success');
+            }
+        } catch (e) {
+            mensaje('batchEstadoFormulario', e.message, 'error');
+        } finally {
+            boton.disabled = false;
+        }
+    });
+    $('batchNuevo').addEventListener('click', iniciarNuevo);
+    $('batchCerrar').addEventListener('click', cerrar);
+    $('batchCancelar').addEventListener('click', cerrar);
+    $('batchBuscar').addEventListener('click', () => {
+        filtro = $('batchBusqueda').value.trim();
+        pagina = 1;
+        void buscar();
+    });
+    $('batchBusqueda').addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            filtro = $('batchBusqueda').value.trim();
+            pagina = 1;
+            void buscar();
+        }
+    });
+    $('batchAnterior').addEventListener('click', () => {
+        if (pagina > 1) { pagina--; void buscar(); }
+    });
+    $('batchSiguiente').addEventListener('click', () => {
+        if (hayMas) { pagina++; void buscar(); }
+    });
+    void buscar();
+})();
+</script>
+}
