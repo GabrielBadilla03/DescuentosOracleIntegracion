@@ -1,0 +1,301 @@
+@{
+    ViewData["Title"] = "Mantenimiento de Artículos";
+}
+<style>
+    .art-page { max-width: 1120px; margin: 0 auto 30px; }
+    .art-panel { border: 1px solid #dee2e6; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,.04); }
+    .art-panel .card-body { padding: 16px; }
+    .art-busqueda { display: grid; grid-template-columns: minmax(180px,1fr) auto; gap: 8px; }
+    .art-edicion { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+    .art-edicion label { display: block; font-size: .83rem; font-weight: 600; margin-bottom: 4px; }
+    .art-edicion .ancho-total { grid-column: 1/-1; }
+    .art-fila { cursor: pointer; }
+    .art-fila:hover { background: #fff6f6; }
+    .art-mensaje { min-height: 22px; font-size: .88rem; }
+    .art-mensaje.error { color: #b02a37; }
+    .art-mensaje.ok { color: #146c43; }
+    .art-mensaje.info { color: #055160; }
+    @@media (max-width: 650px) {
+        .art-edicion { grid-template-columns: 1fr; }
+        .art-busqueda { grid-template-columns: 1fr; }
+        .art-panel .card-body { padding: 12px 8px; }
+    }
+</style>
+
+<div class="art-page">
+    <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
+        <h2 class="h5 m-0">Mantenimiento de Artículos</h2>
+        <a asp-controller="TomaFisica" asp-action="Menu" class="btn btn-outline-secondary btn-sm">Volver al menú</a>
+    </div>
+
+    <div class="card art-panel mb-3">
+        <div class="card-body">
+            <label for="buscarArticulos" class="form-label fw-semibold">Buscar por código o descripción</label>
+            <div class="art-busqueda">
+                <input id="buscarArticulos" class="form-control" type="search" maxlength="80"
+                       placeholder="Escriba el código o parte de la descripción" autocomplete="off" />
+                <button id="btnBuscarArticulos" type="button" class="btn btn-danger">Buscar</button>
+            </div>
+            <div id="mensajeBusqueda" class="art-mensaje mt-2" role="status"></div>
+            <div class="table-responsive mt-2">
+                <table class="table table-sm align-middle">
+                    <thead><tr>
+                        <th>Código</th><th>Descripción</th><th>Medida</th><th>Tipo inventario</th>
+                        <th>Batch</th><th class="text-end">Acción</th>
+                    </tr></thead>
+                    <tbody id="articulosTabla">
+                        <tr><td colspan="6" class="text-muted">Cargando artículos...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="d-flex justify-content-between align-items-center gap-2">
+                <button id="paginaAnterior" type="button" class="btn btn-outline-secondary btn-sm" disabled>Anterior</button>
+                <span id="indicadorPagina" class="small text-muted">Página 1</span>
+                <button id="paginaSiguiente" type="button" class="btn btn-outline-secondary btn-sm" disabled>Siguiente</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="panelEdicion" class="card art-panel d-none">
+        <div class="card-body">
+            <h3 class="h6 mb-2">Editar artículo</h3>
+            <p class="text-muted small">El código no se puede cambiar. Solo se actualiza la información del artículo seleccionado.</p>
+            <form id="formArticulo" autocomplete="off">
+                @Html.AntiForgeryToken()
+                <div class="art-edicion">
+                    <div>
+                        <label for="artCodigo">Código del artículo</label>
+                        <input id="artCodigo" name="CodigoArticulo" class="form-control" readonly required maxlength="20" />
+                    </div>
+                    <div>
+                        <label for="artDescripcion">Descripción</label>
+                        <input id="artDescripcion" name="Descripcion" class="form-control" maxlength="100" required />
+                    </div>
+                    <div>
+                        <label for="artMedida">Medida</label>
+                        <select id="artMedida" name="Medida" class="form-select" required></select>
+                    </div>
+                    <div>
+                        <label for="artMultiplo">Múltiplo de caja</label>
+                        <input id="artMultiplo" name="MultiploCaja" class="form-control" type="text" inputmode="decimal" maxlength="12" required />
+                    </div>
+                    <div>
+                        <label for="artTipo">Tipo de inventario</label>
+                        <select id="artTipo" name="TipoInventario" class="form-select" required></select>
+                    </div>
+                    <div>
+                        <label for="artCategoria">Categoría</label>
+                        <input id="artCategoria" name="Categoria" class="form-control" maxlength="50" required />
+                    </div>
+                    <div>
+                        <label for="artSubcategoria">Subcategoría</label>
+                        <input id="artSubcategoria" name="Subcategoria" class="form-control" maxlength="50" required />
+                    </div>
+                    <div>
+                        <label for="artUnidad">Unidad de negocio</label>
+                        <select id="artUnidad" name="UnidadNegocio" class="form-select">
+                            <option value="">Sin definir</option>
+                            <option value="S">Sí</option>
+                            <option value="N">No</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="artOrigen">Origen</label>
+                        <select id="artOrigen" name="Origen" class="form-select"></select>
+                    </div>
+                    <div>
+                        <label for="artBatch">¿Requiere batch?</label>
+                        <select id="artBatch" name="RequiereBatch" class="form-select" required>
+                            <option value="S">Sí</option>
+                            <option value="N">No</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="mensajeEdicion" class="art-mensaje mt-3" role="status"></div>
+                <div class="d-flex flex-wrap gap-2 mt-2">
+                    <button id="btnGuardarArticulo" class="btn btn-danger" type="submit">Guardar cambios</button>
+                    <button id="btnCerrarArticulo" type="button" class="btn btn-outline-secondary">Cerrar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(() => {
+    const urlBuscar = '@Url.Action("Buscar", "MantenimientoArticulos")';
+    const urlDetalle = '@Url.Action("Detalle", "MantenimientoArticulos")';
+    const urlCatalogos = '@Url.Action("Catalogos", "MantenimientoArticulos")';
+    const urlGuardar = '@Url.Action("Guardar", "MantenimientoArticulos")';
+    const $ = id => document.getElementById(id);
+    const tabla = $('articulosTabla');
+    const form = $('formArticulo');
+    let pagina = 1, filtroActual = '', hayMas = false, catalogos = null, cargando = false;
+    let codigoSeleccionado = '';
+
+    function mensaje(id, texto, tipo) {
+        const el = $(id);
+        el.textContent = texto || '';
+        el.className = 'art-mensaje mt-2' + (tipo ? ' ' + tipo : '');
+    }
+    async function leerRespuesta(res) {
+        let data = null;
+        try { data = await res.json(); } catch { }
+        if (!res.ok || !data || data.ok !== true) {
+            throw new Error((data && data.mensaje) || 'No se pudo completar la operación.');
+        }
+        return data;
+    }
+    function opcion(select, codigo, texto, disabled) {
+        const o = document.createElement('option');
+        o.value = codigo == null ? '' : String(codigo);
+        o.textContent = texto == null ? '' : String(texto);
+        if (disabled) o.disabled = true;
+        select.appendChild(o);
+    }
+    function ponerOpciones(id, lista, valor, permitirVacio) {
+        const select = $(id);
+        select.innerHTML = '';
+        if (permitirVacio) opcion(select, '', 'Sin definir');
+        for (const item of lista) {
+            const codigo = item && typeof item === 'object' ? item.codigo : item;
+            const descripcion = item && typeof item === 'object' ? (item.descripcion || '') : '';
+            opcion(select, codigo, descripcion ? String(codigo) + ' - ' + descripcion : String(codigo));
+        }
+        const actual = valor == null ? '' : String(valor);
+        if (actual && ![...select.options].some(o => o.value.toUpperCase() === actual.toUpperCase())) {
+            opcion(select, actual, actual + ' (no existe en el catálogo)', true);
+        }
+        select.value = actual;
+    }
+    function td(tr, contenido) {
+        const cell = document.createElement('td');
+        cell.textContent = contenido == null ? '' : String(contenido);
+        tr.appendChild(cell);
+        return cell;
+    }
+    function mostrarFilas(filas) {
+        tabla.innerHTML = '';
+        if (!filas.length) {
+            const tr = document.createElement('tr');
+            const celda = td(tr, 'No se encontraron artículos.');
+            celda.colSpan = 6;
+            tabla.appendChild(tr);
+            return;
+        }
+        for (const articulo of filas) {
+            const tr = document.createElement('tr');
+            tr.className = 'art-fila';
+            td(tr, articulo.codigoArticulo);
+            td(tr, articulo.descripcion);
+            td(tr, articulo.medida);
+            td(tr, articulo.tipoInventario);
+            td(tr, articulo.requiereBatch);
+            const accion = document.createElement('td');
+            accion.className = 'text-end';
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-outline-danger btn-sm';
+            btn.textContent = 'Editar';
+            btn.addEventListener('click', () => abrirArticulo(articulo.codigoArticulo));
+            accion.appendChild(btn);
+            tr.appendChild(accion);
+            tr.addEventListener('dblclick', () => abrirArticulo(articulo.codigoArticulo));
+            tabla.appendChild(tr);
+        }
+    }
+    async function buscarArticulos() {
+        if (cargando) return;
+        cargando = true;
+        $('btnBuscarArticulos').disabled = true;
+        mensaje('mensajeBusqueda', 'Buscando artículos...', 'info');
+        try {
+            const url = urlBuscar + '?' + new URLSearchParams({ buscar: filtroActual, pagina: String(pagina) });
+            const data = await leerRespuesta(await fetch(url, {headers: {Accept:'application/json'}}));
+            hayMas = data.hayMas === true;
+            mostrarFilas(data.articulos || []);
+            $('paginaAnterior').disabled = pagina <= 1;
+            $('paginaSiguiente').disabled = !hayMas;
+            $('indicadorPagina').textContent = 'Página ' + pagina;
+            mensaje('mensajeBusqueda', 'Seleccione Editar para modificar un artículo.', 'info');
+        } catch (error) {
+            tabla.innerHTML = '';
+            mensaje('mensajeBusqueda', error.message, 'error');
+        } finally {
+            cargando = false;
+            $('btnBuscarArticulos').disabled = false;
+        }
+    }
+    async function abrirArticulo(codigo) {
+        codigoSeleccionado = String(codigo || '');
+        mensaje('mensajeEdicion', 'Cargando artículo...', 'info');
+        try {
+            if (!catalogos) {
+                catalogos = await leerRespuesta(await fetch(urlCatalogos, {headers:{Accept:'application/json'}}));
+            }
+            const data = await leerRespuesta(await fetch(
+                urlDetalle + '?' + new URLSearchParams({codigoArticulo: codigoSeleccionado}),
+                {headers:{Accept:'application/json'}}));
+            if (String(data.articulo.codigoArticulo) !== codigoSeleccionado) return;
+            const a = data.articulo;
+            $('artCodigo').value = a.codigoArticulo || '';
+            $('artDescripcion').value = a.descripcion || '';
+            $('artMultiplo').value = a.multiploCaja == null ? '' : String(a.multiploCaja);
+            $('artCategoria').value = a.categoria || '';
+            $('artSubcategoria').value = a.subcategoria || '';
+            $('artUnidad').value = a.unidadNegocio == null ? '' : (a.unidadNegocio ? 'S' : 'N');
+            $('artBatch').value = a.requiereBatch || 'S';
+            ponerOpciones('artMedida', catalogos.medidas || [], a.medida, false);
+            ponerOpciones('artTipo', catalogos.tipos || [], a.tipoInventario, false);
+            ponerOpciones('artOrigen', catalogos.origenes || [], a.origen, true);
+            $('panelEdicion').classList.remove('d-none');
+            mensaje('mensajeEdicion', '');
+            $('panelEdicion').scrollIntoView({behavior:'smooth',block:'start'});
+        } catch (error) {
+            mensaje('mensajeBusqueda', error.message, 'error');
+            mensaje('mensajeEdicion', error.message, 'error');
+        }
+    }
+    form.addEventListener('submit', async event => {
+        event.preventDefault();
+        if (!form.reportValidity()) return;
+        const btn = $('btnGuardarArticulo');
+        btn.disabled = true;
+        mensaje('mensajeEdicion', 'Guardando cambios...', 'info');
+        try {
+            const data = await leerRespuesta(await fetch(urlGuardar, {
+                method: 'POST',
+                body: new FormData(form),
+                headers: {Accept:'application/json'}
+            }));
+            mensaje('mensajeEdicion', data.mensaje || 'Artículo actualizado correctamente.', 'ok');
+            await buscarArticulos();
+        } catch (error) {
+            mensaje('mensajeEdicion', error.message, 'error');
+        } finally { btn.disabled = false; }
+    });
+    $('btnCerrarArticulo').addEventListener('click', () => {
+        codigoSeleccionado = '';
+        $('panelEdicion').classList.add('d-none');
+        form.reset();
+    });
+    function reiniciarBusqueda() {
+        filtroActual = $('buscarArticulos').value.trim();
+        pagina = 1;
+        void buscarArticulos();
+    }
+    $('btnBuscarArticulos').addEventListener('click', reiniciarBusqueda);
+    $('buscarArticulos').addEventListener('keydown', event => {
+        if (event.key === 'Enter') { event.preventDefault(); reiniciarBusqueda(); }
+    });
+    $('paginaAnterior').addEventListener('click', () => {
+        if (pagina > 1) { pagina--; void buscarArticulos(); }
+    });
+    $('paginaSiguiente').addEventListener('click', () => {
+        if (hayMas) { pagina++; void buscarArticulos(); }
+    });
+    void buscarArticulos();
+})();
+</script>
+}
