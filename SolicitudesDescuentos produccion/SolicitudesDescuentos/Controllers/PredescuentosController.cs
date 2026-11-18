@@ -2482,26 +2482,19 @@ namespace SolicitudesDescuentos.Controllers
             buNombre = (buNombre ?? "").Trim();
             codCliente = (codCliente ?? "").Trim();
 
-            if (string.IsNullOrWhiteSpace(consecutivo))
+            // Buscar siempre la solicitud exacta para evitar coincidencias
+            // de consecutivo entre compañías o clientes diferentes.
+            if (string.IsNullOrWhiteSpace(consecutivo) ||
+                string.IsNullOrWhiteSpace(buNombre) ||
+                string.IsNullOrWhiteSpace(codCliente))
                 return NotFound();
 
-            // ✅ Buscar por llave completa si viene
-            SolicitudesDescuentos.ModelsOracle.PREDESCUENTO? predescuento = null;
-
-            if (!string.IsNullOrWhiteSpace(buNombre) && !string.IsNullOrWhiteSpace(codCliente))
-            {
-                predescuento = await _OracleContext.PREDESCUENTOs
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(p =>
-                        p.CONSECUTIVO == consecutivo &&
-                        p.BU_NOMBRE == buNombre &&
-                        p.COD_CLIENTE == codCliente);
-            }
-
-            // fallback por si te siguen entrando enlaces viejos solo con consecutivo
-            predescuento ??= await _OracleContext.PREDESCUENTOs
+            var predescuento = await _OracleContext.PREDESCUENTOs
                 .AsNoTracking()
-                .FirstOrDefaultAsync(p => p.CONSECUTIVO == consecutivo);
+                .FirstOrDefaultAsync(p =>
+                    p.CONSECUTIVO == consecutivo &&
+                    p.BU_NOMBRE == buNombre &&
+                    p.COD_CLIENTE == codCliente);
 
             if (predescuento == null)
                 return NotFound();
@@ -2808,12 +2801,11 @@ namespace SolicitudesDescuentos.Controllers
                 predescuentoDb.FECHAFIN = model.FECHAFIN;
                 predescuentoDb.OBSERVACIONES = model.OBSERVACIONES;
                 predescuentoDb.ESTADO = model.ESTADO;
-                predescuentoDb.AUTORIZADO_POR = model.AUTORIZADO_POR;
-                predescuentoDb.FECHAREGISTRO = DateTime.Now;
-                predescuentoDb.INGRESADO_POR = User.Identity?.Name ?? string.Empty;
-                predescuentoDb.FECHA_APLICACION = model.FECHA_APLICACION;
 
-                _OracleContext.PREDESCUENTOs.Update(predescuentoDb);
+                // Conservar INGRESADO_POR y FECHAREGISTRO del registro original.
+                // AUTORIZADO_POR y FECHA_APLICACION se asignan al procesar.
+                // Como EF está siguiendo la entidad consultada, SaveChangesAsync()
+                // persiste las modificaciones sin llamar a Update(...) sobre todo el encabezado.
 
                 // Traer detalles actuales en BD
                 var detallesExistentes = await _OracleContext.PREDETDESCUENTOs
