@@ -21,10 +21,13 @@ namespace TomaFisica.Data
         public virtual DbSet<INV_ARTICULO> INV_ARTICULOs { get; set; } = null!;
         public virtual DbSet<INV_ARTIC_CODBAR> INV_ARTIC_CODBARs { get; set; } = null!;
         public virtual DbSet<INV_BODEGA> INV_BODEGAs { get; set; } = null!;
+        public virtual DbSet<INV_CATEGORIA> INV_CATEGORIAs { get; set; } = null!;
         public virtual DbSet<INV_DETTOMAFI> INV_DETTOMAFIs { get; set; } = null!;
         public virtual DbSet<INV_LOC> INV_LOCs { get; set; } = null!;
-        public virtual DbSet<INV_MEDIDum> INV_MEDIDAs { get; set; } = null!;
+        public virtual DbSet<INV_MEDIDA> INV_MEDIDAs { get; set; } = null!;
         public virtual DbSet<INV_ORIGEN> INV_ORIGENs { get; set; } = null!;
+        public virtual DbSet<INV_SUBCATEGORIA> INV_SUBCATEGORIAs { get; set; } = null!;
+        public virtual DbSet<INV_TIPOINV> INV_TIPOINVs { get; set; } = null!;
         public virtual DbSet<INV_TIPOSINV> INV_TIPOSINVs { get; set; } = null!;
         public virtual DbSet<INV_TOMAFI> INV_TOMAFIs { get; set; } = null!;
         public virtual DbSet<LOCALIZARD> LOCALIZARDs { get; set; } = null!;
@@ -197,6 +200,17 @@ namespace TomaFisica.Data
                     .IsFixedLength();
             });
 
+            modelBuilder.Entity<INV_CATEGORIA>(entity =>
+            {
+                entity.HasNoKey();
+
+                entity.ToView("INV_CATEGORIA");
+
+                entity.Property(e => e.CATEGORIA)
+                    .HasMaxLength(50)
+                    .IsUnicode(false);
+            });
+
             modelBuilder.Entity<INV_DETTOMAFI>(entity =>
             {
                 entity.HasKey(e => new { e.SECUENCIA, e.COD_LOTE, e.COD_ARTICULO, e.LOCALIZA })
@@ -313,7 +327,7 @@ namespace TomaFisica.Data
                     .HasConstraintName("INVBODEGA_LOC_FK");
             });
 
-            modelBuilder.Entity<INV_MEDIDum>(entity =>
+            modelBuilder.Entity<INV_MEDIDA>(entity =>
             {
                 entity.HasNoKey();
 
@@ -342,6 +356,32 @@ namespace TomaFisica.Data
                     .IsUnicode(false);
 
                 entity.Property(e => e.ORIGEN).HasPrecision(2);
+            });
+
+            modelBuilder.Entity<INV_SUBCATEGORIA>(entity =>
+            {
+                entity.HasNoKey();
+
+                entity.ToView("INV_SUBCATEGORIA");
+
+                entity.Property(e => e.CATEGORIA)
+                    .HasMaxLength(50)
+                    .IsUnicode(false);
+
+                entity.Property(e => e.SUBCATEGORIA)
+                    .HasMaxLength(50)
+                    .IsUnicode(false);
+            });
+
+            modelBuilder.Entity<INV_TIPOINV>(entity =>
+            {
+                entity.HasNoKey();
+
+                entity.ToView("INV_TIPOINV");
+
+                entity.Property(e => e.TIPOINVENTARIO)
+                    .HasMaxLength(30)
+                    .IsUnicode(false);
             });
 
             modelBuilder.Entity<INV_TIPOSINV>(entity =>
@@ -457,6 +497,8 @@ namespace TomaFisica.Data
 
                 entity.Property(e => e.VOLUMENORDER).HasColumnType("NUMBER(14,4)");
             });
+
+            modelBuilder.HasSequence("SEQ_AUD_INV_ARTICULO");
 
             OnModelCreatingPartial(modelBuilder);
         }
