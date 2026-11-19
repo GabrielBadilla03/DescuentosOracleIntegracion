@@ -254,11 +254,13 @@ public class ConteoTomaFisicaController : Controller
             batchKey = Normalizar(detalle?.BATCH);
         if (articulo.RequiereBatch && batchKey.Length == 0)
             return BadRequest(new { ok = false,
-                mensaje = $"El articulo {articulo.Codigo} requiere batch (REQUIEREBATCH = S)." });
+                mensaje = $"El artículo {articulo.Codigo} requiere batch (PRODUCTO TERMINADO, REQUIEREBATCH = S)." });
 
-        // El batch debe existir en PNORDENES y corresponder al articulo en PRDBATCH.
-        var batchResult = await ResolverBatchAsync(
-            batchKey, articulo.CodigoNormalizado, cancellationToken);
+        // Solo los productos terminados que requieren batch deben validarse
+        // contra PNORDENES y PRDBATCH. Para otros artículos el batch es opcional.
+        var batchResult = articulo.RequiereBatch
+            ? await ResolverBatchAsync(batchKey, articulo.CodigoNormalizado, cancellationToken)
+            : BatchOpcional(batchKey);
         if (!batchResult.Ok)
             return BadRequest(new { ok = false, mensaje = batchResult.Mensaje });
 
@@ -432,17 +434,21 @@ public class ConteoTomaFisicaController : Controller
         var articuloMaster = await _context.INV_ARTICULOs.AsNoTracking()
             .Where(x => x.COD_ARTICULO != null &&
                 x.COD_ARTICULO.Trim().ToUpper() == articuloKey)
-            .Select(x => new { x.REQUIEREBATCH })
+            .Select(x => new { x.REQUIEREBATCH, x.TIPOINVENTARIO })
             .FirstOrDefaultAsync(cancellationToken);
         if (articuloMaster == null)
             return NotFound(new { ok = false, mensaje = $"El articulo {articuloKey} no existe en INV_ARTICULO." });
 
         var batchKey = Normalizar(batch);
-        if (Normalizar(articuloMaster.REQUIEREBATCH) == "S" && batchKey.Length == 0)
+        var requiereValidacionBatch =
+            RequiereValidacionBatch(articuloMaster.TIPOINVENTARIO, articuloMaster.REQUIEREBATCH);
+        if (requiereValidacionBatch && batchKey.Length == 0)
             return BadRequest(new { ok = false,
-                mensaje = $"El articulo {articuloKey} requiere batch (REQUIEREBATCH = S)." });
+                mensaje = $"El artículo {articuloKey} requiere batch (PRODUCTO TERMINADO, REQUIEREBATCH = S)." });
 
-        var batchResult = await ResolverBatchAsync(batchKey, articuloKey, cancellationToken);
+        var batchResult = requiereValidacionBatch
+            ? await ResolverBatchAsync(batchKey, articuloKey, cancellationToken)
+            : BatchOpcional(batchKey);
         if (!batchResult.Ok)
             return BadRequest(new { ok = false, mensaje = batchResult.Mensaje });
 
@@ -579,13 +585,14 @@ public class ConteoTomaFisicaController : Controller
         var articuloKey = string.IsNullOrWhiteSpace(codigoPorBarra) ? key : Normalizar(codigoPorBarra);
         var articulo = await _context.INV_ARTICULOs.AsNoTracking()
             .Where(x => x.COD_ARTICULO != null && x.COD_ARTICULO.Trim().ToUpper() == articuloKey)
-            .Select(x => new { x.COD_ARTICULO, x.DESCRIPCION, x.MEDIDA, x.REQUIEREBATCH }).FirstOrDefaultAsync(ct);
+            .Select(x => new { x.COD_ARTICULO, x.DESCRIPCION, x.MEDIDA,
+                x.REQUIEREBATCH, x.TIPOINVENTARIO }).FirstOrDefaultAsync(ct);
         if (articulo == null) return null;
         var codigo = (articulo.COD_ARTICULO ?? "").Trim();
         return new ArticuloResuelto { Codigo = codigo, CodigoNormalizado = Normalizar(codigo),
             Descripcion = (articulo.DESCRIPCION ?? "").Trim(),
             Medida = (articulo.MEDIDA ?? "").Trim(),
-            RequiereBatch = Normalizar(articulo.REQUIEREBATCH) == "S" };
+            RequiereBatch = RequiereValidacionBatch(articulo.TIPOINVENTARIO, articulo.REQUIEREBATCH) };
     }
 
     private async Task<OrigenResult> ResolverOrigenAsync(string? origen, CancellationToken ct)
@@ -601,6 +608,16 @@ public class ConteoTomaFisicaController : Controller
             return new OrigenResult(false, $"El origen {key} no existe.", null, "");
         return new OrigenResult(true, "", registro.ORIGEN, (registro.DESCRIPCION ?? "").Trim());
     }
+
+    private static bool RequiereValidacionBatch(string? tipoInventario, string? requiereBatch) =>
+        Normalizar(tipoInventario) == "PRODUCTO TERMINADO" && Normalizar(requiereBatch) == "S";
+
+    // Para artículos que no sean producto terminado con batch obligatorio,
+    // se permite dejar el batch vacío o registrar su valor sin consultar PRDBATCH.
+    private static BatchResult BatchOpcional(string batch) =>
+        batch.Length > 30
+            ? new BatchResult(false, "El batch no puede superar 30 caracteres.", null, null)
+            : new BatchResult(true, "", batch.Length == 0 ? null : batch, null);
 
     private async Task<BatchResult> ResolverBatchAsync(
         string batch, string codigoArticulo, CancellationToken ct)
