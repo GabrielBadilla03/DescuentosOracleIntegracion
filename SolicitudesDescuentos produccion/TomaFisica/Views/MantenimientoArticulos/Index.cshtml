@@ -30,7 +30,10 @@
 
     <div class="card art-panel mb-3">
         <div class="card-body">
-            <label for="buscarArticulos" class="form-label fw-semibold">Buscar por código o descripción</label>
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                <label for="buscarArticulos" class="form-label fw-semibold mb-0">Buscar por código o descripción</label>
+                <button id="btnNuevoArticulo" type="button" class="btn btn-danger btn-sm">+ Agregar artículo</button>
+            </div>
             <div class="art-busqueda">
                 <input id="buscarArticulos" class="form-control" type="search" maxlength="80"
                        placeholder="Escriba el código o parte de la descripción" autocomplete="off" />
@@ -58,10 +61,11 @@
 
     <div id="panelEdicion" class="card art-panel d-none">
         <div class="card-body">
-            <h3 class="h6 mb-2">Editar artículo</h3>
-            <p class="text-muted small">El código no se puede cambiar. Solo se actualiza la información del artículo seleccionado.</p>
+            <h3 id="tituloArticulo" class="h6 mb-2">Editar artículo</h3>
+            <p id="ayudaArticulo" class="text-muted small">El código no se puede cambiar en un artículo existente.</p>
             <form id="formArticulo" autocomplete="off">
                 @Html.AntiForgeryToken()
+                <input type="hidden" id="esNuevo" name="EsNuevo" value="false" />
                 <div class="art-edicion">
                     <div>
                         <label for="artCodigo">Código del artículo</label>
@@ -85,11 +89,11 @@
                     </div>
                     <div>
                         <label for="artCategoria">Categoría</label>
-                        <input id="artCategoria" name="Categoria" class="form-control" maxlength="50" required />
+                        <select id="artCategoria" name="Categoria" class="form-select" required></select>
                     </div>
                     <div>
                         <label for="artSubcategoria">Subcategoría</label>
-                        <input id="artSubcategoria" name="Subcategoria" class="form-control" maxlength="50" required />
+                        <select id="artSubcategoria" name="Subcategoria" class="form-select" required></select>
                     </div>
                     <div>
                         <label for="artUnidad">Unidad de negocio</label>
@@ -157,7 +161,7 @@
     function ponerOpciones(id, lista, valor, permitirVacio) {
         const select = $(id);
         select.innerHTML = '';
-        if (permitirVacio) opcion(select, '', 'Sin definir');
+        opcion(select, '', permitirVacio ? 'Sin definir' : 'Seleccione...');
         for (const item of lista) {
             const codigo = item && typeof item === 'object' ? item.codigo : item;
             const descripcion = item && typeof item === 'object' ? (item.descripcion || '') : '';
@@ -168,6 +172,47 @@
             opcion(select, actual, actual + ' (no existe en el catálogo)', true);
         }
         select.value = actual;
+    }
+    async function cargarCatalogos() {
+        if (!catalogos) {
+            catalogos = await leerRespuesta(await fetch(urlCatalogos, {headers:{Accept:'application/json'}}));
+        }
+    }
+    function ponerSubcategorias(categoria, valor) {
+        const lista = (catalogos?.subcategorias || [])
+            .filter(x => String(x.categoria || '').toUpperCase() === String(categoria || '').toUpperCase())
+            .map(x => x.subcategoria);
+        ponerOpciones('artSubcategoria', lista, valor, false);
+    }
+    function configurarListas(articulo) {
+        const a = articulo || {};
+        ponerOpciones('artMedida', catalogos.medidas || [], a.medida, false);
+        ponerOpciones('artTipo', catalogos.tipos || [], a.tipoInventario, false);
+        ponerOpciones('artCategoria', catalogos.categorias || [], a.categoria, false);
+        ponerSubcategorias(a.categoria, a.subcategoria);
+        ponerOpciones('artOrigen', catalogos.origenes || [], a.origen, true);
+    }
+    async function nuevoArticulo() {
+        try {
+            await cargarCatalogos();
+            form.reset();
+            codigoSeleccionado = '';
+            $('esNuevo').value = 'true';
+            $('artCodigo').readOnly = false;
+            $('artCodigo').value = '';
+            $('tituloArticulo').textContent = 'Agregar artículo';
+            $('ayudaArticulo').textContent = 'Digite un código nuevo y seleccione tipo, categoría y subcategoría de sus listas.';
+            $('btnGuardarArticulo').textContent = 'Crear artículo';
+            $('artMultiplo').value = '1';
+            $('artBatch').value = 'S';
+            configurarListas({});
+            $('panelEdicion').classList.remove('d-none');
+            mensaje('mensajeEdicion', '');
+            $('panelEdicion').scrollIntoView({behavior:'smooth',block:'start'});
+            $('artCodigo').focus();
+        } catch (error) {
+            mensaje('mensajeBusqueda', error.message, 'error');
+        }
     }
     function td(tr, contenido) {
         const cell = document.createElement('td');
@@ -218,7 +263,7 @@
             $('paginaAnterior').disabled = pagina <= 1;
             $('paginaSiguiente').disabled = !hayMas;
             $('indicadorPagina').textContent = 'Página ' + pagina;
-            mensaje('mensajeBusqueda', 'Seleccione Editar para modificar un artículo.', 'info');
+            mensaje('mensajeBusqueda', 'Seleccione Editar o agregue un artículo nuevo.', 'info');
         } catch (error) {
             tabla.innerHTML = '';
             mensaje('mensajeBusqueda', error.message, 'error');
@@ -231,24 +276,23 @@
         codigoSeleccionado = String(codigo || '');
         mensaje('mensajeEdicion', 'Cargando artículo...', 'info');
         try {
-            if (!catalogos) {
-                catalogos = await leerRespuesta(await fetch(urlCatalogos, {headers:{Accept:'application/json'}}));
-            }
+            await cargarCatalogos();
             const data = await leerRespuesta(await fetch(
                 urlDetalle + '?' + new URLSearchParams({codigoArticulo: codigoSeleccionado}),
                 {headers:{Accept:'application/json'}}));
             if (String(data.articulo.codigoArticulo) !== codigoSeleccionado) return;
             const a = data.articulo;
+            $('esNuevo').value = 'false';
+            $('artCodigo').readOnly = true;
+            $('tituloArticulo').textContent = 'Editar artículo';
+            $('ayudaArticulo').textContent = 'El código del artículo no se puede cambiar.';
+            $('btnGuardarArticulo').textContent = 'Guardar cambios';
             $('artCodigo').value = a.codigoArticulo || '';
             $('artDescripcion').value = a.descripcion || '';
             $('artMultiplo').value = a.multiploCaja == null ? '' : String(a.multiploCaja);
-            $('artCategoria').value = a.categoria || '';
-            $('artSubcategoria').value = a.subcategoria || '';
             $('artUnidad').value = a.unidadNegocio == null ? '' : (a.unidadNegocio ? 'S' : 'N');
             $('artBatch').value = a.requiereBatch || 'S';
-            ponerOpciones('artMedida', catalogos.medidas || [], a.medida, false);
-            ponerOpciones('artTipo', catalogos.tipos || [], a.tipoInventario, false);
-            ponerOpciones('artOrigen', catalogos.origenes || [], a.origen, true);
+            configurarListas(a);
             $('panelEdicion').classList.remove('d-none');
             mensaje('mensajeEdicion', '');
             $('panelEdicion').scrollIntoView({behavior:'smooth',block:'start'});
@@ -269,8 +313,11 @@
                 body: new FormData(form),
                 headers: {Accept:'application/json'}
             }));
-            mensaje('mensajeEdicion', data.mensaje || 'Artículo actualizado correctamente.', 'ok');
             await buscarArticulos();
+            if ($('esNuevo').value === 'true') {
+                await abrirArticulo(data.codigoArticulo);
+            }
+            mensaje('mensajeEdicion', data.mensaje || 'Artículo guardado correctamente.', 'ok');
         } catch (error) {
             mensaje('mensajeEdicion', error.message, 'error');
         } finally { btn.disabled = false; }
@@ -279,6 +326,12 @@
         codigoSeleccionado = '';
         $('panelEdicion').classList.add('d-none');
         form.reset();
+        $('esNuevo').value = 'false';
+        $('artCodigo').readOnly = true;
+    });
+    $('btnNuevoArticulo').addEventListener('click', () => { void nuevoArticulo(); });
+    $('artCategoria').addEventListener('change', () => {
+        if (catalogos) ponerSubcategorias($('artCategoria').value, '');
     });
     function reiniciarBusqueda() {
         filtroActual = $('buscarArticulos').value.trim();

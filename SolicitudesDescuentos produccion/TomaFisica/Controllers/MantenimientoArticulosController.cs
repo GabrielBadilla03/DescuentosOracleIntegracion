@@ -102,8 +102,15 @@ public class MantenimientoArticulosController : Controller
         var medidas = await _context.INV_MEDIDAs.AsNoTracking()
             .Select(x => new { codigo = x.MEDIDA, descripcion = x.DES_MEDIDA })
             .ToListAsync(cancellationToken);
-        var tipos = await _context.INV_TIPOSINVs.AsNoTracking()
+        // Las listas nuevas son vistas de los artículos existentes.
+        var tipos = await _context.INV_TIPOINVs.AsNoTracking()
             .Select(x => x.TIPOINVENTARIO)
+            .ToListAsync(cancellationToken);
+        var categorias = await _context.INV_CATEGORIAs.AsNoTracking()
+            .Select(x => x.CATEGORIA)
+            .ToListAsync(cancellationToken);
+        var subcategorias = await _context.INV_SUBCATEGORIAs.AsNoTracking()
+            .Select(x => new { x.CATEGORIA, x.SUBCATEGORIA })
             .ToListAsync(cancellationToken);
         var origenes = await _context.INV_ORIGENs.AsNoTracking()
             .Where(x => x.ORIGEN.HasValue)
@@ -118,8 +125,18 @@ public class MantenimientoArticulosController : Controller
                 .Select(x => new { codigo = x.Key, descripcion = x.First().descripcion?.Trim() ?? "" })
                 .OrderBy(x => x.codigo).ToList(),
             tipos = tipos.Where(x => !string.IsNullOrWhiteSpace(x))
-                .Select(x => x.Trim()).Distinct(StringComparer.OrdinalIgnoreCase)
+                .Select(x => x!.Trim()).Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(x => x).ToList(),
+            categorias = categorias.Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x!.Trim()).Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(x => x).ToList(),
+            subcategorias = subcategorias
+                .Where(x => !string.IsNullOrWhiteSpace(x.CATEGORIA) &&
+                            !string.IsNullOrWhiteSpace(x.SUBCATEGORIA))
+                .Select(x => new { categoria = x.CATEGORIA!.Trim(), subcategoria = x.SUBCATEGORIA!.Trim() })
+                .GroupBy(x => (x.categoria.ToUpperInvariant(), x.subcategoria.ToUpperInvariant()))
+                .Select(g => g.First())
+                .OrderBy(x => x.categoria).ThenBy(x => x.subcategoria).ToList(),
             origenes = origenes.GroupBy(x => x.codigo)
                 .Select(x => new { codigo = x.Key, descripcion = x.First().descripcion?.Trim() ?? "" })
                 .OrderBy(x => x.codigo).ToList()
@@ -178,9 +195,17 @@ public class MantenimientoArticulosController : Controller
         if (!await _context.INV_MEDIDAs.AsNoTracking().AnyAsync(x =>
                 x.MEDIDA != null && x.MEDIDA.Trim().ToUpper() == medida, cancellationToken))
             return BadRequest(new { ok = false, mensaje = "La medida no existe en INV_MEDIDA." });
-        if (!await _context.INV_TIPOSINVs.AsNoTracking().AnyAsync(x =>
+        if (!await _context.INV_TIPOINVs.AsNoTracking().AnyAsync(x =>
                 x.TIPOINVENTARIO != null && x.TIPOINVENTARIO.Trim().ToUpper() == tipo, cancellationToken))
-            return BadRequest(new { ok = false, mensaje = "El tipo de inventario no existe en INV_TIPOSINV." });
+            return BadRequest(new { ok = false, mensaje = "El tipo de inventario no existe en INV_TIPOINV." });
+        if (!await _context.INV_CATEGORIAs.AsNoTracking().AnyAsync(x =>
+                x.CATEGORIA != null && x.CATEGORIA.Trim().ToUpper() == categoria.ToUpper(), cancellationToken))
+            return BadRequest(new { ok = false, mensaje = "La categoría no existe en INV_CATEGORIA." });
+        if (!await _context.INV_SUBCATEGORIAs.AsNoTracking().AnyAsync(x =>
+                x.CATEGORIA != null && x.SUBCATEGORIA != null &&
+                x.CATEGORIA.Trim().ToUpper() == categoria.ToUpper() &&
+                x.SUBCATEGORIA.Trim().ToUpper() == subcategoria.ToUpper(), cancellationToken))
+            return BadRequest(new { ok = false, mensaje = "La subcategoría no pertenece a la categoría seleccionada." });
 
         // Se obtiene la identidad de la sesión, nunca de datos enviados por el navegador.
         var codUsuario = User.FindFirst(ClaimTypes.NameIdentifier)?.Value?.Trim();
@@ -195,16 +220,18 @@ public class MantenimientoArticulosController : Controller
             return BadRequest(new { ok = false, mensaje = "Los datos del usuario superan los límites de la auditoría." });
 
         var nuevaUnidadNegocio = unidadNegocio == "" ? (bool?)null : unidadNegocio == "S";
+        var esNuevo = datos.EsNuevo;
 
         try
         {
             // La lectura, actualización y auditoría comparten una sola transacción.
             await using var transaccion = await _context.Database.BeginTransactionAsync(cancellationToken);
 
-            // Evita que otra actualización cambie el artículo entre la lectura
-            // de los valores originales y el registro de auditoría (Oracle 11g).
-            await using (var bloqueo = _context.Database.GetDbConnection().CreateCommand())
+            // Para edición: bloquear la fila antes de leer los valores originales.
+            // Para creación: el código es la llave única y se comprueba que no exista.
+            if (!esNuevo)
             {
+                await using var bloqueo = _context.Database.GetDbConnection().CreateCommand();
                 bloqueo.Transaction = transaccion.GetDbTransaction();
                 bloqueo.CommandText = @"SELECT COD_ARTICULO
 FROM TOMAFIS.INV_ARTICULO
@@ -218,11 +245,17 @@ FOR UPDATE";
                 if (codigoBloqueado is null or DBNull)
                     return NotFound(new { ok = false, mensaje = "El artículo ya no existe." });
             }
+            else if (await _context.INV_ARTICULOs.AsNoTracking().AnyAsync(x =>
+                x.COD_ARTICULO != null && x.COD_ARTICULO.Trim().ToUpper() == codigo, cancellationToken))
+            {
+                return Conflict(new { ok = false, mensaje = "Ya existe un artículo con ese código." });
+            }
 
-            var articulo = await _context.INV_ARTICULOs.FirstOrDefaultAsync(
-                x => x.COD_ARTICULO != null && x.COD_ARTICULO.Trim().ToUpper() == codigo,
-                cancellationToken);
-            if (articulo == null)
+            INV_ARTICULO? articulo = esNuevo ? null :
+                await _context.INV_ARTICULOs.FirstOrDefaultAsync(
+                    x => x.COD_ARTICULO != null && x.COD_ARTICULO.Trim().ToUpper() == codigo,
+                    cancellationToken);
+            if (!esNuevo && articulo == null)
                 return NotFound(new { ok = false, mensaje = "El artículo ya no existe." });
 
             var cambios = new List<string>();
@@ -247,19 +280,21 @@ FOR UPDATE";
             static string Unidad(bool? valor) =>
                 !valor.HasValue ? "" : valor.Value ? "S" : "N";
 
-            AgregarCambio("DESCRIPCION", articulo.DESCRIPCION, descripcion);
-            AgregarCambio("MEDIDA", articulo.MEDIDA, medida);
-            AgregarCambio("MULTIPLOCAJA", Numero(articulo.MULTIPLOCAJA), Numero(multiploCaja));
-            AgregarCambio("TIPOINVENTARIO", articulo.TIPOINVENTARIO, tipo);
-            AgregarCambio("CATEGORIA", articulo.CATEGORIA, categoria);
-            AgregarCambio("SUBCATEGORIA", articulo.SUBCATEGORIA, subcategoria);
-            AgregarCambio("UNIDADNEGOCIO", Unidad(articulo.UNIDADNEGOCIO), Unidad(nuevaUnidadNegocio));
-            AgregarCambio("ORIGEN", articulo.ORIGEN?.ToString(CultureInfo.InvariantCulture),
+            if (esNuevo)
+                AgregarCambio("COD_ARTICULO", null, codigo);
+            AgregarCambio("DESCRIPCION", articulo?.DESCRIPCION, descripcion);
+            AgregarCambio("MEDIDA", articulo?.MEDIDA, medida);
+            AgregarCambio("MULTIPLOCAJA", articulo == null ? null : Numero(articulo.MULTIPLOCAJA), Numero(multiploCaja));
+            AgregarCambio("TIPOINVENTARIO", articulo?.TIPOINVENTARIO, tipo);
+            AgregarCambio("CATEGORIA", articulo?.CATEGORIA, categoria);
+            AgregarCambio("SUBCATEGORIA", articulo?.SUBCATEGORIA, subcategoria);
+            AgregarCambio("UNIDADNEGOCIO", Unidad(articulo?.UNIDADNEGOCIO), Unidad(nuevaUnidadNegocio));
+            AgregarCambio("ORIGEN", articulo?.ORIGEN?.ToString(CultureInfo.InvariantCulture),
                 origen?.ToString(CultureInfo.InvariantCulture));
-            AgregarCambio("REQUIEREBATCH", articulo.REQUIEREBATCH, requiereBatch);
+            AgregarCambio("REQUIEREBATCH", articulo?.REQUIEREBATCH, requiereBatch);
 
             if (cambios.Count == 0)
-                return Json(new { ok = true, mensaje = "No se detectaron cambios en el artículo.", codigoArticulo = articulo.COD_ARTICULO.Trim() });
+                return Json(new { ok = true, mensaje = "No se detectaron cambios en el artículo.", codigoArticulo = articulo!.COD_ARTICULO.Trim() });
 
             // El mapeo de ID_AUDITORIA usa ValueGeneratedNever: se asigna
             // NEXTVAL explícitamente. SYSDATE evita depender del reloj del servidor web.
@@ -277,7 +312,11 @@ FOR UPDATE";
                 fechaCambio = lector.GetDateTime(1);
             }
 
-            // La llave y los registros relacionados al artículo no se modifican.
+            // Para crear se inserta una nueva entidad; en edición se conserva la llave.
+            articulo ??= new INV_ARTICULO { COD_ARTICULO = codigo };
+            if (esNuevo)
+                _context.INV_ARTICULOs.Add(articulo);
+
             articulo.DESCRIPCION = descripcion;
             articulo.MEDIDA = medida;
             articulo.MULTIPLOCAJA = multiploCaja;
@@ -297,7 +336,7 @@ FOR UPDATE";
                 COD_CIA = codCia,
                 COD_SUCURSAL = codSucursal,
                 FECHA_CAMBIO = fechaCambio,
-                TIPO_ACCION = "MODIFICACION",
+                TIPO_ACCION = esNuevo ? "CREACION" : "MODIFICACION",
                 DESCRIPCION = string.Join(Environment.NewLine, cambios)
             });
 
@@ -305,9 +344,12 @@ FOR UPDATE";
             await transaccion.CommitAsync(cancellationToken);
 
             _logger.LogInformation(
-                "Artículo {CodigoArticulo} actualizado por {Usuario}. Auditoría {IdAuditoria}, campos: {Campos}",
-                articulo.COD_ARTICULO.Trim(), codUsuario, idAuditoria, string.Join(", ", cambios.Select(x => x.Split(':')[0])));
-            return Json(new { ok = true, mensaje = "Artículo actualizado correctamente.", codigoArticulo = articulo.COD_ARTICULO.Trim() });
+                "Artículo {CodigoArticulo} {Accion} por {Usuario}. Auditoría {IdAuditoria}, campos: {Campos}",
+                articulo.COD_ARTICULO.Trim(), esNuevo ? "creado" : "actualizado", codUsuario,
+                idAuditoria, string.Join(", ", cambios.Select(x => x.Split(':')[0])));
+            return Json(new { ok = true,
+                mensaje = esNuevo ? "Artículo creado correctamente." : "Artículo actualizado correctamente.",
+                codigoArticulo = articulo.COD_ARTICULO.Trim() });
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -324,6 +366,7 @@ FOR UPDATE";
 
     public sealed class EditarArticuloRequest
     {
+        public bool EsNuevo { get; set; }
         public string? CodigoArticulo { get; set; }
         public string? Descripcion { get; set; }
         public string? Medida { get; set; }

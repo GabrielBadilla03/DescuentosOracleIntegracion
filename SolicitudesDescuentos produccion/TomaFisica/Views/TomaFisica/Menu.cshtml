@@ -84,12 +84,11 @@
                     Códigos de barras
                 </a>
 
-                <button type="button"
-                        class="btn btn-danger toma-menu-opcion"
-                        data-bs-toggle="modal"
-                        data-bs-target="#modalMantenimientos">
-                    Mantenimiento
-                </button>
+                <a asp-controller="MantenimientoArticulos"
+                   asp-action="Index"
+                   class="btn btn-danger toma-menu-opcion">
+                    Mantenimiento de Artículos
+                </a>
 
                 <a asp-controller="CrearTomaFisica"
                    asp-action="Index"
@@ -108,33 +107,4 @@
         </div>
     </div>
 
-</div>
-
-<!-- Selector de mantenimientos; se conservan intactas las demás opciones del menú. -->
-<div class="modal fade" id="modalMantenimientos" tabindex="-1"
-     aria-labelledby="tituloModalMantenimientos" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="tituloModalMantenimientos">Mantenimiento</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"
-                        aria-label="Cerrar"></button>
-            </div>
-            <div class="modal-body">
-                <p class="text-muted small">Seleccione el mantenimiento que desea abrir.</p>
-                <div class="d-grid gap-2">
-                    <a asp-controller="MantenimientoArticulos"
-                       asp-action="Index"
-                       class="btn btn-danger toma-menu-opcion">
-                        Artículos
-                    </a>
-                    <a asp-controller="MantenimientoBatch"
-                       asp-action="Index"
-                       class="btn btn-danger toma-menu-opcion">
-                        Batch
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
 </div>
