@@ -69,11 +69,11 @@
                 <div class="art-edicion">
                     <div>
                         <label for="artCodigo">Código del artículo</label>
-                        <input id="artCodigo" name="CodigoArticulo" class="form-control" readonly required maxlength="20" />
+                        <input id="artCodigo" name="CodigoArticulo" class="form-control" readonly required maxlength="20" autocapitalize="characters" spellcheck="false" />
                     </div>
                     <div>
                         <label for="artDescripcion">Descripción</label>
-                        <input id="artDescripcion" name="Descripcion" class="form-control" maxlength="100" required />
+                        <input id="artDescripcion" name="Descripcion" class="form-control" maxlength="100" required autocapitalize="characters" spellcheck="false" />
                     </div>
                     <div>
                         <label for="artMedida">Medida</label>
@@ -97,11 +97,8 @@
                     </div>
                     <div>
                         <label for="artUnidad">Unidad de negocio</label>
-                        <select id="artUnidad" name="UnidadNegocio" class="form-select">
-                            <option value="">Sin definir</option>
-                            <option value="S">Sí</option>
-                            <option value="N">No</option>
-                        </select>
+                        <input id="artUnidad" name="UnidadNegocio" class="form-control" type="number"
+                               min="0" max="9" step="1" placeholder="Vacío = NULL" />
                     </div>
                     <div>
                         <label for="artOrigen">Origen</label>
@@ -288,9 +285,9 @@
             $('ayudaArticulo').textContent = 'El código del artículo no se puede cambiar.';
             $('btnGuardarArticulo').textContent = 'Guardar cambios';
             $('artCodigo').value = a.codigoArticulo || '';
-            $('artDescripcion').value = a.descripcion || '';
+            $('artDescripcion').value = (a.descripcion || '').toUpperCase();
             $('artMultiplo').value = a.multiploCaja == null ? '' : String(a.multiploCaja);
-            $('artUnidad').value = a.unidadNegocio == null ? '' : (a.unidadNegocio ? 'S' : 'N');
+            $('artUnidad').value = a.unidadNegocio == null ? '' : String(a.unidadNegocio);
             $('artBatch').value = a.requiereBatch || 'S';
             configurarListas(a);
             $('panelEdicion').classList.remove('d-none');
@@ -301,8 +298,15 @@
             mensaje('mensajeEdicion', error.message, 'error');
         }
     }
+    for (const id of ['artCodigo', 'artDescripcion']) {
+        $(id).addEventListener('input', () => {
+            $(id).value = $(id).value.toUpperCase();
+        });
+    }
     form.addEventListener('submit', async event => {
         event.preventDefault();
+        $('artCodigo').value = $('artCodigo').value.toUpperCase();
+        $('artDescripcion').value = $('artDescripcion').value.toUpperCase();
         if (!form.reportValidity()) return;
         const btn = $('btnGuardarArticulo');
         btn.disabled = true;

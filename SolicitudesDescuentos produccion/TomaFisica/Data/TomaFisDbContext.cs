@@ -119,7 +119,7 @@ namespace TomaFisica.Data
                     .HasMaxLength(30)
                     .IsUnicode(false);
 
-                entity.Property(e => e.UNIDADNEGOCIO).HasPrecision(1);
+                entity.Property(e => e.UNIDADNEGOCIO).HasColumnType("NUMBER(1)");
             });
 
             modelBuilder.Entity<INV_ARTIC_CODBAR>(entity =>

@@ -149,7 +149,7 @@ public class MantenimientoArticulosController : Controller
         [FromForm] EditarArticuloRequest datos, CancellationToken cancellationToken)
     {
         var codigo = Normalizar(datos.CodigoArticulo);
-        var descripcion = (datos.Descripcion ?? "").Trim();
+        var descripcion = (datos.Descripcion ?? "").Trim().ToUpperInvariant();
         var medida = Normalizar(datos.Medida);
         var tipo = Normalizar(datos.TipoInventario);
         var categoria = (datos.Categoria ?? "").Trim();
@@ -172,8 +172,15 @@ public class MantenimientoArticulosController : Controller
             return BadRequest(new { ok = false, mensaje = "Categoría y subcategoría son obligatorias (máximo 50 caracteres cada una)." });
         if (requiereBatch is not ("S" or "N"))
             return BadRequest(new { ok = false, mensaje = "Requiere batch debe ser S o N." });
-        if (unidadNegocio is not ("" or "S" or "N"))
-            return BadRequest(new { ok = false, mensaje = "Unidad de negocio no es válida." });
+        byte? nuevaUnidadNegocio = null;
+        if (unidadNegocio.Length > 0)
+        {
+            if (!byte.TryParse(unidadNegocio, NumberStyles.None, CultureInfo.InvariantCulture,
+                    out var unidadNumerica) || unidadNumerica > 9)
+                return BadRequest(new { ok = false,
+                    mensaje = "La unidad de negocio debe ser un número entero de 0 a 9 o quedar en blanco." });
+            nuevaUnidadNegocio = unidadNumerica;
+        }
         if (!decimal.TryParse(multiploTexto,
                 NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint,
                 CultureInfo.InvariantCulture, out var multiploCaja) ||
@@ -219,7 +226,6 @@ public class MantenimientoArticulosController : Controller
             codCia?.Length > 10 || codSucursal?.Length > 10)
             return BadRequest(new { ok = false, mensaje = "Los datos del usuario superan los límites de la auditoría." });
 
-        var nuevaUnidadNegocio = unidadNegocio == "" ? (bool?)null : unidadNegocio == "S";
         var esNuevo = datos.EsNuevo;
 
         try
@@ -277,8 +283,8 @@ FOR UPDATE";
 
             static string Numero(decimal valor) =>
                 valor.ToString("0.##", CultureInfo.InvariantCulture);
-            static string Unidad(bool? valor) =>
-                !valor.HasValue ? "" : valor.Value ? "S" : "N";
+            static string Unidad(byte? valor) =>
+                valor?.ToString(CultureInfo.InvariantCulture) ?? "";
 
             if (esNuevo)
                 AgregarCambio("COD_ARTICULO", null, codigo);

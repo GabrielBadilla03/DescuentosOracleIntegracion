@@ -11,7 +11,7 @@ namespace TomaFisica.ModelsTomaFis
         }
 
         public string COD_ARTICULO { get; set; } = null!;
-        public bool? UNIDADNEGOCIO { get; set; }
+        public byte? UNIDADNEGOCIO { get; set; }
         public decimal MULTIPLOCAJA { get; set; }
         public string MEDIDA { get; set; } = null!;
         public string DESCRIPCION { get; set; } = null!;
