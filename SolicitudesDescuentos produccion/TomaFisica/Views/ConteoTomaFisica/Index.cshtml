@@ -11,6 +11,8 @@
     .toma-ventana-btn.activo, .toma-ventana-btn:hover, .toma-ventana-btn:focus { background: #dc3545; color: #fff; }
     .campo-label { display: block; margin-bottom: 3px; color: #495057; font-size: .75rem; font-weight: 700; }
     .toma-page .form-control, .toma-page .form-select { min-height: 39px; font-size: 16px; }
+    .selector-toma-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(120px,180px); gap: 6px; align-items: end; }
+    .selector-toma-grid > div { min-width: 0; }
     .info-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 4px; margin-top: 7px; }
     .info-item { padding: 5px 6px; border: 1px solid #dee2e6; border-radius: 4px; background: #f8f9fa; min-width: 0; }
     .info-label { color: #6c757d; font-size: .64rem; font-weight: 700; text-transform: uppercase; }
@@ -78,8 +80,18 @@
 
     <div class="card toma-card">
         <div class="card-body">
-            <label for="selectToma" class="campo-label">Toma física</label>
-            <select id="selectToma" class="form-select"><option value="">Cargando tomas...</option></select>
+            <div class="selector-toma-grid">
+                <div>
+                    <label for="selectToma" class="campo-label">Toma física (más reciente por defecto)</label>
+                    <select id="selectToma" class="form-select"><option value="">Cargando tomas...</option></select>
+                </div>
+                <div>
+                    <label for="inputConsecutivoToma" class="campo-label">Consecutivo</label>
+                    <input id="inputConsecutivoToma" class="form-control" type="text" inputmode="numeric"
+                           pattern="[0-9]*" maxlength="10" placeholder="N.º de toma" autocomplete="off"
+                           aria-describedby="mensajeToma" disabled />
+                </div>
+            </div>
             <div id="mensajeToma" class="mensaje" role="status"></div>
             <div id="infoToma" class="info-grid d-none-forzada">
                 <div class="info-item"><div class="info-label">Secuencia</div><div id="infoSecuencia" class="info-value"></div></div>
@@ -175,7 +187,8 @@
     const urlActualizarOrigenBatch = '@Url.Action("ActualizarOrigenBatch", "ConteoTomaFisica")';
     const token = document.querySelector('#formToken input[name="__RequestVerificationToken"]')?.value ?? '';
     const $ = id => document.getElementById(id);
-    const selectToma = $('selectToma'), localiza = $('localiza'), codigo = $('codigo');
+    const selectToma = $('selectToma'), inputConsecutivoToma = $('inputConsecutivoToma');
+    const localiza = $('localiza'), codigo = $('codigo');
     const cantidad = $('cantidad'), origen = $('origen'), batch = $('batch');
     const mensajeCaptura = $('mensajeCaptura'), mensajeLocaliza = $('mensajeLocaliza');
     const mensajeConsulta = $('mensajeConsulta'), mensajeToma = $('mensajeToma');
@@ -186,7 +199,7 @@
     let requiereBatch = false, temporizadorAutoGuardar = null;
     let origenesDisponibles = [];
     let localizacionConfirmada = '', validacionEnCurso = null, numeroSolicitudLoc = 0;
-    let versionToma = 0;
+    let versionToma = 0, temporizadorConsecutivo = null;
 
     function mensaje(elemento, texto, clase = '') {
         elemento.textContent = texto ?? '';
@@ -268,34 +281,59 @@
         for (const [k,v] of Object.entries(obj)) qs.append(k, v ?? '');
         return qs.toString();
     }
+    function cancelarBusquedaConsecutivo() {
+        if (temporizadorConsecutivo) clearTimeout(temporizadorConsecutivo);
+        temporizadorConsecutivo = null;
+    }
     async function cargarListaTomas() {
+        cancelarBusquedaConsecutivo();
         limpiarToma();
         const v = versionToma;
         selectToma.disabled = true;
+        inputConsecutivoToma.disabled = true;
+        inputConsecutivoToma.value = '';
         selectToma.innerHTML = '<option value="">Cargando tomas...</option>';
         mensaje(mensajeToma, '');
+        let ultimaSecuencia = '';
         try {
             const respuesta = await fetch(`${urlListarTomas}?${params({modo})}`, { headers: {Accept:'application/json'} });
             const data = await leerJson(respuesta);
             if (!respuesta.ok || data?.ok !== true) throw new Error(errorServidor(data, 'No fue posible cargar las tomas.'));
             if (v !== versionToma) return;
+            const tomas = data.tomas ?? [];
+            // ListarTomas devuelve las tomas elegibles ordenadas por SECUENCIA DESC.
             selectToma.innerHTML = '<option value="">Seleccione una toma física</option>';
-            for (const toma of data.tomas ?? []) {
+            for (const toma of tomas) {
                 const opt = document.createElement('option');
                 opt.value = toma.secuencia;
                 opt.textContent = `${toma.secuencia} | ${toma.codBodega ?? ''}${toma.desBodega ? ' - '+toma.desBodega : ''} | Tipo ${toma.tipo ?? ''}`;
                 selectToma.appendChild(opt);
             }
-            if (!(data.tomas ?? []).length) mensaje(mensajeToma, data.mensaje ?? `No hay tomas para ${nombreModo()}.`, 'info');
+            if (tomas.length) {
+                ultimaSecuencia = String(tomas[0].secuencia);
+                inputConsecutivoToma.disabled = false;
+            } else {
+                mensaje(mensajeToma, data.mensaje ?? `No hay tomas para ${nombreModo()}.`, 'info');
+            }
         } catch(error) {
             if (v !== versionToma) return;
             selectToma.innerHTML = '<option value="">Sin tomas</option>';
             mensaje(mensajeToma, error.message, 'error');
-        } finally { if (v === versionToma) selectToma.disabled = false; }
+        } finally {
+            if (v === versionToma) selectToma.disabled = false;
+        }
+        if (ultimaSecuencia && v === versionToma) {
+            selectToma.value = ultimaSecuencia;
+            inputConsecutivoToma.value = ultimaSecuencia;
+            await cargarToma();
+        }
     }
-    async function cargarToma() {
-        const seleccionado = parseInt(selectToma.value,10);
+    async function cargarToma({ enfocarLocaliza = true } = {}) {
+        const seleccionado = parseInt(selectToma.value, 10);
+        cancelarBusquedaConsecutivo();
         limpiarToma();
+        inputConsecutivoToma.value = Number.isFinite(seleccionado) && seleccionado > 0
+            ? String(seleccionado) : '';
         if (!Number.isFinite(seleccionado) || seleccionado <= 0) return;
         secuencia = seleccionado;
         const v = versionToma;
@@ -315,12 +353,34 @@
             $('infoToma').classList.remove('d-none-forzada');
             $('cardCaptura').classList.remove('d-none-forzada');
             mensaje(mensajeToma, `${nombreModo()} listo. Registros visibles: ${t.detallesVisibles ?? 0}.`, 'ok');
-            localiza.focus();
+            if (enfocarLocaliza) localiza.focus();
         } catch(error) {
             if (v !== versionToma) return;
-            limpiarToma(); selectToma.value = '';
+            limpiarToma();
+            selectToma.value = '';
+            inputConsecutivoToma.value = '';
             mensaje(mensajeToma, error.message, 'error');
         }
+    }
+    function seleccionarPorConsecutivo(enfocarLocaliza = false) {
+        if (selectToma.disabled || inputConsecutivoToma.disabled) return;
+        const texto = inputConsecutivoToma.value.trim();
+        if (!/^[0-9]{1,10}$/.test(texto) || !Number.isSafeInteger(Number(texto)) || Number(texto) <= 0) {
+            mensaje(mensajeToma, 'Ingrese un consecutivo numérico válido.', 'error');
+            return;
+        }
+        const opcion = [...selectToma.options].find(o => o.value && Number(o.value) === Number(texto));
+        if (!opcion) {
+            mensaje(mensajeToma, `El consecutivo ${texto} no está disponible para ${nombreModo()} en esta sucursal.`, 'error');
+            return;
+        }
+        inputConsecutivoToma.value = opcion.value;
+        if (selectToma.value === opcion.value && secuencia === Number(opcion.value)) {
+            if (enfocarLocaliza) localiza.focus();
+            return;
+        }
+        selectToma.value = opcion.value;
+        void cargarToma({enfocarLocaliza});
     }
     // Se valida sin artículo. La respuesta que llega tarde no puede validar una localización ya cambiada.
     async function validarLocalizacion(enfocarArticulo = false) {
@@ -680,7 +740,30 @@
     }
     $('btnCapturar').addEventListener('click', () => mostrarVentana('capturar'));
     $('btnConsultar').addEventListener('click', () => mostrarVentana('consultar'));
-    selectToma.addEventListener('change', cargarToma);
+    selectToma.addEventListener('change', () => { void cargarToma(); });
+    inputConsecutivoToma.addEventListener('input', () => {
+        cancelarBusquedaConsecutivo();
+        // Nunca mantener una toma anterior activa mientras se digita otra.
+        if (inputConsecutivoToma.value.trim() !== selectToma.value) {
+            selectToma.value = '';
+            limpiarToma();
+        }
+        if (!inputConsecutivoToma.value.trim()) {
+            mensaje(mensajeToma, 'Digite un consecutivo para seleccionar una toma.', 'info');
+            return;
+        }
+        temporizadorConsecutivo = setTimeout(() => seleccionarPorConsecutivo(), 450);
+    });
+    inputConsecutivoToma.addEventListener('change', () => {
+        cancelarBusquedaConsecutivo();
+        if (inputConsecutivoToma.value.trim()) seleccionarPorConsecutivo();
+    });
+    inputConsecutivoToma.addEventListener('keydown', event => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        cancelarBusquedaConsecutivo();
+        seleccionarPorConsecutivo(true);
+    });
     $('btnGuardar').addEventListener('click', guardarConteo);
     cantidad.addEventListener('change', programarAutoGuardado);
     origen.addEventListener('change', programarAutoGuardado);
